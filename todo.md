@@ -38,9 +38,9 @@
 - [x] Save checkpoint
 
 ## Phase 2: Project Configuration
-- [ ] ICP profiles (create, edit, delete per project)
-- [ ] Brand voice profiles per project
-- [ ] CTA templates per project
+- [x] ICP profiles (create, edit, delete per project)
+- [x] Brand voice profiles per project
+- [x] CTA templates per project
 - [ ] Sitemap management per project
 - [ ] Citation sources per project
 - [ ] Reference documents per project
@@ -93,4 +93,23 @@
 - [x] Article status workflow (Draft → Review → Complete → Published)
 - [x] Wire Generate nav item to outline generator
 - [x] Write vitest tests for article and outline CRUD
+- [x] Save checkpoint
+
+## Phase 2 (Active): Project Configuration
+- [x] Add ICP Profile database model (name, description, demographics, painPoints, goals, projectId)
+- [x] Add Brand Voice database model (name, tone, style, vocabulary, examples, projectId)
+- [x] Add CTA Template database model (name, text, type, placement, projectId)
+- [x] Push database migrations
+- [x] Build ICP Profile tRPC routes (list, create, update, delete)
+- [x] Build Brand Voice tRPC routes (list, create, update, delete)
+- [x] Build CTA Template tRPC routes (list, create, update, delete)
+- [x] Build Project Settings page with tabs (ICP, Brand Voice, CTAs)
+- [x] ICP Profile management UI (create, edit, delete with form)
+- [x] Brand Voice management UI (create, edit, delete with form)
+- [x] CTA Template management UI (create, edit, delete with form)
+- [x] Wire ICP selection into Generate Article page (input accepted)
+- [x] Wire Brand Voice selection into Generate Article page (input accepted)
+- [x] Update outline generation prompt to use ICP context
+- [x] Update article generation prompt to use ICP + Brand Voice + CTA
+- [x] Write vitest tests for ICP, Brand Voice, CTA routes (14 tests)
 - [ ] Save checkpoint

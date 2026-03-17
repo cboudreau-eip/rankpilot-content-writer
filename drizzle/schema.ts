@@ -111,3 +111,99 @@ export const articles = mysqlTable("articles", {
 
 export type Article = typeof articles.$inferSelect;
 export type InsertArticle = typeof articles.$inferInsert;
+
+/**
+ * ICP Profiles — Ideal Customer Profile targeting for content generation.
+ */
+export const icpProfiles = mysqlTable("icp_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  /** Target demographics: age range, location, income, education, etc. */
+  demographics: json("demographics").$type<ICPDemographics>(),
+  /** Pain points the ICP experiences */
+  painPoints: json("painPoints").$type<string[]>(),
+  /** Goals and motivations */
+  goals: json("goals").$type<string[]>(),
+  /** Objections or concerns */
+  objections: json("objections").$type<string[]>(),
+  /** Preferred content formats and channels */
+  contentPreferences: json("contentPreferences").$type<string[]>(),
+  /** Search behavior: what they search for, how they search */
+  searchBehavior: text("searchBehavior"),
+  /** Whether this is the default ICP for the project */
+  isDefault: int("isDefault").default(0).notNull(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ICPProfile = typeof icpProfiles.$inferSelect;
+export type InsertICPProfile = typeof icpProfiles.$inferInsert;
+
+export interface ICPDemographics {
+  ageRange?: string;
+  location?: string;
+  income?: string;
+  education?: string;
+  occupation?: string;
+  other?: string;
+}
+
+/**
+ * Brand Voices — writing style and tone configuration for content generation.
+ */
+export const brandVoices = mysqlTable("brand_voices", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  /** Overall tone: professional, conversational, authoritative, friendly, etc. */
+  tone: varchar("tone", { length: 128 }),
+  /** Writing style guidelines */
+  style: text("style"),
+  /** Words/phrases to use frequently */
+  vocabulary: json("vocabulary").$type<string[]>(),
+  /** Words/phrases to avoid */
+  avoidWords: json("avoidWords").$type<string[]>(),
+  /** Example sentences demonstrating the voice */
+  examples: json("examples").$type<string[]>(),
+  /** Brand-specific rules (e.g., always capitalize Product Name, never use jargon) */
+  rules: json("rules").$type<string[]>(),
+  /** Whether this is the default voice for the project */
+  isDefault: int("isDefault").default(0).notNull(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandVoice = typeof brandVoices.$inferSelect;
+export type InsertBrandVoice = typeof brandVoices.$inferInsert;
+
+/**
+ * CTA Templates — reusable call-to-action blocks for article generation.
+ */
+export const ctaTemplates = mysqlTable("cta_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  /** The CTA text/HTML content */
+  content: text("content").notNull(),
+  /** CTA type: inline, banner, sidebar, footer, popup */
+  type: varchar("type", { length: 64 }).default("inline").notNull(),
+  /** Where in the article to place this CTA */
+  placement: varchar("placement", { length: 64 }).default("end").notNull(),
+  /** Optional URL the CTA links to */
+  url: varchar("url", { length: 1024 }),
+  /** Optional button text */
+  buttonText: varchar("buttonText", { length: 255 }),
+  /** Whether this is the default CTA for the project */
+  isDefault: int("isDefault").default(0).notNull(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CTATemplate = typeof ctaTemplates.$inferSelect;
+export type InsertCTATemplate = typeof ctaTemplates.$inferInsert;

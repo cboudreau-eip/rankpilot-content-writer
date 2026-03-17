@@ -239,3 +239,113 @@ export async function getArticleStats(projectId: number) {
   }
   return stats;
 }
+
+// ---- ICP Profile Helpers ----
+
+import { icpProfiles, InsertICPProfile, brandVoices, InsertBrandVoice, ctaTemplates, InsertCTATemplate } from "../drizzle/schema";
+
+export async function getICPsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(icpProfiles).where(eq(icpProfiles.projectId, projectId)).orderBy(desc(icpProfiles.updatedAt));
+}
+
+export async function getICPById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(icpProfiles).where(eq(icpProfiles.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createICP(data: InsertICPProfile) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(icpProfiles).values(data);
+  return getICPById(result[0].insertId);
+}
+
+export async function updateICP(id: number, data: Partial<Omit<InsertICPProfile, "id" | "projectId" | "userId" | "createdAt" | "updatedAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(icpProfiles).set(data).where(eq(icpProfiles.id, id));
+  return getICPById(id);
+}
+
+export async function deleteICP(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(icpProfiles).where(eq(icpProfiles.id, id));
+  return { success: true };
+}
+
+// ---- Brand Voice Helpers ----
+
+export async function getBrandVoicesByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(brandVoices).where(eq(brandVoices.projectId, projectId)).orderBy(desc(brandVoices.updatedAt));
+}
+
+export async function getBrandVoiceById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(brandVoices).where(eq(brandVoices.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createBrandVoice(data: InsertBrandVoice) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(brandVoices).values(data);
+  return getBrandVoiceById(result[0].insertId);
+}
+
+export async function updateBrandVoice(id: number, data: Partial<Omit<InsertBrandVoice, "id" | "projectId" | "userId" | "createdAt" | "updatedAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(brandVoices).set(data).where(eq(brandVoices.id, id));
+  return getBrandVoiceById(id);
+}
+
+export async function deleteBrandVoice(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(brandVoices).where(eq(brandVoices.id, id));
+  return { success: true };
+}
+
+// ---- CTA Template Helpers ----
+
+export async function getCTAsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(ctaTemplates).where(eq(ctaTemplates.projectId, projectId)).orderBy(desc(ctaTemplates.updatedAt));
+}
+
+export async function getCTAById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(ctaTemplates).where(eq(ctaTemplates.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createCTA(data: InsertCTATemplate) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(ctaTemplates).values(data);
+  return getCTAById(result[0].insertId);
+}
+
+export async function updateCTA(id: number, data: Partial<Omit<InsertCTATemplate, "id" | "projectId" | "userId" | "createdAt" | "updatedAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(ctaTemplates).set(data).where(eq(ctaTemplates.id, id));
+  return getCTAById(id);
+}
+
+export async function deleteCTA(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(ctaTemplates).where(eq(ctaTemplates.id, id));
+  return { success: true };
+}

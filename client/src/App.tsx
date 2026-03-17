@@ -11,6 +11,7 @@ import Articles from "./pages/Articles";
 import ArticleEditor from "./pages/ArticleEditor";
 import GenerateArticle from "./pages/GenerateArticle";
 import ComingSoon from "./pages/ComingSoon";
+import ProjectSettings from "./pages/ProjectSettings";
 
 function AppRoutes() {
   return (
@@ -33,7 +34,7 @@ function AppRoutes() {
         <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
         <Route path="/grade">{() => <ComingSoon title="Grade Content" description="AI-powered content grading for E-E-A-T, accuracy, and readability." />}</Route>
         <Route path="/ideas">{() => <ComingSoon title="Ideas" description="Capture and organize content ideas for future articles." />}</Route>
-        <Route path="/settings">{() => <ComingSoon title="Settings" description="Configure your account, preferences, and integrations." />}</Route>
+        <Route path="/settings" component={ProjectSettings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

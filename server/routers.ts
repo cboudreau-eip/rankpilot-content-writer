@@ -8,9 +8,12 @@ import {
   getOutlinesByProject, getOutlineById, createOutline, updateOutline, deleteOutline,
   getArticlesByProject, getArticleById, createArticle, updateArticle, deleteArticle,
   getArticleStats, getArticlesByUser, getOutlinesByUser,
+  getICPsByProject, getICPById, createICP, updateICP, deleteICP,
+  getBrandVoicesByProject, getBrandVoiceById, createBrandVoice, updateBrandVoice, deleteBrandVoice,
+  getCTAsByProject, getCTAById, createCTA, updateCTA, deleteCTA,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
-import type { OutlineSection, OutlineSettings } from "../drizzle/schema";
+import type { OutlineSection, OutlineSettings, ICPDemographics } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -133,9 +136,48 @@ export const appRouter = router({
         numSections: z.number().optional(),
         numFaqs: z.number().optional(),
         additionalInstructions: z.string().optional(),
+        icpProfileId: z.number().optional(),
+        brandVoiceId: z.number().optional(),
         projectId: z.number(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Fetch ICP and Brand Voice if selected
+        const icpProfile = input.icpProfileId ? await getICPById(input.icpProfileId) : null;
+        const brandVoice = input.brandVoiceId ? await getBrandVoiceById(input.brandVoiceId) : null;
+
+        // Build ICP context for the prompt
+        let icpContext = "";
+        if (icpProfile) {
+          icpContext = `\n\nTARGET AUDIENCE (ICP Profile: ${icpProfile.name}):\n`;
+          if (icpProfile.description) icpContext += `- Description: ${icpProfile.description}\n`;
+          if (icpProfile.demographics) {
+            const d = icpProfile.demographics as any;
+            if (d.ageRange) icpContext += `- Age Range: ${d.ageRange}\n`;
+            if (d.location) icpContext += `- Location: ${d.location}\n`;
+            if (d.income) icpContext += `- Income: ${d.income}\n`;
+            if (d.education) icpContext += `- Education: ${d.education}\n`;
+            if (d.occupation) icpContext += `- Occupation: ${d.occupation}\n`;
+          }
+          if (icpProfile.painPoints?.length) icpContext += `- Pain Points: ${(icpProfile.painPoints as string[]).join(", ")}\n`;
+          if (icpProfile.goals?.length) icpContext += `- Goals: ${(icpProfile.goals as string[]).join(", ")}\n`;
+          if (icpProfile.objections?.length) icpContext += `- Objections: ${(icpProfile.objections as string[]).join(", ")}\n`;
+          if (icpProfile.searchBehavior) icpContext += `- Search Behavior: ${icpProfile.searchBehavior}\n`;
+          icpContext += `\nIMPORTANT: Tailor the outline structure to address this audience's pain points, goals, and objections. Use language and framing that resonates with their search behavior.`;
+        }
+
+        // Build Brand Voice context for the prompt
+        let voiceContext = "";
+        if (brandVoice) {
+          voiceContext = `\n\nBRAND VOICE (${brandVoice.name}):\n`;
+          if (brandVoice.tone) voiceContext += `- Tone: ${brandVoice.tone}\n`;
+          if (brandVoice.style) voiceContext += `- Style: ${brandVoice.style}\n`;
+          if (brandVoice.vocabulary?.length) voiceContext += `- Preferred Vocabulary: ${(brandVoice.vocabulary as string[]).join(", ")}\n`;
+          if (brandVoice.avoidWords?.length) voiceContext += `- Words to Avoid: ${(brandVoice.avoidWords as string[]).join(", ")}\n`;
+          if (brandVoice.rules?.length) voiceContext += `- Rules: ${(brandVoice.rules as string[]).join("; ")}\n`;
+          if (brandVoice.examples?.length) voiceContext += `- Example Sentences: ${(brandVoice.examples as string[]).join(" | ")}\n`;
+          voiceContext += `\nIMPORTANT: Ensure the outline headings and structure reflect this brand voice.`;
+        }
+
         const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the given keyword.
 Return a JSON object with:
 - "title": A compelling, SEO-optimized article title
@@ -155,6 +197,8 @@ Guidelines:
 - Tone: ${input.tone ?? "professional and informative"}
 - Target word count: ${input.targetWordCount ?? 2000} words
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
+${icpContext}
+${voiceContext}
 
 Return ONLY valid JSON, no markdown code blocks.`;
 
@@ -232,6 +276,215 @@ Return ONLY valid JSON, no markdown code blocks.`;
         });
 
         return outline;
+      }),
+  }),
+
+  icpProfiles: router({
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getICPsByProject(input.projectId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getICPById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        description: z.string().optional(),
+        demographics: z.object({
+          ageRange: z.string().optional(),
+          location: z.string().optional(),
+          income: z.string().optional(),
+          education: z.string().optional(),
+          occupation: z.string().optional(),
+          other: z.string().optional(),
+        }).optional(),
+        painPoints: z.array(z.string()).optional(),
+        goals: z.array(z.string()).optional(),
+        objections: z.array(z.string()).optional(),
+        contentPreferences: z.array(z.string()).optional(),
+        searchBehavior: z.string().optional(),
+        isDefault: z.number().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createICP({
+          name: input.name,
+          description: input.description ?? null,
+          demographics: (input.demographics as ICPDemographics) ?? null,
+          painPoints: input.painPoints ?? null,
+          goals: input.goals ?? null,
+          objections: input.objections ?? null,
+          contentPreferences: input.contentPreferences ?? null,
+          searchBehavior: input.searchBehavior ?? null,
+          isDefault: input.isDefault ?? 0,
+          projectId: input.projectId,
+          userId: ctx.user.id,
+        });
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255).optional(),
+        description: z.string().optional(),
+        demographics: z.object({
+          ageRange: z.string().optional(),
+          location: z.string().optional(),
+          income: z.string().optional(),
+          education: z.string().optional(),
+          occupation: z.string().optional(),
+          other: z.string().optional(),
+        }).optional(),
+        painPoints: z.array(z.string()).optional(),
+        goals: z.array(z.string()).optional(),
+        objections: z.array(z.string()).optional(),
+        contentPreferences: z.array(z.string()).optional(),
+        searchBehavior: z.string().optional(),
+        isDefault: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return updateICP(id, data as any);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteICP(input.id);
+      }),
+  }),
+
+  brandVoices: router({
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getBrandVoicesByProject(input.projectId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getBrandVoiceById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        description: z.string().optional(),
+        tone: z.string().optional(),
+        style: z.string().optional(),
+        vocabulary: z.array(z.string()).optional(),
+        avoidWords: z.array(z.string()).optional(),
+        examples: z.array(z.string()).optional(),
+        rules: z.array(z.string()).optional(),
+        isDefault: z.number().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createBrandVoice({
+          name: input.name,
+          description: input.description ?? null,
+          tone: input.tone ?? null,
+          style: input.style ?? null,
+          vocabulary: input.vocabulary ?? null,
+          avoidWords: input.avoidWords ?? null,
+          examples: input.examples ?? null,
+          rules: input.rules ?? null,
+          isDefault: input.isDefault ?? 0,
+          projectId: input.projectId,
+          userId: ctx.user.id,
+        });
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255).optional(),
+        description: z.string().optional(),
+        tone: z.string().optional(),
+        style: z.string().optional(),
+        vocabulary: z.array(z.string()).optional(),
+        avoidWords: z.array(z.string()).optional(),
+        examples: z.array(z.string()).optional(),
+        rules: z.array(z.string()).optional(),
+        isDefault: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return updateBrandVoice(id, data as any);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteBrandVoice(input.id);
+      }),
+  }),
+
+  ctaTemplates: router({
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getCTAsByProject(input.projectId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getCTAById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        content: z.string().min(1),
+        type: z.string().optional(),
+        placement: z.string().optional(),
+        url: z.string().optional(),
+        buttonText: z.string().optional(),
+        isDefault: z.number().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createCTA({
+          name: input.name,
+          content: input.content,
+          type: input.type ?? "inline",
+          placement: input.placement ?? "end",
+          url: input.url ?? null,
+          buttonText: input.buttonText ?? null,
+          isDefault: input.isDefault ?? 0,
+          projectId: input.projectId,
+          userId: ctx.user.id,
+        });
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255).optional(),
+        content: z.string().optional(),
+        type: z.string().optional(),
+        placement: z.string().optional(),
+        url: z.string().optional(),
+        buttonText: z.string().optional(),
+        isDefault: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return updateCTA(id, data as any);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteCTA(input.id);
       }),
   }),
 
@@ -320,11 +573,56 @@ Return ONLY valid JSON, no markdown code blocks.`;
       .input(z.object({
         outlineId: z.number(),
         projectId: z.number(),
+        icpProfileId: z.number().optional(),
+        brandVoiceId: z.number().optional(),
         additionalInstructions: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const outline = await getOutlineById(input.outlineId);
         if (!outline) throw new Error("Outline not found");
+
+        // Fetch ICP and Brand Voice if selected
+        const icpProfile = input.icpProfileId ? await getICPById(input.icpProfileId) : null;
+        const brandVoice = input.brandVoiceId ? await getBrandVoiceById(input.brandVoiceId) : null;
+
+        // Build ICP context
+        let icpContext = "";
+        if (icpProfile) {
+          icpContext = `\n\nTARGET AUDIENCE (ICP Profile: ${icpProfile.name}):\n`;
+          if (icpProfile.description) icpContext += `- Description: ${icpProfile.description}\n`;
+          if (icpProfile.demographics) {
+            const d = icpProfile.demographics as any;
+            if (d.ageRange) icpContext += `- Age Range: ${d.ageRange}\n`;
+            if (d.location) icpContext += `- Location: ${d.location}\n`;
+            if (d.occupation) icpContext += `- Occupation: ${d.occupation}\n`;
+          }
+          if (icpProfile.painPoints?.length) icpContext += `- Pain Points: ${(icpProfile.painPoints as string[]).join(", ")}\n`;
+          if (icpProfile.goals?.length) icpContext += `- Goals: ${(icpProfile.goals as string[]).join(", ")}\n`;
+          if (icpProfile.objections?.length) icpContext += `- Common Objections to Address: ${(icpProfile.objections as string[]).join(", ")}\n`;
+          if (icpProfile.searchBehavior) icpContext += `- Search Behavior: ${icpProfile.searchBehavior}\n`;
+          icpContext += `\nIMPORTANT ICP RULES:\n1. Address the audience's specific pain points throughout the article\n2. Frame solutions around their goals and motivations\n3. Proactively address their objections and concerns\n4. Use language and examples that resonate with their demographics\n5. Match the reading level and content depth to their education and occupation`;
+        }
+
+        // Build Brand Voice context
+        let voiceContext = "";
+        if (brandVoice) {
+          voiceContext = `\n\nBRAND VOICE (${brandVoice.name}):\n`;
+          if (brandVoice.tone) voiceContext += `- Tone: ${brandVoice.tone}\n`;
+          if (brandVoice.style) voiceContext += `- Style Guidelines: ${brandVoice.style}\n`;
+          if (brandVoice.vocabulary?.length) voiceContext += `- Preferred Vocabulary (USE these words): ${(brandVoice.vocabulary as string[]).join(", ")}\n`;
+          if (brandVoice.avoidWords?.length) voiceContext += `- Words to AVOID (NEVER use these): ${(brandVoice.avoidWords as string[]).join(", ")}\n`;
+          if (brandVoice.rules?.length) voiceContext += `- Brand Rules (MUST follow): ${(brandVoice.rules as string[]).join("; ")}\n`;
+          if (brandVoice.examples?.length) voiceContext += `- Example Sentences (match this style): ${(brandVoice.examples as string[]).join(" | ")}\n`;
+          voiceContext += `\nIMPORTANT VOICE RULES:\n1. Maintain the specified tone consistently throughout the entire article\n2. Use preferred vocabulary naturally in the content\n3. NEVER use any words from the avoid list\n4. Follow all brand rules strictly\n5. Match the writing style demonstrated in the example sentences`;
+        }
+
+        // Fetch CTA templates for this project
+        const ctaTemplates_list = await getCTAsByProject(input.projectId);
+        let ctaContext = "";
+        if (ctaTemplates_list.length > 0) {
+          const defaultCTA = ctaTemplates_list.find((c: any) => c.isDefault === 1) ?? ctaTemplates_list[0];
+          ctaContext = `\n\nCALL TO ACTION:\nInsert the following CTA naturally in the article (placement: ${defaultCTA.placement}):\n"${defaultCTA.content}"\n${defaultCTA.buttonText ? `Button text: "${defaultCTA.buttonText}"` : ""}\n${defaultCTA.url ? `Link URL: ${defaultCTA.url}` : ""}`;
+        }
 
         // Mark outline as generating
         await updateOutline(input.outlineId, { status: "generating" });
@@ -363,6 +661,9 @@ Guidelines:
 - Use short paragraphs (2-3 sentences) for readability
 - Include bullet points and numbered lists where appropriate
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
+${icpContext}
+${voiceContext}
+${ctaContext}
 
 Return ONLY the HTML content of the article body (no <html>, <head>, or <body> tags). Start with the first <h2> section.`;
 

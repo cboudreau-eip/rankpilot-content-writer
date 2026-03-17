@@ -1,0 +1,81 @@
+# RankPilot Rebuild TODO
+
+## Phase 1: Foundation & Auth
+
+### Upgrade to Full-Stack
+- [x] Run webdev_add_feature to upgrade to web-db-user
+- [x] Review the upgrade README and understand new capabilities
+- [x] Set up database schema (User extension, Project model)
+- [x] Run migrations
+
+### Layout Shell
+- [x] Build sidebar component with collapsible sections (SEO Tools, Planning, Content)
+- [x] Build header component with project selector, user avatar, search
+- [x] Create AppLayout wrapper component
+- [x] Set up all routes in App.tsx with proper layout wrapping
+
+### Project Management
+- [x] Create tRPC routes: projects.list, projects.getById, projects.create, projects.update, projects.delete
+- [x] Build Projects list page with create dialog
+- [x] Build Project card with edit/delete dropdown
+- [x] Implement active project selector in header (persisted in localStorage)
+- [x] Wire project context through the app
+
+### Dashboard
+- [x] Build dashboard page with stat cards, chart, clusters, ideas, articles, activity feed
+- [x] Empty state for new projects
+- [x] Apply Clean Studio design (Plus Jakarta Sans, light mode, indigo palette)
+
+### Stub Pages
+- [x] Create Coming Soon stub for all nav items not yet built
+- [x] Settings page stub
+
+### Polish
+- [x] Test auth flow (login/logout)
+- [x] Test project CRUD (create, edit, delete)
+- [x] Verify all navigation works
+- [x] Write vitest tests for project CRUD (13 tests passing)
+- [x] Save checkpoint
+
+## Phase 2: Project Configuration
+- [ ] ICP profiles (create, edit, delete per project)
+- [ ] Brand voice profiles per project
+- [ ] CTA templates per project
+- [ ] Sitemap management per project
+- [ ] Citation sources per project
+- [ ] Reference documents per project
+
+## Phase 3: Article Generation Pipeline
+- [ ] Outline generator with AI
+- [ ] Research pipeline
+- [ ] Full article generator with streaming
+- [ ] TipTap rich text editor
+- [ ] Article version history
+- [ ] Article status management (Draft, Review, Complete, Published)
+
+## Phase 4: Ideas & Topic Clusters
+- [ ] AI idea generation
+- [ ] Visual cluster management
+- [ ] Cluster-to-article assignment
+
+## Phase 5: Content Grading & Review
+- [ ] AI grading (E-E-A-T, Accuracy, AIO, Readability)
+- [ ] Review suggestions
+
+## Phase 6: SEO Tools Suite
+- [ ] GSC Analyzer
+- [ ] Competitor Analyzer
+- [ ] Position Tracker
+- [ ] Keyword Auditor
+- [ ] Thin Content detector
+
+## Phase 7: SEO Intelligence
+- [ ] Multi-source keyword scoring
+- [ ] AI keyword clustering
+
+## Phase 8: Calendar, Tasks & Polish
+- [ ] Task calendar
+- [ ] Global search
+- [ ] Exports
+- [ ] Mobile responsiveness
+- [ ] Performance optimization

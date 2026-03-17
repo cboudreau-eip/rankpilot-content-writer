@@ -46,12 +46,12 @@
 - [ ] Reference documents per project
 
 ## Phase 3: Article Generation Pipeline
-- [ ] Outline generator with AI
+- [x] Outline generator with AI
 - [ ] Research pipeline
-- [ ] Full article generator with streaming
-- [ ] TipTap rich text editor
+- [x] Full article generator with streaming
+- [x] TipTap rich text editor
 - [ ] Article version history
-- [ ] Article status management (Draft, Review, Complete, Published)
+- [x] Article status management (Draft, Review, Complete, Published)
 
 ## Phase 4: Ideas & Topic Clusters
 - [ ] AI idea generation
@@ -79,3 +79,18 @@
 - [ ] Exports
 - [ ] Mobile responsiveness
 - [ ] Performance optimization
+
+## Phase 3 (Active): Article Generation Pipeline
+- [x] Add Article database model (title, content, status, wordCount, keywords, metaTitle, metaDescription, projectId, userId)
+- [x] Add Outline database model (title, sections JSON, keywords, projectId, userId)
+- [x] Push database migrations
+- [x] Build article tRPC routes (list, getById, create, update, delete, updateStatus)
+- [x] Build outline tRPC routes (list, getById, create, update, delete, generate with AI)
+- [x] Build Articles list page with status filters (All, Draft, Review, Complete, Published)
+- [x] Build Outline Generator page with AI-powered outline creation
+- [x] Build Article Generator page with streaming AI output from outline
+- [x] Build Article Editor page with TipTap rich text editor
+- [x] Article status workflow (Draft → Review → Complete → Published)
+- [x] Wire Generate nav item to outline generator
+- [x] Write vitest tests for article and outline CRUD
+- [ ] Save checkpoint

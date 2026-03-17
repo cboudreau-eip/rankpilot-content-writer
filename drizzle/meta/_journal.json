@@ -15,6 +15,13 @@
       "when": 1773772028580,
       "tag": "0001_famous_carlie_cooper",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773773032417,
+      "tag": "0002_right_nick_fury",
+      "breakpoints": true
     }
   ]
 }

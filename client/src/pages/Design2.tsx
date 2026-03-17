@@ -4,8 +4,7 @@
  * Plus Jakarta Sans font, generous whitespace, modern SaaS feel.
  */
 
-import { Link } from "wouter";
-import { ArrowLeft, FileText, CheckCircle2, PenLine, Type, LayoutDashboard, FolderKanban, CalendarDays, Search, ShieldCheck, Swords, Crosshair, BarChart3, Lightbulb, Sparkles, ListTree, Award, LampDesk, Rocket, ChevronDown, Bell, Settings, Zap, Check, FilePlus, Plus, MoreHorizontal, Network, Flame } from "lucide-react";
+import { FileText, CheckCircle2, PenLine, Type, LayoutDashboard, FolderKanban, CalendarDays, Search, ShieldCheck, Swords, Crosshair, BarChart3, Lightbulb, Sparkles, ListTree, Award, LampDesk, Rocket, ChevronDown, Bell, Settings, Zap, Check, FilePlus, Plus, MoreHorizontal, Network, Flame } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const chartData = [
@@ -80,13 +79,7 @@ export default function Design2() {
         {/* TOPBAR */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", background: V.white, borderBottom: `1px solid ${V.border}`, position: "sticky", top: 0, zIndex: 50 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-              <Link href="/">
-                <span style={{ display: "flex", alignItems: "center", gap: 6, color: V.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  <ArrowLeft size={14} /> All Designs
-                </span>
-              </Link>
-            </div>
+
             <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5 }}>Dashboard</h1>
             <p style={{ fontSize: 14, color: V.textMuted, marginTop: 2 }}>Welcome back! Here's your content overview.</p>
           </div>
@@ -172,10 +165,7 @@ export default function Design2() {
         </div>
       </div>
 
-      {/* DESIGN LABEL */}
-      <div style={{ position: "fixed", bottom: 20, right: 20, background: V.accent, color: "#fff", fontSize: 12, fontWeight: 700, padding: "8px 16px", borderRadius: 20, zIndex: 999, letterSpacing: 0.5, boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>
-        DESIGN 2 — CLEAN STUDIO
-      </div>
+
     </div>
   );
 }

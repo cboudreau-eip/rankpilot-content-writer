@@ -112,4 +112,13 @@
 - [x] Update outline generation prompt to use ICP context
 - [x] Update article generation prompt to use ICP + Brand Voice + CTA
 - [x] Write vitest tests for ICP, Brand Voice, CTA routes (14 tests)
+- [x] Save checkpoint
+
+## Fix: Separate Project Settings from General Settings
+- [x] Add "Project Settings" nav item in sidebar under Content section
+- [x] Move ICP/Brand Voice/CTA tabs to Project Settings route
+- [x] Create General Settings page (app-level: account, theme, notifications)
+- [x] Wire gear icon in header to General Settings
+- [x] Update routing in App.tsx
+- [x] Test navigation and verify separation
 - [ ] Save checkpoint

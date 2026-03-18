@@ -12,6 +12,7 @@ import ArticleEditor from "./pages/ArticleEditor";
 import GenerateArticle from "./pages/GenerateArticle";
 import ComingSoon from "./pages/ComingSoon";
 import ProjectSettings from "./pages/ProjectSettings";
+import GeneralSettings from "./pages/GeneralSettings";
 
 function AppRoutes() {
   return (
@@ -22,6 +23,8 @@ function AppRoutes() {
         <Route path="/articles" component={Articles} />
         <Route path="/articles/:id" component={ArticleEditor} />
         <Route path="/generate" component={GenerateArticle} />
+        <Route path="/project-settings" component={ProjectSettings} />
+        <Route path="/settings" component={GeneralSettings} />
         <Route path="/calendar">{() => <ComingSoon title="Calendar" description="Plan and schedule your content pipeline with a visual calendar." />}</Route>
         <Route path="/keywords">{() => <ComingSoon title="Keyword Research" description="Discover high-value keywords and search opportunities for your content." />}</Route>
         <Route path="/audit">{() => <ComingSoon title="Keyword Auditor" description="Audit your existing keywords for performance and optimization opportunities." />}</Route>
@@ -34,7 +37,6 @@ function AppRoutes() {
         <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
         <Route path="/grade">{() => <ComingSoon title="Grade Content" description="AI-powered content grading for E-E-A-T, accuracy, and readability." />}</Route>
         <Route path="/ideas">{() => <ComingSoon title="Ideas" description="Capture and organize content ideas for future articles." />}</Route>
-        <Route path="/settings" component={ProjectSettings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

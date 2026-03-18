@@ -6,7 +6,7 @@ import {
   Target, MapPin, GraduationCap, Briefcase, DollarSign, AlertCircle,
   Goal, ShieldAlert, BookOpen, Search, Star, X, Check, Loader2,
   Globe, Link2, FileCheck, RefreshCw, ExternalLink, Upload, FileText,
-  CheckCircle2, XCircle, AlertTriangle, Info
+  CheckCircle2, XCircle, AlertTriangle, Info, Save, Zap, Shield, TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,106 +55,235 @@ function TagInput({ value, onChange, placeholder }: { value: string[]; onChange:
   );
 }
 
-// ---- ICP Profile Form ----
-function ICPForm({ projectId, existing, onClose }: { projectId: number; existing?: any; onClose: () => void }) {
+// ---- Bullet Section Component (for ICP) ----
+function BulletSection({ icon, iconColor, bgColor, borderColor, label, description, items, placeholder, onAdd, onUpdate, onRemove }: {
+  icon: React.ReactNode; iconColor: string; bgColor: string; borderColor: string;
+  label: string; description: string; items: string[]; placeholder: string;
+  onAdd: () => void; onUpdate: (i: number, v: string) => void; onRemove: (i: number) => void;
+}) {
+  return (
+    <div className={`${bgColor} rounded-xl border ${borderColor} p-5`}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className={`flex items-center gap-2 ${iconColor}`}>
+            {icon}
+            <span className="font-medium text-sm text-foreground">{label}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        </div>
+        {items.length < 5 && (
+          <Button size="sm" variant="outline" onClick={onAdd} className="h-7 text-xs">
+            <Plus className="w-3 h-3 mr-1" /> Add
+          </Button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <span className="text-muted-foreground text-sm w-4">{index + 1}.</span>
+            <Input value={item} onChange={(e) => onUpdate(index, e.target.value)} placeholder={placeholder} className="flex-1 bg-white" />
+            <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        ))}
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground italic py-2">No items added yet. Click "Add" to start.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- ICP Tab (inline single-ICP form stored on project) ----
+function ICPTab({ projectId }: { projectId: number }) {
   const utils = trpc.useUtils();
-  const createMut = trpc.icpProfiles.create.useMutation({ onSuccess: () => { utils.icpProfiles.list.invalidate(); onClose(); toast.success("ICP Profile created"); } });
-  const updateMut = trpc.icpProfiles.update.useMutation({ onSuccess: () => { utils.icpProfiles.list.invalidate(); onClose(); toast.success("ICP Profile updated"); } });
+  const { data: project, isLoading } = trpc.projects.getById.useQuery({ id: projectId });
+  const updateMut = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      utils.projects.getById.invalidate({ id: projectId });
+      setHasChanges(false);
+      toast.success("ICP saved successfully");
+    },
+    onError: () => toast.error("Failed to save ICP"),
+  });
 
-  const [name, setName] = useState(existing?.name ?? "");
-  const [description, setDescription] = useState(existing?.description ?? "");
-  const [ageRange, setAgeRange] = useState(existing?.demographics?.ageRange ?? "");
-  const [location, setLocation] = useState(existing?.demographics?.location ?? "");
-  const [income, setIncome] = useState(existing?.demographics?.income ?? "");
-  const [education, setEducation] = useState(existing?.demographics?.education ?? "");
-  const [occupation, setOccupation] = useState(existing?.demographics?.occupation ?? "");
-  const [painPoints, setPainPoints] = useState<string[]>(existing?.painPoints ?? []);
-  const [goals, setGoals] = useState<string[]>(existing?.goals ?? []);
-  const [objections, setObjections] = useState<string[]>(existing?.objections ?? []);
-  const [contentPreferences, setContentPreferences] = useState<string[]>(existing?.contentPreferences ?? []);
-  const [searchBehavior, setSearchBehavior] = useState(existing?.searchBehavior ?? "");
+  const [icpPrimaryName, setIcpPrimaryName] = useState("");
+  const [icpWhoTheyAre, setIcpWhoTheyAre] = useState("");
+  const [icpPains, setIcpPains] = useState<string[]>([]);
+  const [icpGoals, setIcpGoals] = useState<string[]>([]);
+  const [icpObjections, setIcpObjections] = useState<string[]>([]);
+  const [icpDecisionTriggers, setIcpDecisionTriggers] = useState<string[]>([]);
+  const [icpTrustSignals, setIcpTrustSignals] = useState<string[]>([]);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  const loading = createMut.isPending || updateMut.isPending;
+  // Populate form when project data loads
+  if (project && !initialized) {
+    setIcpPrimaryName(project.icpPrimaryName || "");
+    setIcpWhoTheyAre(project.icpWhoTheyAre || "");
+    setIcpPains(project.icpPains || []);
+    setIcpGoals(project.icpGoals || []);
+    setIcpObjections(project.icpObjections || []);
+    setIcpDecisionTriggers(project.icpDecisionTriggers || []);
+    setIcpTrustSignals(project.icpTrustSignals || []);
+    setInitialized(true);
+  }
 
-  const handleSubmit = () => {
-    if (!name.trim()) { toast.error("Name is required"); return; }
-    const data = {
-      name: name.trim(),
-      description: description || undefined,
-      demographics: { ageRange, location, income, education, occupation },
-      painPoints: painPoints.length ? painPoints : undefined,
-      goals: goals.length ? goals : undefined,
-      objections: objections.length ? objections : undefined,
-      contentPreferences: contentPreferences.length ? contentPreferences : undefined,
-      searchBehavior: searchBehavior || undefined,
-    };
-    if (existing) {
-      updateMut.mutate({ id: existing.id, ...data });
-    } else {
-      createMut.mutate({ ...data, projectId });
-    }
+  const updateField = (setter: (v: any) => void) => (value: any) => {
+    setter(value);
+    setHasChanges(true);
   };
 
+  const addBullet = (items: string[], setItems: (v: string[]) => void) => {
+    if (items.length < 5) { setItems([...items, ""]); setHasChanges(true); }
+  };
+  const updateBullet = (items: string[], setItems: (v: string[]) => void, index: number, value: string) => {
+    const copy = [...items]; copy[index] = value; setItems(copy); setHasChanges(true);
+  };
+  const removeBullet = (items: string[], setItems: (v: string[]) => void, index: number) => {
+    setItems(items.filter((_, i) => i !== index)); setHasChanges(true);
+  };
+
+  const handleSave = () => {
+    updateMut.mutate({
+      id: projectId,
+      icpPrimaryName: icpPrimaryName || undefined,
+      icpWhoTheyAre: icpWhoTheyAre || undefined,
+      icpPains: icpPains.filter(Boolean).length ? icpPains.filter(Boolean) : undefined,
+      icpGoals: icpGoals.filter(Boolean).length ? icpGoals.filter(Boolean) : undefined,
+      icpObjections: icpObjections.filter(Boolean).length ? icpObjections.filter(Boolean) : undefined,
+      icpDecisionTriggers: icpDecisionTriggers.filter(Boolean).length ? icpDecisionTriggers.filter(Boolean) : undefined,
+      icpTrustSignals: icpTrustSignals.filter(Boolean).length ? icpTrustSignals.filter(Boolean) : undefined,
+    });
+  };
+
+  const isConfigured = !!(icpPrimaryName && icpWhoTheyAre);
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  }
+
   return (
-    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Profile Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Medicare Shoppers 65+" className="text-base" />
-      </div>
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Description</Label>
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of this ICP..." className="text-base min-h-[80px]" />
-      </div>
-
-      <Separator />
-      <h3 className="text-lg font-semibold flex items-center gap-2"><Target className="w-5 h-5 text-indigo-500" /> Demographics</h3>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1.5"><Users className="w-4 h-4 text-muted-foreground" /> Age Range</Label>
-          <Input value={ageRange} onChange={(e) => setAgeRange(e.target.value)} placeholder="e.g., 55-75" className="text-base" />
+    <div className="space-y-6">
+      {/* Header with status */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Target className="w-5 h-5 text-violet-500" />
+            Ideal Customer Profile
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Define your target audience to enhance content relevance
+          </p>
         </div>
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-muted-foreground" /> Location</Label>
-          <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., United States" className="text-base" />
-        </div>
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1.5"><DollarSign className="w-4 h-4 text-muted-foreground" /> Income</Label>
-          <Input value={income} onChange={(e) => setIncome(e.target.value)} placeholder="e.g., $40k-$80k" className="text-base" />
-        </div>
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1.5"><GraduationCap className="w-4 h-4 text-muted-foreground" /> Education</Label>
-          <Input value={education} onChange={(e) => setEducation(e.target.value)} placeholder="e.g., High school+" className="text-base" />
-        </div>
-        <div className="space-y-2 col-span-2">
-          <Label className="flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-muted-foreground" /> Occupation</Label>
-          <Input value={occupation} onChange={(e) => setOccupation(e.target.value)} placeholder="e.g., Retired, Semi-retired" className="text-base" />
-        </div>
+        {isConfigured ? (
+          <Badge className="bg-emerald-100 text-emerald-700">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Configured
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            <Info className="w-3 h-3 mr-1" /> Not Configured
+          </Badge>
+        )}
       </div>
 
-      <Separator />
-      <h3 className="text-lg font-semibold flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500" /> Pain Points</h3>
-      <TagInput value={painPoints} onChange={setPainPoints} placeholder="Add a pain point..." />
-
-      <h3 className="text-lg font-semibold flex items-center gap-2"><Goal className="w-5 h-5 text-green-500" /> Goals & Motivations</h3>
-      <TagInput value={goals} onChange={setGoals} placeholder="Add a goal..." />
-
-      <h3 className="text-lg font-semibold flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-amber-500" /> Objections & Concerns</h3>
-      <TagInput value={objections} onChange={setObjections} placeholder="Add an objection..." />
-
-      <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-500" /> Content Preferences</h3>
-      <TagInput value={contentPreferences} onChange={setContentPreferences} placeholder="e.g., Step-by-step guides" />
-
-      <div className="space-y-2">
-        <Label className="text-base font-semibold flex items-center gap-2"><Search className="w-5 h-5 text-purple-500" /> Search Behavior</Label>
-        <Textarea value={searchBehavior} onChange={(e) => setSearchBehavior(e.target.value)} placeholder="How does this audience search? What queries do they use?" className="text-base min-h-[80px]" />
+      {/* Info box */}
+      <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
+        <p className="text-sm text-violet-800">
+          <strong>ICP works alongside Brand Voice</strong> — it influences <em>who</em> content is written for (pain points, examples, vocabulary), while Brand Voice controls <em>how</em> it sounds (tone, personality, style).
+        </p>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4">
-        <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
-        <Button onClick={handleSubmit} disabled={loading}>
-          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-          {existing ? "Update Profile" : "Create Profile"}
+      {/* Primary Identity Section */}
+      <div className="bg-white rounded-xl border border-border p-5 space-y-4">
+        <div className="flex items-center gap-2 text-violet-600 mb-2">
+          <Users className="w-4 h-4" />
+          <span className="font-medium text-sm">Primary Identity</span>
+        </div>
+        <div>
+          <Label className="text-sm font-medium">ICP Name</Label>
+          <Input
+            placeholder="e.g., Medicare-eligible seniors in Florida"
+            value={icpPrimaryName}
+            onChange={(e) => updateField(setIcpPrimaryName)(e.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label className="text-sm font-medium">Who They Are</Label>
+          <Textarea
+            placeholder="1-2 sentences describing your ideal customer..."
+            value={icpWhoTheyAre}
+            onChange={(e) => updateField(setIcpWhoTheyAre)(e.target.value)}
+            className="mt-1 min-h-[80px]"
+          />
+        </div>
+      </div>
+
+      {/* Pain Points */}
+      <BulletSection
+        icon={<AlertTriangle className="w-4 h-4" />}
+        iconColor="text-red-500" bgColor="bg-red-50" borderColor="border-red-200"
+        label="Pain Points" description="What problems do they face? (3-5 bullets)"
+        items={icpPains} placeholder="e.g., Confused by Medicare enrollment deadlines"
+        onAdd={() => addBullet(icpPains, setIcpPains)}
+        onUpdate={(i, v) => updateBullet(icpPains, setIcpPains, i, v)}
+        onRemove={(i) => removeBullet(icpPains, setIcpPains, i)}
+      />
+
+      {/* Goals */}
+      <BulletSection
+        icon={<TrendingUp className="w-4 h-4" />}
+        iconColor="text-emerald-500" bgColor="bg-emerald-50" borderColor="border-emerald-200"
+        label="Goals" description="What do they want to achieve? (3-5 bullets)"
+        items={icpGoals} placeholder="e.g., Find affordable prescription drug coverage"
+        onAdd={() => addBullet(icpGoals, setIcpGoals)}
+        onUpdate={(i, v) => updateBullet(icpGoals, setIcpGoals, i, v)}
+        onRemove={(i) => removeBullet(icpGoals, setIcpGoals, i)}
+      />
+
+      {/* Common Objections */}
+      <BulletSection
+        icon={<Shield className="w-4 h-4" />}
+        iconColor="text-amber-500" bgColor="bg-amber-50" borderColor="border-amber-200"
+        label="Common Objections" description="What hesitations do they have? (3-5 bullets)"
+        items={icpObjections} placeholder="e.g., Worried about hidden costs or fees"
+        onAdd={() => addBullet(icpObjections, setIcpObjections)}
+        onUpdate={(i, v) => updateBullet(icpObjections, setIcpObjections, i, v)}
+        onRemove={(i) => removeBullet(icpObjections, setIcpObjections, i)}
+      />
+
+      {/* Decision Triggers */}
+      <BulletSection
+        icon={<Zap className="w-4 h-4" />}
+        iconColor="text-blue-500" bgColor="bg-blue-50" borderColor="border-blue-200"
+        label="Decision Triggers" description="What prompts them to take action? (3-5 bullets)"
+        items={icpDecisionTriggers} placeholder="e.g., Approaching 65th birthday deadline"
+        onAdd={() => addBullet(icpDecisionTriggers, setIcpDecisionTriggers)}
+        onUpdate={(i, v) => updateBullet(icpDecisionTriggers, setIcpDecisionTriggers, i, v)}
+        onRemove={(i) => removeBullet(icpDecisionTriggers, setIcpDecisionTriggers, i)}
+      />
+
+      {/* Trust Signals */}
+      <BulletSection
+        icon={<CheckCircle2 className="w-4 h-4" />}
+        iconColor="text-indigo-500" bgColor="bg-indigo-50" borderColor="border-indigo-200"
+        label="Trust Signals" description="What builds their confidence? (3-5 bullets)"
+        items={icpTrustSignals} placeholder="e.g., Licensed agents with local expertise"
+        onAdd={() => addBullet(icpTrustSignals, setIcpTrustSignals)}
+        onUpdate={(i, v) => updateBullet(icpTrustSignals, setIcpTrustSignals, i, v)}
+        onRemove={(i) => removeBullet(icpTrustSignals, setIcpTrustSignals, i)}
+      />
+
+      {/* Save Button */}
+      <div className="flex justify-end pt-2">
+        <Button onClick={handleSave} disabled={updateMut.isPending || !hasChanges} className="bg-violet-600 hover:bg-violet-700 text-white">
+          {updateMut.isPending ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+          ) : (
+            <><Save className="w-4 h-4 mr-2" /> Save ICP</>
+          )}
         </Button>
       </div>
     </div>
@@ -782,10 +911,6 @@ export default function ProjectSettings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
 
-  const { data: icpList = [], isLoading: icpLoading } = trpc.icpProfiles.list.useQuery(
-    { projectId: activeProjectId! },
-    { enabled: !!activeProjectId }
-  );
   const { data: voiceList = [], isLoading: voiceLoading } = trpc.brandVoices.list.useQuery(
     { projectId: activeProjectId! },
     { enabled: !!activeProjectId }
@@ -805,7 +930,6 @@ export default function ProjectSettings() {
 
   const utils = trpc.useUtils();
 
-  const deleteICP = trpc.icpProfiles.delete.useMutation({ onSuccess: () => { utils.icpProfiles.list.invalidate(); toast.success("ICP Profile deleted"); } });
   const deleteVoice = trpc.brandVoices.delete.useMutation({ onSuccess: () => { utils.brandVoices.list.invalidate(); toast.success("Brand Voice deleted"); } });
   const deleteCTA = trpc.ctaTemplates.delete.useMutation({ onSuccess: () => { utils.ctaTemplates.list.invalidate(); toast.success("CTA Template deleted"); } });
   const deleteCitation = trpc.citations.delete.useMutation({ onSuccess: () => { utils.citations.list.invalidate(); toast.success("Citation source deleted"); } });
@@ -822,7 +946,7 @@ export default function ProjectSettings() {
   }
 
   const tabs = [
-    { id: "icp" as Tab, label: "ICP Profiles", icon: Users, count: icpList.length, color: "text-indigo-500", bg: "bg-indigo-50" },
+    { id: "icp" as Tab, label: "ICP", icon: Target, count: 0, color: "text-violet-500", bg: "bg-violet-50" },
     { id: "voice" as Tab, label: "Brand Voice", icon: Mic, count: voiceList.length, color: "text-emerald-500", bg: "bg-emerald-50" },
     { id: "cta" as Tab, label: "CTA Templates", icon: MousePointerClick, count: ctaList.length, color: "text-amber-500", bg: "bg-amber-50" },
     { id: "sitemaps" as Tab, label: "Sitemaps", icon: Globe, count: sitemapList.length, color: "text-blue-500", bg: "bg-blue-50" },
@@ -833,9 +957,7 @@ export default function ProjectSettings() {
   const openCreate = () => { setEditItem(null); setDialogOpen(true); };
   const openEdit = (item: any) => { setEditItem(item); setDialogOpen(true); };
 
-  const dialogTitle = activeTab === "icp"
-    ? (editItem ? "Edit ICP Profile" : "New ICP Profile")
-    : activeTab === "voice"
+  const dialogTitle = activeTab === "voice"
     ? (editItem ? "Edit Brand Voice" : "New Brand Voice")
     : activeTab === "cta"
     ? (editItem ? "Edit CTA Template" : "New CTA Template")
@@ -843,9 +965,7 @@ export default function ProjectSettings() {
     ? (editItem ? "Edit Citation Source" : "New Citation Source")
     : "";
 
-  const dialogDesc = activeTab === "icp"
-    ? "Define your ideal customer profile to tailor content generation."
-    : activeTab === "voice"
+  const dialogDesc = activeTab === "voice"
     ? "Configure writing style and tone for consistent brand messaging."
     : activeTab === "cta"
     ? "Create reusable call-to-action blocks for your articles."
@@ -854,7 +974,7 @@ export default function ProjectSettings() {
     : "";
 
   // Determine if the active tab has a "create" button
-  const showCreateButton = ["icp", "voice", "cta", "citations"].includes(activeTab);
+  const showCreateButton = ["voice", "cta", "citations"].includes(activeTab);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -895,13 +1015,11 @@ export default function ProjectSettings() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-semibold">
-              {activeTab === "icp" && "ICP Profiles"}
               {activeTab === "voice" && "Brand Voices"}
               {activeTab === "cta" && "CTA Templates"}
               {activeTab === "citations" && "Citation Sources"}
             </h2>
             <p className="text-muted-foreground text-sm mt-0.5">
-              {activeTab === "icp" && "Define your target audience to generate more relevant content."}
               {activeTab === "voice" && "Set the tone and style for your AI-generated articles."}
               {activeTab === "cta" && "Create reusable calls-to-action to embed in articles."}
               {activeTab === "citations" && "Add trusted sources the AI should reference in articles."}
@@ -909,7 +1027,6 @@ export default function ProjectSettings() {
           </div>
           <Button onClick={openCreate} className="gap-2">
             <Plus className="w-4 h-4" />
-            {activeTab === "icp" && "New ICP Profile"}
             {activeTab === "voice" && "New Brand Voice"}
             {activeTab === "cta" && "New CTA Template"}
             {activeTab === "citations" && "New Citation Source"}
@@ -917,59 +1034,8 @@ export default function ProjectSettings() {
         </div>
       )}
 
-      {/* ICP Profiles Tab */}
-      {activeTab === "icp" && (
-        <div className="space-y-4">
-          {icpLoading ? (
-            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-          ) : icpList.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
-                  <Users className="w-7 h-7 text-indigo-500" />
-                </div>
-                <h3 className="text-lg font-semibold mb-1">No ICP Profiles Yet</h3>
-                <p className="text-muted-foreground text-center max-w-md mb-4">
-                  Create an Ideal Customer Profile to help the AI generate content tailored to your target audience.
-                </p>
-                <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" /> Create First Profile</Button>
-              </CardContent>
-            </Card>
-          ) : (
-            icpList.map((icp: any) => (
-              <Card key={icp.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-                          <Users className="w-5 h-5 text-indigo-500" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold">{icp.name}</h3>
-                          {icp.isDefault === 1 && <Badge className="bg-indigo-100 text-indigo-700 text-xs">Default</Badge>}
-                        </div>
-                      </div>
-                      {icp.description && <p className="text-muted-foreground mb-3">{icp.description}</p>}
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        {icp.demographics?.ageRange && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {icp.demographics.ageRange}</span>}
-                        {icp.demographics?.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {icp.demographics.location}</span>}
-                        {icp.demographics?.occupation && <span className="flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" /> {icp.demographics.occupation}</span>}
-                        {icp.painPoints?.length > 0 && <span>{icp.painPoints.length} pain points</span>}
-                        {icp.goals?.length > 0 && <span>{icp.goals.length} goals</span>}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(icp)}><Pencil className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteICP.mutate({ id: icp.id })}><Trash2 className="w-4 h-4" /></Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      )}
+      {/* ICP Tab */}
+      {activeTab === "icp" && <ICPTab projectId={activeProjectId} />}
 
       {/* Brand Voice Tab */}
       {activeTab === "voice" && (
@@ -1139,7 +1205,6 @@ export default function ProjectSettings() {
             <DialogTitle className="text-xl">{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDesc}</DialogDescription>
           </DialogHeader>
-          {activeTab === "icp" && <ICPForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
           {activeTab === "voice" && <BrandVoiceForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
           {activeTab === "cta" && <CTAForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
           {activeTab === "citations" && <CitationForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}

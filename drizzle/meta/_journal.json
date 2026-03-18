@@ -36,6 +36,13 @@
       "when": 1773835938276,
       "tag": "0004_military_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1773859652742,
+      "tag": "0005_dear_vanisher",
+      "breakpoints": true
     }
   ]
 }

@@ -161,3 +161,9 @@
 - [x] Update frontend results to show last modified date and dated content warnings
 - [x] Update vitest tests
 - [x] Save checkpoint
+
+## ICP Section Update
+- [x] Review original RankPilot ICP implementation
+- [x] Update ICP section in Project Settings to match original
+- [x] Update tests
+- [x] Save checkpoint

@@ -28,6 +28,20 @@ export const projects = mysqlTable("projects", {
   color: varchar("color", { length: 32 }).default("#6366f1").notNull(),
   domain: varchar("domain", { length: 512 }),
   description: text("description"),
+  /** ICP: Primary name (e.g., "Medicare-eligible seniors in Florida") */
+  icpPrimaryName: varchar("icpPrimaryName", { length: 512 }),
+  /** ICP: Who they are — 1-2 sentence description */
+  icpWhoTheyAre: text("icpWhoTheyAre"),
+  /** ICP: Pain points (max 5 bullet items) */
+  icpPains: json("icpPains").$type<string[]>(),
+  /** ICP: Goals and motivations (max 5 bullet items) */
+  icpGoals: json("icpGoals").$type<string[]>(),
+  /** ICP: Common objections (max 5 bullet items) */
+  icpObjections: json("icpObjections").$type<string[]>(),
+  /** ICP: Decision triggers (max 5 bullet items) */
+  icpDecisionTriggers: json("icpDecisionTriggers").$type<string[]>(),
+  /** ICP: Trust signals (max 5 bullet items) */
+  icpTrustSignals: json("icpTrustSignals").$type<string[]>(),
   /** Reference document for Cross Check feature (plain text or markdown) */
   referenceDoc: mediumtext("referenceDoc"),
   /** Original filename of the reference document for display */

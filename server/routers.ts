@@ -62,6 +62,13 @@ export const appRouter = router({
         color: z.string().optional(),
         domain: z.string().optional(),
         description: z.string().optional(),
+        icpPrimaryName: z.string().max(512).optional(),
+        icpWhoTheyAre: z.string().optional(),
+        icpPains: z.array(z.string()).max(5).optional(),
+        icpGoals: z.array(z.string()).max(5).optional(),
+        icpObjections: z.array(z.string()).max(5).optional(),
+        icpDecisionTriggers: z.array(z.string()).max(5).optional(),
+        icpTrustSignals: z.array(z.string()).max(5).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;

@@ -803,10 +803,12 @@ export default function ProjectSettings() {
     { enabled: !!activeProjectId }
   );
 
-  const deleteICP = trpc.icpProfiles.delete.useMutation({ onSuccess: () => { trpc.useUtils().icpProfiles.list.invalidate(); toast.success("ICP Profile deleted"); } });
-  const deleteVoice = trpc.brandVoices.delete.useMutation({ onSuccess: () => { trpc.useUtils().brandVoices.list.invalidate(); toast.success("Brand Voice deleted"); } });
-  const deleteCTA = trpc.ctaTemplates.delete.useMutation({ onSuccess: () => { trpc.useUtils().ctaTemplates.list.invalidate(); toast.success("CTA Template deleted"); } });
-  const deleteCitation = trpc.citations.delete.useMutation({ onSuccess: () => { trpc.useUtils().citations.list.invalidate(); toast.success("Citation source deleted"); } });
+  const utils = trpc.useUtils();
+
+  const deleteICP = trpc.icpProfiles.delete.useMutation({ onSuccess: () => { utils.icpProfiles.list.invalidate(); toast.success("ICP Profile deleted"); } });
+  const deleteVoice = trpc.brandVoices.delete.useMutation({ onSuccess: () => { utils.brandVoices.list.invalidate(); toast.success("Brand Voice deleted"); } });
+  const deleteCTA = trpc.ctaTemplates.delete.useMutation({ onSuccess: () => { utils.ctaTemplates.list.invalidate(); toast.success("CTA Template deleted"); } });
+  const deleteCitation = trpc.citations.delete.useMutation({ onSuccess: () => { utils.citations.list.invalidate(); toast.success("Citation source deleted"); } });
 
   if (!activeProjectId) {
     return (

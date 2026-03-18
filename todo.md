@@ -154,3 +154,10 @@
 - [x] Wire up sidebar link to the new page
 - [x] Write vitest tests for thin content route
 - [x] Save checkpoint
+
+## Dated Content Check
+- [x] Add dated content detection to backend (extract last modified date from HTML meta tags, HTTP headers, sitemap lastmod)
+- [x] Flag pages not updated in 2+ years as "Dated Content" issue
+- [x] Update frontend results to show last modified date and dated content warnings
+- [x] Update vitest tests
+- [x] Save checkpoint

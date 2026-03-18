@@ -27,6 +27,8 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  Clock,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -38,6 +40,8 @@ interface PageAnalysis {
   h1Count: number;
   h2Count: number;
   h3Count: number;
+  lastModified: string | null;
+  isDated: boolean;
   issues: string[];
   recommendations: string[];
 }
@@ -45,12 +49,13 @@ interface PageAnalysis {
 interface AnalysisResult {
   totalPages: number;
   pagesWithIssues: number;
+  datedPages: number;
   avgWordCount: number;
   pages: PageAnalysis[];
 }
 
 type InputMode = "project" | "manual";
-type FilterMode = "all" | "issues" | "clean";
+type FilterMode = "all" | "issues" | "clean" | "dated";
 
 export default function ThinContent() {
   const { activeProject, projects } = useActiveProject();
@@ -159,6 +164,8 @@ export default function ThinContent() {
         return results.pages.filter((p) => p.issues.length > 0);
       case "clean":
         return results.pages.filter((p) => p.issues.length === 0);
+      case "dated":
+        return results.pages.filter((p) => p.isDated);
       default:
         return results.pages;
     }
@@ -348,7 +355,7 @@ export default function ThinContent() {
       {results && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-6 text-center">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mx-auto mb-3">
@@ -365,6 +372,15 @@ export default function ThinContent() {
                 </div>
                 <p className="text-3xl font-bold text-red-500">{results.pagesWithIssues}</p>
                 <p className="text-sm text-muted-foreground mt-1">Pages with Issues</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-3">
+                  <CalendarClock className="w-5 h-5 text-amber-600" />
+                </div>
+                <p className="text-3xl font-bold text-amber-600">{results.datedPages}</p>
+                <p className="text-sm text-muted-foreground mt-1">Dated Pages</p>
               </CardContent>
             </Card>
             <Card>
@@ -402,6 +418,9 @@ export default function ThinContent() {
                     <SelectItem value="all">All Pages ({results.pages.length})</SelectItem>
                     <SelectItem value="issues">
                       Issues Only ({results.pages.filter((p) => p.issues.length > 0).length})
+                    </SelectItem>
+                    <SelectItem value="dated">
+                      Dated Content ({results.pages.filter((p) => p.isDated).length})
                     </SelectItem>
                     <SelectItem value="clean">
                       Clean ({results.pages.filter((p) => p.issues.length === 0).length})
@@ -470,6 +489,19 @@ export default function ThinContent() {
                             <Badge variant="secondary" className="text-xs">
                               H3: {page.h3Count}
                             </Badge>
+                            {page.lastModified && (
+                              <Badge
+                                variant="secondary"
+                                className={`text-xs gap-1 ${page.isDated ? "bg-amber-100 text-amber-700" : "bg-muted"}`}
+                              >
+                                <Clock className="w-3 h-3" />
+                                {new Date(page.lastModified).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">

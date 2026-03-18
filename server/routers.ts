@@ -1022,15 +1022,74 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
         }
 
         // Step 2: Analyze each page
+        const TWO_YEARS_MS = 2 * 365 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
         interface PageAnalysis {
           url: string;
           wordCount: number;
           h1Count: number;
           h2Count: number;
           h3Count: number;
+          lastModified: string | null;
+          isDated: boolean;
           issues: string[];
           recommendations: string[];
         }
+
+        /** Try to extract a last-modified date from multiple sources */
+        const extractLastModified = (html: string, headers: Headers): string | null => {
+          // 1. HTTP Last-Modified header
+          const httpLastMod = headers.get("last-modified");
+          if (httpLastMod) {
+            const d = new Date(httpLastMod);
+            if (!isNaN(d.getTime())) return d.toISOString();
+          }
+
+          // 2. <meta> tags: article:modified_time, og:updated_time, article:published_time
+          const metaPatterns = [
+            /property=["']article:modified_time["']\s+content=["']([^"']+)["']/i,
+            /content=["']([^"']+)["']\s+property=["']article:modified_time["']/i,
+            /property=["']og:updated_time["']\s+content=["']([^"']+)["']/i,
+            /content=["']([^"']+)["']\s+property=["']og:updated_time["']/i,
+            /name=["']last-modified["']\s+content=["']([^"']+)["']/i,
+            /content=["']([^"']+)["']\s+name=["']last-modified["']/i,
+            /name=["']date["']\s+content=["']([^"']+)["']/i,
+            /content=["']([^"']+)["']\s+name=["']date["']/i,
+            /property=["']article:published_time["']\s+content=["']([^"']+)["']/i,
+            /content=["']([^"']+)["']\s+property=["']article:published_time["']/i,
+          ];
+          for (const pattern of metaPatterns) {
+            const match = html.match(pattern);
+            if (match?.[1]) {
+              const d = new Date(match[1]);
+              if (!isNaN(d.getTime())) return d.toISOString();
+            }
+          }
+
+          // 3. JSON-LD dateModified or datePublished
+          const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+          let jsonLdMatch: RegExpExecArray | null;
+          while ((jsonLdMatch = jsonLdRegex.exec(html)) !== null) {
+            try {
+              const data = JSON.parse(jsonLdMatch[1]);
+              const dateStr = data.dateModified || data.datePublished;
+              if (dateStr) {
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) return d.toISOString();
+              }
+            } catch { /* ignore invalid JSON-LD */ }
+          }
+
+          // 4. <time> element with datetime attribute
+          const timeMatch = html.match(/<time[^>]*datetime=["']([^"']+)["'][^>]*>/i);
+          if (timeMatch?.[1]) {
+            const d = new Date(timeMatch[1]);
+            if (!isNaN(d.getTime())) return d.toISOString();
+          }
+
+          return null;
+        };
 
         const analyzePage = async (pageUrl: string): Promise<PageAnalysis | null> => {
           try {
@@ -1040,6 +1099,12 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
             });
             if (!resp.ok) return null;
             const html = await resp.text();
+
+            // Extract last modified date
+            const lastModified = extractLastModified(html, resp.headers);
+            const isDated = lastModified
+              ? (now - new Date(lastModified).getTime()) > TWO_YEARS_MS
+              : false;
 
             // Strip non-content elements
             const textContent = html
@@ -1080,8 +1145,14 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
               issues.push("H3 tags used without H2 tags");
               recommendations.push("Maintain proper heading hierarchy: H1 → H2 → H3");
             }
+            if (isDated && lastModified) {
+              const modDate = new Date(lastModified);
+              const yearsAgo = Math.floor((now - modDate.getTime()) / (365 * 24 * 60 * 60 * 1000));
+              issues.push(`Dated content — last updated ${yearsAgo} year${yearsAgo !== 1 ? "s" : ""} ago (${modDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})`);
+              recommendations.push("Review and update this content to ensure accuracy and freshness. Search engines favor recently updated content.");
+            }
 
-            return { url: pageUrl, wordCount: wc, h1Count, h2Count, h3Count, issues, recommendations };
+            return { url: pageUrl, wordCount: wc, h1Count, h2Count, h3Count, lastModified, isDated, issues, recommendations };
           } catch {
             return null;
           }
@@ -1098,6 +1169,7 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
 
         const totalPages = pages.length;
         const pagesWithIssues = pages.filter(p => p.issues.length > 0).length;
+        const datedPages = pages.filter(p => p.isDated).length;
         const avgWordCount = totalPages > 0
           ? Math.round(pages.reduce((sum, p) => sum + p.wordCount, 0) / totalPages)
           : 0;
@@ -1109,7 +1181,7 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
           return a.wordCount - b.wordCount;
         });
 
-        return { totalPages, pagesWithIssues, avgWordCount, pages };
+        return { totalPages, pagesWithIssues, datedPages, avgWordCount, pages };
       }),
 
     /** Get sitemaps for a project (for the project selector) */

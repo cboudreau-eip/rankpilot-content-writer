@@ -183,3 +183,12 @@
 - [x] Add ICP/Brand Voice priority note ("Brand Voice controls HOW, ICP controls WHO")
 - [x] Update tests
 - [x] Save checkpoint
+
+## Content Graders
+- [x] Create standalone gradeContent tRPC route (paste any content, 4-category 85-point system)
+- [x] Create per-article gradeArticle tRPC route (6+2 categories, dynamic total, Brand Voice + ICP conditional)
+- [x] Build Grade Content page (standalone grader with textarea input, results display)
+- [x] Add Grade button to article editor/viewer for per-article grading
+- [x] Display grade results with category breakdowns, grade band, strengths/weaknesses, prioritized actions
+- [x] Write vitest tests for grading routes
+- [x] Save checkpoint

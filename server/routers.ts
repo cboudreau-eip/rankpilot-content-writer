@@ -18,6 +18,9 @@ import {
 import { invokeLLM } from "./_core/llm";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
+import { articles, projects, brandVoices } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
+import { getDb } from "./db";
 
 export const appRouter = router({
   system: systemRouter,
@@ -1352,6 +1355,392 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getSitemapsByProject(input.projectId);
+      }),
+  }),
+
+  // ---- Content Grading ----
+  grading: router({
+    /** Standalone content grader — paste any content, 4-category 85-point system */
+    gradeContent: protectedProcedure
+      .input(z.object({ content: z.string().min(50, "Content must be at least 50 characters") }))
+      .mutation(async ({ input }) => {
+        const systemPrompt = `You are an expert content analyst specializing in GEO (Generative Engine Optimization) and AI search readiness. Analyze the provided content and grade it across these 4 weighted categories:
+
+1. E-E-A-T Trust Package (30% weight):
+   - Author credentials and expertise signals
+   - Citations to studies/data and authoritative sources
+   - First-hand experience indicators
+   - Expert validation signals
+   Score 0-30 points.
+
+2. Accuracy (25% weight):
+   - Factual correctness of claims
+   - Proper sourcing for statistics and data
+   - Avoidance of speculation presented as fact
+   - Verifiable information
+   Score 0-25 points.
+
+3. AIO Answer Readiness (20% weight):
+   - Direct, concise answers to likely questions
+   - Structured content that AI can easily extract
+   - Clear definitions and explanations
+   - FAQ-style content where appropriate
+   Score 0-20 points.
+
+4. Readability & UX (10% weight):
+   - Clear sentence structure
+   - Appropriate paragraph length
+   - Logical flow and transitions
+   - Scannable formatting
+   Score 0-10 points.
+
+Note: Remaining 15% is reserved for technical factors not assessed here.
+
+For EACH category, provide:
+- A score (out of the max for that category)
+- A brief explanation of why that score was given
+- 3-4 specific, actionable improvements
+
+Respond in this exact JSON format:
+{
+  "totalScore": <number 0-85>,
+  "categories": {
+    "eeatTrust": {
+      "score": <number 0-30>,
+      "maxScore": 30,
+      "label": "E-E-A-T Trust Package",
+      "explanation": "<brief explanation>",
+      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+    },
+    "accuracy": {
+      "score": <number 0-25>,
+      "maxScore": 25,
+      "label": "Accuracy",
+      "explanation": "<brief explanation>",
+      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+    },
+    "aioReadiness": {
+      "score": <number 0-20>,
+      "maxScore": 20,
+      "label": "AIO Answer Readiness",
+      "explanation": "<brief explanation>",
+      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+    },
+    "readability": {
+      "score": <number 0-10>,
+      "maxScore": 10,
+      "label": "Readability & UX",
+      "explanation": "<brief explanation>",
+      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+    }
+  }
+}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Grade this content:\n\n${input.content}` },
+          ],
+        });
+
+        const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse grading response");
+        return JSON.parse(jsonMatch[0]);
+      }),
+
+    /** Per-article grader — 6+2 categories with Brand Voice + ICP conditional scoring */
+    gradeArticle: protectedProcedure
+      .input(z.object({ articleId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // Fetch article
+        const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
+        if (!article) throw new Error("Article not found");
+
+        // Fetch project with ICP
+        const [project] = await db.select().from(projects).where(eq(projects.id, article.projectId)).limit(1);
+
+        // Fetch default brand voice
+        const allVoices = project ? await db.select().from(brandVoices).where(eq(brandVoices.projectId, project.id)) : [];
+        const defaultBrandVoice = allVoices.find(bv => bv.isDefault === 1) || allVoices[0] || null;
+
+        // Check ICP
+        const hasICP = !!(project?.icpPrimaryName && project?.icpPains);
+        const icpData = hasICP ? {
+          name: project.icpPrimaryName,
+          whoTheyAre: project.icpWhoTheyAre,
+          pains: (project.icpPains as string[] || []),
+          goals: (project.icpGoals as string[] || []),
+          objections: (project.icpObjections as string[] || []),
+        } : null;
+
+        // Parse tone traits helper
+        const parseToneTraits = (toneTraits: string | null) => {
+          if (!toneTraits) return { primary: [], supporting: [] };
+          if (toneTraits.includes("PRIMARY:") && toneTraits.includes("SUPPORTING:")) {
+            const primaryMatch = toneTraits.match(/PRIMARY:([^|]+)/);
+            const supportingMatch = toneTraits.match(/SUPPORTING:(.+)/);
+            return {
+              primary: primaryMatch ? primaryMatch[1].split(",").map(t => t.trim()).filter(Boolean) : [],
+              supporting: supportingMatch ? supportingMatch[1].split(",").map(t => t.trim()).filter(Boolean) : [],
+            };
+          }
+          return { primary: toneTraits.split(",").map(t => t.trim()).filter(Boolean), supporting: [] };
+        };
+
+        // Parse avoid list helper
+        const AVOID_LABELS: Record<string, string> = {
+          jargon: "Industry jargon and technical terms",
+          salesy: "Salesy or promotional language",
+          fear: "Fear tactics or scare language",
+          superlatives: "Superlatives and exaggerations",
+          passive: "Passive voice",
+          cliches: "Clichés and overused phrases",
+          firstPerson: "First person (I/me/my)",
+          humor: "Humor or jokes",
+          slang: "Slang or informal language",
+          questions: "Rhetorical questions",
+        };
+        const parseAvoidList = (avoidList: string | null) => {
+          if (!avoidList) return [];
+          if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+            const items: string[] = [];
+            const presetsMatch = avoidList.match(/PRESETS:([^|]*)/);
+            const customMatch = avoidList.match(/CUSTOM:(.+)/);
+            if (presetsMatch?.[1]) {
+              presetsMatch[1].split(",").filter(Boolean).forEach(id => {
+                if (AVOID_LABELS[id]) items.push(AVOID_LABELS[id]);
+              });
+            }
+            if (customMatch?.[1]) {
+              items.push(...customMatch[1].split(",").map(t => t.trim()).filter(Boolean));
+            }
+            return items;
+          }
+          return avoidList.split(",").map(t => t.trim()).filter(Boolean);
+        };
+
+        // Build Brand Voice section
+        let brandVoiceSection = "";
+        let brandVoiceGradingCriteria = "";
+        if (defaultBrandVoice) {
+          const tones = parseToneTraits(defaultBrandVoice.toneTraits);
+          const avoidItems = parseAvoidList(defaultBrandVoice.avoidList);
+          brandVoiceSection = `\nBRAND VOICE REFERENCE (for Brand Voice Alignment scoring):\n- Voice Name: ${defaultBrandVoice.name}\n- Primary Tone Traits: ${tones.primary.join(", ") || "Not specified"}\n- Supporting Tone Traits: ${tones.supporting.join(", ") || "Not specified"}\n- Perspective: ${defaultBrandVoice.perspective === "first" ? "First person (we/our)" : defaultBrandVoice.perspective === "second" ? "Second person (you/your)" : "Third person"}\n- Sentence Style: ${defaultBrandVoice.sentenceStyle === "short" ? "Short and concise" : defaultBrandVoice.sentenceStyle === "detailed" ? "Detailed and explanatory" : "Mixed/varied"}\n- Things to Avoid: ${avoidItems.length > 0 ? avoidItems.join(", ") : "None specified"}${defaultBrandVoice.writingStyleSample ? `\n- Writing Style Sample:\n"""${defaultBrandVoice.writingStyleSample.substring(0, 500)}"""` : ""}`;
+          brandVoiceGradingCriteria = `\n7. BRAND VOICE ALIGNMENT (10 points) - ONLY SCORE THIS IF BRAND VOICE IS PROVIDED\n- Tone Consistency: Does the content maintain the specified primary and supporting tone traits throughout?\n- Perspective Adherence: Is the correct grammatical perspective (first/second/third person) used consistently?\n- Sentence Style Match: Does the sentence structure match the specified style (short/mixed/detailed)?\n- Avoidance Compliance: Does the content successfully avoid the listed items to avoid?\n- Overall Voice Match: Does the content feel like it was written with the brand voice in mind?`;
+        }
+
+        // Build ICP section
+        let icpSection = "";
+        let icpGradingCriteria = "";
+        if (icpData) {
+          icpSection = `\nICP (IDEAL CUSTOMER PROFILE) REFERENCE (for ICP Alignment scoring):\n- Target Audience: ${icpData.name}\n- Who They Are: ${icpData.whoTheyAre || "Not specified"}\n- Pain Points: ${icpData.pains.slice(0, 5).join("; ") || "Not specified"}\n- Goals: ${icpData.goals.slice(0, 5).join("; ") || "Not specified"}\n- Common Objections: ${icpData.objections.slice(0, 5).join("; ") || "Not specified"}`;
+          icpGradingCriteria = `\n8. ICP ALIGNMENT (10 points) - ONLY SCORE THIS IF ICP IS PROVIDED\n- Pain Point Addressing: Does the content directly address the target audience's pain points?\n- Goal Alignment: Does the content help readers achieve their stated goals?\n- Objection Handling: Does the content proactively address common objections or concerns?\n- Audience Resonance: Would the target audience (${icpData.name}) feel this content was written specifically for them?\n- Language Match: Does the vocabulary and complexity level match the target audience?`;
+        }
+
+        // Calculate total points
+        const basePoints = 100;
+        const brandVoicePoints = defaultBrandVoice ? 10 : 0;
+        const icpPoints = hasICP ? 10 : 0;
+        const totalPoints = basePoints + brandVoicePoints + icpPoints;
+
+        const systemPrompt = `You are the GEO Content Grader — a precise, analytical grading system that evaluates content for GEO (Generative Engine Optimization) and AIO (AI Overview) readiness. You prioritize factual accuracy, trust signals, and AI extractability over stylistic polish.
+${brandVoiceSection}
+${icpSection}
+
+WEIGHTING MODEL (Total: ${totalPoints} points):
+- E-E-A-T Trust Package: 30% (30 points max)
+- Accuracy: 25% (25 points max)
+- AIO Answer Readiness: 20% (20 points max)
+- Readability & UX: 10% (10 points max)
+- SEO and Entity Coverage: 10% (10 points max)
+- Risk Hygiene: 5% (5 points max)${defaultBrandVoice ? "\n- Brand Voice Alignment: 10% (10 points max)" : ""}${hasICP ? "\n- ICP Alignment: 10% (10 points max)" : ""}
+
+GRADING CRITERIA:
+
+1. E-E-A-T TRUST PACKAGE (30 points)
+- Experience: First-hand experience signals, personal insights, practical examples
+- Expertise: Author credentials, technical depth, industry knowledge demonstrated
+- Authoritativeness: Citations to authoritative sources, references to studies/data
+- Trustworthiness: Transparency, balanced perspectives, acknowledgment of limitations
+
+2. ACCURACY (25 points)
+- Factual correctness and verifiability
+- Claims supported by evidence or citations
+- No contradictions or misleading statements
+- Data/statistics are current and properly sourced
+- Defensibility of assertions made
+
+3. AIO ANSWER READINESS (20 points)
+- Clear, extractable answers to implied questions
+- Concise definitions and explanations
+- Well-structured for AI parsing (lists, tables, clear headers)
+- Direct answers near the beginning of sections
+- Citation-ready snippets that AI can quote
+
+4. READABILITY & UX (10 points)
+- Sentence clarity and scannability
+- Appropriate reading level for target audience
+- Effective use of formatting (bullets, bold, whitespace)
+- Logical flow and transitions
+
+5. SEO AND ENTITY COVERAGE (10 points)
+- Primary keyword optimization
+- Entity coverage (people, places, concepts properly named)
+- Internal/external linking opportunities
+- Schema markup potential
+- Search intent alignment
+
+6. RISK HYGIENE (5 points)
+- No manipulative or misleading patterns
+- No unsupported superlatives or exaggerations
+- No clickbait tactics
+- Proper disclosure of limitations/caveats
+- No AI-detectable spam patterns
+${brandVoiceGradingCriteria}
+${icpGradingCriteria}
+
+CITATION SUGGESTION RULES (CRITICAL):
+- Across ALL categories combined, you may suggest MAXIMUM 2 citation-related improvements total
+- "Citation-related" includes: adding sources, adding references, citing data, adding authoritative links
+- If E-E-A-T already suggests a citation improvement, do NOT suggest more in Accuracy or SEO
+- Consolidate citation suggestions into the SINGLE most impactful one
+- For Accuracy: focus on factual verification suggestions, NOT on adding more source links
+- For SEO: focus on keyword/entity coverage, NOT on external linking
+- NEVER suggest "Add 2-3 citations" — always suggest ONE specific citation placement
+
+SCORING INSTRUCTIONS:
+- Score each category based on its maximum points (not 0-100)
+- For items scoring below 30% of their max, provide a specific improvement example
+- Be strict but fair — reward citation-ready, accurate, AI-extractable content
+${defaultBrandVoice ? "- Include brandVoiceAlignment in response ONLY if brand voice reference was provided above" : "- Do NOT include brandVoiceAlignment in response (no brand voice defined)"}
+${hasICP ? "- Include icpAlignment in response ONLY if ICP reference was provided above" : "- Do NOT include icpAlignment in response (no ICP defined)"}
+
+RESPONSE FORMAT - Respond ONLY with valid JSON:
+{
+  "eeatTrust": { "score": <0-30>, "maxScore": 30, "reason": "...", "improvements": ["..."] },
+  "accuracy": { "score": <0-25>, "maxScore": 25, "reason": "...", "improvements": ["..."] },
+  "aioReadiness": { "score": <0-20>, "maxScore": 20, "reason": "...", "improvements": ["..."] },
+  "readabilityUx": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },
+  "seoEntityCoverage": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },
+  "riskHygiene": { "score": <0-5>, "maxScore": 5, "reason": "...", "improvements": ["..."] },${defaultBrandVoice ? `
+  "brandVoiceAlignment": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },` : ""}${hasICP ? `
+  "icpAlignment": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },` : ""}
+  "totalScore": <number>,
+  "gradeBand": "<A|B|C|D|F>",
+  "keyStrengths": ["..."],
+  "keyWeaknesses": ["..."],
+  "penalties": ["..."],
+  "prioritizedActions": ["...", "...", "..."]
+}`;
+
+        const userPrompt = `Grade this article:\n\nTitle: ${article.title}\nKeyword: ${article.keyword || "Not specified"}\n\nContent:\n${article.content}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        const rawContent = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse grading response");
+        const grades = JSON.parse(jsonMatch[0]);
+
+        return {
+          grades,
+          hasBrandVoice: !!defaultBrandVoice,
+          brandVoiceName: defaultBrandVoice?.name || null,
+          hasICP,
+          icpName: icpData?.name || null,
+        };
+      }),
+
+    /** Apply selected improvements from a grade to an article */
+    applyImprovements: protectedProcedure
+      .input(z.object({
+        articleId: z.number(),
+        categoryKey: z.string(),
+        categoryLabel: z.string(),
+        selectedImprovements: z.array(z.string()).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
+        if (!article) throw new Error("Article not found");
+
+        // Fetch brand voice for consistent tone
+        let brandVoiceSection = "";
+        const [project] = article.projectId
+          ? await db.select().from(projects).where(eq(projects.id, article.projectId)).limit(1)
+          : [null];
+        if (project) {
+          const allVoices = await db.select().from(brandVoices).where(eq(brandVoices.projectId, project.id));
+          const bv = allVoices.find(v => v.isDefault === 1) || allVoices[0];
+          if (bv) {
+            const perspectiveMap: Record<string, string> = {
+              first: "first person (we/our/us)",
+              second: "second person (you/your)",
+              third: "third person (they/the company)",
+            };
+            brandVoiceSection = `\nBRAND VOICE (maintain this tone in all improvements):\n- Tone: ${bv.toneTraits}\n- Perspective: ${perspectiveMap[bv.perspective] || bv.perspective}${bv.avoidList ? `\n- Avoid: ${bv.avoidList}` : ""}`;
+          }
+        }
+
+        const improvementsList = input.selectedImprovements.map((imp, i) => `${i + 1}. ${imp}`).join("\n");
+
+        const systemPrompt = `You are an expert content editor specializing in ${input.categoryLabel} improvements for SEO and AEO content. You match the original author's voice exactly.
+${brandVoiceSection}
+
+Your task is to apply ONLY the specified improvements to the article.
+
+Guidelines:
+- Apply ONLY the listed improvements - do not add extra changes
+- Maintain the article's original structure, tone, and formatting
+- Output ONLY pure markdown. NEVER output HTML tags.
+- Make changes seamlessly without disrupting readability
+- If an improvement mentions adding sources/citations, weave them naturally into sentences
+- Match the original article's sentence length patterns and formality level
+
+IMPORTANT:
+- Return ONLY the improved article content
+- Do NOT include explanations or commentary
+- Do NOT wrap the output in markdown code blocks`;
+
+        const userPrompt = `Apply these ${input.categoryLabel} improvements to the article:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===ORIGINAL ARTICLE===\n${article.content}\n===END ARTICLE===\n\nReturn the improved article content with these specific improvements applied.`;
+
+        const llmResponse = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        let improvedContent = ((llmResponse.choices?.[0]?.message?.content || article.content || "") as string).trim();
+        if (improvedContent.startsWith("```")) {
+          improvedContent = improvedContent.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+        }
+
+        const wordCount = improvedContent.split(/\s+/).filter((w: string) => w.length > 0).length;
+
+        await db.update(articles).set({
+          content: improvedContent,
+          wordCount,
+        }).where(eq(articles.id, input.articleId));
+
+        return {
+          success: true,
+          content: improvedContent,
+          wordCount,
+          appliedCount: input.selectedImprovements.length,
+          category: input.categoryLabel,
+        };
       }),
   }),
 });

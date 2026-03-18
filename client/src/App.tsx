@@ -14,6 +14,7 @@ import ComingSoon from "./pages/ComingSoon";
 import ProjectSettings from "./pages/ProjectSettings";
 import GeneralSettings from "./pages/GeneralSettings";
 import ThinContent from "./pages/ThinContent";
+import GradeContent from "./pages/GradeContent";
 
 function AppRoutes() {
   return (
@@ -36,7 +37,7 @@ function AppRoutes() {
         <Route path="/thin-content" component={ThinContent} />
         <Route path="/outlines">{() => <ComingSoon title="Outlines" description="Create and manage structured article outlines before writing." />}</Route>
         <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
-        <Route path="/grade">{() => <ComingSoon title="Grade Content" description="AI-powered content grading for E-E-A-T, accuracy, and readability." />}</Route>
+        <Route path="/grade" component={GradeContent} />
         <Route path="/ideas">{() => <ComingSoon title="Ideas" description="Capture and organize content ideas for future articles." />}</Route>
         <Route component={NotFound} />
       </Switch>

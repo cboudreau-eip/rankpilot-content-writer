@@ -31,6 +31,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 const PROJECT_COLORS = [
@@ -40,6 +41,7 @@ const PROJECT_COLORS = [
 
 export default function Projects() {
   const { projects, isLoading, setActiveProjectId, activeProject } = useActiveProject();
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const [createOpen, setCreateOpen] = useState(false);
   const [editProject, setEditProject] = useState<{ id: number; name: string; color: string; domain: string; description: string } | null>(null);
@@ -118,7 +120,10 @@ export default function Projects() {
             <Card
               key={project.id}
               className={`shadow-sm cursor-pointer transition-all hover:shadow-md ${activeProject?.id === project.id ? "ring-2 ring-primary" : ""}`}
-              onClick={() => setActiveProjectId(project.id)}
+              onClick={() => {
+                setActiveProjectId(project.id);
+                navigate("/");
+              }}
             >
               <CardHeader className="flex flex-row items-start justify-between pb-3">
                 <div className="flex items-center gap-3">

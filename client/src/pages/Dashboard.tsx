@@ -16,7 +16,9 @@ import {
   Plus,
   ArrowUpRight,
   ArrowDownRight,
+  Settings,
 } from "lucide-react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,13 +73,23 @@ export default function Dashboard() {
   return (
     <div>
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {activeProject
-            ? `Overview for ${activeProject.name}`
-            : "Welcome back! Here's your content overview."}
-        </p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {activeProject
+              ? `Overview for ${activeProject.name}`
+              : "Welcome back! Here's your content overview."}
+          </p>
+        </div>
+        {activeProject && (
+          <Link href="/project-settings">
+            <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground">
+              <Settings className="w-4 h-4" />
+              <span>Project Settings</span>
+            </button>
+          </Link>
+        )}
       </div>
 
       {/* Stat Cards */}

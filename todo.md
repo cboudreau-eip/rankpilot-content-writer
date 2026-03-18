@@ -121,4 +121,12 @@
 - [x] Wire gear icon in header to General Settings
 - [x] Update routing in App.tsx
 - [x] Test navigation and verify separation
+- [x] Save checkpoint
+
+## Fix: Project Navigation Flow
+- [x] Make project cards clickable — clicking navigates to that project's dashboard and sets it as active
+- [x] Add project settings access within the project dashboard (gear icon or settings tab)
+- [x] Remove "Project Settings" from sidebar nav
+- [x] Update routing so /project-settings is accessible from within the dashboard context
+- [x] Test full flow: Projects page → click card → dashboard → settings
 - [ ] Save checkpoint

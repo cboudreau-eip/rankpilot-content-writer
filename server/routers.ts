@@ -963,6 +963,162 @@ Return ONLY the HTML content of the article body (no <html>, <head>, or <body> t
         return article;
       }),
   }),
+  // ---- Thin Content Analyzer ----
+  thinContent: router({
+    /** Analyze a sitemap URL for thin content issues */
+    analyze: protectedProcedure
+      .input(z.object({
+        sitemapUrl: z.string().url(),
+        wordThreshold: z.number().min(50).max(5000).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { sitemapUrl, wordThreshold = 300 } = input;
+        const MAX_PAGES = 200;
+
+        // Step 1: Parse sitemap to get URLs
+        const parseSitemapUrls = async (url: string, depth = 0): Promise<string[]> => {
+          if (depth > 2) return []; // prevent infinite recursion
+          try {
+            const response = await fetch(url, {
+              headers: { "User-Agent": "RankPilot-Bot/1.0" },
+              signal: AbortSignal.timeout(15000),
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const xml = await response.text();
+            const urls: string[] = [];
+
+            // Check if sitemap index
+            const sitemapIndexRegex = /<sitemap>[\s\S]*?<loc>([^<]+)<\/loc>[\s\S]*?<\/sitemap>/gi;
+            let indexMatch: RegExpExecArray | null;
+            const childSitemaps: string[] = [];
+            while ((indexMatch = sitemapIndexRegex.exec(xml)) !== null) {
+              childSitemaps.push(indexMatch[1]);
+            }
+
+            if (childSitemaps.length > 0) {
+              for (const childUrl of childSitemaps.slice(0, 5)) {
+                const childUrls = await parseSitemapUrls(childUrl, depth + 1);
+                urls.push(...childUrls);
+                if (urls.length >= MAX_PAGES) break;
+              }
+            } else {
+              const urlRegex = /<url>[\s\S]*?<loc>([^<]+)<\/loc>[\s\S]*?<\/url>/gi;
+              let urlMatch: RegExpExecArray | null;
+              while ((urlMatch = urlRegex.exec(xml)) !== null) {
+                urls.push(urlMatch[1]);
+                if (urls.length >= MAX_PAGES) break;
+              }
+            }
+            return urls.slice(0, MAX_PAGES);
+          } catch (err) {
+            console.error(`Failed to parse sitemap ${url}:`, err);
+            return [];
+          }
+        };
+
+        const pageUrls = await parseSitemapUrls(sitemapUrl);
+        if (pageUrls.length === 0) {
+          throw new Error("No URLs found in the sitemap. Please check the URL and try again.");
+        }
+
+        // Step 2: Analyze each page
+        interface PageAnalysis {
+          url: string;
+          wordCount: number;
+          h1Count: number;
+          h2Count: number;
+          h3Count: number;
+          issues: string[];
+          recommendations: string[];
+        }
+
+        const analyzePage = async (pageUrl: string): Promise<PageAnalysis | null> => {
+          try {
+            const resp = await fetch(pageUrl, {
+              headers: { "User-Agent": "RankPilot-Bot/1.0" },
+              signal: AbortSignal.timeout(10000),
+            });
+            if (!resp.ok) return null;
+            const html = await resp.text();
+
+            // Strip non-content elements
+            const textContent = html
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+              .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
+              .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+              .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&[a-z]+;/gi, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            const wc = textContent.split(/\s+/).filter(w => w.length > 0).length;
+            const h1Count = (html.match(/<h1[^>]*>/gi) || []).length;
+            const h2Count = (html.match(/<h2[^>]*>/gi) || []).length;
+            const h3Count = (html.match(/<h3[^>]*>/gi) || []).length;
+
+            const issues: string[] = [];
+            const recommendations: string[] = [];
+
+            if (wc < wordThreshold) {
+              issues.push(`Low word count (${wc} words, threshold: ${wordThreshold})`);
+              recommendations.push(`Increase content length to at least ${wordThreshold} words for better SEO`);
+            }
+            if (h1Count === 0) {
+              issues.push("Missing H1 tag");
+              recommendations.push("Add a clear H1 heading to define the page topic");
+            } else if (h1Count > 1) {
+              issues.push(`Multiple H1 tags found (${h1Count})`);
+              recommendations.push("Use only one H1 tag per page for better SEO structure");
+            }
+            if (wc > 300 && h2Count === 0) {
+              issues.push("No H2 tags found on longer content");
+              recommendations.push("Break up longer content with H2 subheadings for better structure");
+            }
+            if (h3Count > 0 && h2Count === 0) {
+              issues.push("H3 tags used without H2 tags");
+              recommendations.push("Maintain proper heading hierarchy: H1 → H2 → H3");
+            }
+
+            return { url: pageUrl, wordCount: wc, h1Count, h2Count, h3Count, issues, recommendations };
+          } catch {
+            return null;
+          }
+        };
+
+        // Batch analyze (10 at a time)
+        const pages: PageAnalysis[] = [];
+        const batchSize = 10;
+        for (let i = 0; i < pageUrls.length; i += batchSize) {
+          const batch = pageUrls.slice(i, i + batchSize);
+          const results = await Promise.all(batch.map(analyzePage));
+          pages.push(...results.filter((r): r is PageAnalysis => r !== null));
+        }
+
+        const totalPages = pages.length;
+        const pagesWithIssues = pages.filter(p => p.issues.length > 0).length;
+        const avgWordCount = totalPages > 0
+          ? Math.round(pages.reduce((sum, p) => sum + p.wordCount, 0) / totalPages)
+          : 0;
+
+        // Sort: pages with issues first, then by word count ascending
+        pages.sort((a, b) => {
+          if (a.issues.length > 0 && b.issues.length === 0) return -1;
+          if (a.issues.length === 0 && b.issues.length > 0) return 1;
+          return a.wordCount - b.wordCount;
+        });
+
+        return { totalPages, pagesWithIssues, avgWordCount, pages };
+      }),
+
+    /** Get sitemaps for a project (for the project selector) */
+    getProjectSitemaps: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getSitemapsByProject(input.projectId);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

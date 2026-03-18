@@ -13,6 +13,7 @@ import GenerateArticle from "./pages/GenerateArticle";
 import ComingSoon from "./pages/ComingSoon";
 import ProjectSettings from "./pages/ProjectSettings";
 import GeneralSettings from "./pages/GeneralSettings";
+import ThinContent from "./pages/ThinContent";
 
 function AppRoutes() {
   return (
@@ -32,7 +33,7 @@ function AppRoutes() {
         <Route path="/kpt">{() => <ComingSoon title="Position Tracker" description="Track your keyword rankings and monitor position changes over time." />}</Route>
         <Route path="/gsc-analyzer">{() => <ComingSoon title="GSC Analyzer" description="Deep analysis of your Google Search Console data for actionable insights." />}</Route>
         <Route path="/seo-intelligence">{() => <ComingSoon title="Keyword Insights" description="AI-powered keyword clustering and strategic intelligence." />}</Route>
-        <Route path="/thin-content">{() => <ComingSoon title="Thin Content" description="Identify and improve underperforming pages on your site." />}</Route>
+        <Route path="/thin-content" component={ThinContent} />
         <Route path="/outlines">{() => <ComingSoon title="Outlines" description="Create and manage structured article outlines before writing." />}</Route>
         <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
         <Route path="/grade">{() => <ComingSoon title="Grade Content" description="AI-powered content grading for E-E-A-T, accuracy, and readability." />}</Route>

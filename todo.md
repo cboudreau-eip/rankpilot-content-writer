@@ -147,3 +147,10 @@
 - [x] Save checkpoint
 - [x] Widen Generate Article form by ~200px
 - [x] Fix: Brand voice delete button not working
+
+## Thin Content Checker
+- [x] Create tRPC route for thin content analysis (parseSitemap, analyzePage, batch processing)
+- [x] Build ThinContent page component with project/manual sitemap input, threshold setting, results display
+- [x] Wire up sidebar link to the new page
+- [x] Write vitest tests for thin content route
+- [x] Save checkpoint

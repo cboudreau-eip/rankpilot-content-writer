@@ -1,6 +1,6 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -348,4 +348,85 @@ export async function deleteCTA(id: number) {
   if (!db) throw new Error("Database not available");
   await db.delete(ctaTemplates).where(eq(ctaTemplates.id, id));
   return { success: true };
+}
+
+// ---- Sitemap Helpers ----
+
+export async function getSitemapsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(sitemaps).where(eq(sitemaps.projectId, projectId)).orderBy(desc(sitemaps.createdAt));
+}
+
+export async function getSitemapById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(sitemaps).where(eq(sitemaps.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createSitemap(data: InsertSitemap) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(sitemaps).values(data);
+  return getSitemapById(result[0].insertId);
+}
+
+export async function updateSitemap(id: number, data: Partial<Pick<InsertSitemap, "url" | "parsedUrls" | "urlCount" | "lastParsed">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(sitemaps).set(data).where(eq(sitemaps.id, id));
+  return getSitemapById(id);
+}
+
+export async function deleteSitemap(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(sitemaps).where(eq(sitemaps.id, id));
+  return { success: true };
+}
+
+// ---- Citation Source Helpers ----
+
+export async function getCitationsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(citationSources).where(eq(citationSources.projectId, projectId)).orderBy(desc(citationSources.createdAt));
+}
+
+export async function getCitationById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(citationSources).where(eq(citationSources.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createCitation(data: InsertCitationSource) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(citationSources).values(data);
+  return getCitationById(result[0].insertId);
+}
+
+export async function updateCitation(id: number, data: Partial<Pick<InsertCitationSource, "name" | "url" | "description" | "category">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(citationSources).set(data).where(eq(citationSources.id, id));
+  return getCitationById(id);
+}
+
+export async function deleteCitation(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(citationSources).where(eq(citationSources.id, id));
+  return { success: true };
+}
+
+// ---- Cross Check (Reference Doc) Helpers ----
+
+export async function updateProjectReferenceDoc(projectId: number, referenceDoc: string | null, referenceDocName: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(projects).set({ referenceDoc, referenceDocName }).where(eq(projects.id, projectId));
+  return getProjectById(projectId);
 }

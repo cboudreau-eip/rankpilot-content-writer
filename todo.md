@@ -129,4 +129,19 @@
 - [x] Remove "Project Settings" from sidebar nav
 - [x] Update routing so /project-settings is accessible from within the dashboard context
 - [x] Test full flow: Projects page → click card → dashboard → settings
-- [ ] Save checkpoint
+- [x] Save checkpoint
+
+## Project Settings: Sitemaps, Citations, Cross Check Tabs
+- [x] Add Sitemap database model (url, lastCrawled, pageCount, projectId)
+- [x] Add CitationSource database model (name, url, description, projectId)
+- [x] Add referenceDoc and referenceDocName fields to Project model for Cross Check
+- [x] Push database migrations
+- [x] Build sitemap tRPC routes (list, create, update, delete)
+- [x] Build citation tRPC routes (list, create, update, delete)
+- [x] Build crossCheck tRPC routes (update reference doc on project, run cross-check on article)
+- [x] Build Sitemaps tab UI in Project Settings
+- [x] Build Citations tab UI in Project Settings
+- [x] Build Cross Check tab UI in Project Settings (reference doc upload/paste)
+- [ ] Add Cross Check button/action to Article Editor
+- [x] Write vitest tests for new routes
+- [x] Save checkpoint

@@ -1,4 +1,4 @@
-import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar, mediumtext } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -28,6 +28,10 @@ export const projects = mysqlTable("projects", {
   color: varchar("color", { length: 32 }).default("#6366f1").notNull(),
   domain: varchar("domain", { length: 512 }),
   description: text("description"),
+  /** Reference document for Cross Check feature (plain text or markdown) */
+  referenceDoc: mediumtext("referenceDoc"),
+  /** Original filename of the reference document for display */
+  referenceDocName: varchar("referenceDocName", { length: 512 }),
   userId: int("userId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -207,3 +211,51 @@ export const ctaTemplates = mysqlTable("cta_templates", {
 
 export type CTATemplate = typeof ctaTemplates.$inferSelect;
 export type InsertCTATemplate = typeof ctaTemplates.$inferInsert;
+
+/**
+ * Sitemaps — parsed XML sitemaps for internal linking during article generation.
+ */
+export const sitemaps = mysqlTable("sitemaps", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The sitemap URL (e.g., https://example.com/sitemap.xml) */
+  url: varchar("url", { length: 2048 }).notNull(),
+  /** JSON array of parsed URLs from the sitemap */
+  parsedUrls: json("parsedUrls").$type<SitemapUrl[]>().notNull(),
+  /** Number of URLs found in the sitemap */
+  urlCount: int("urlCount").default(0).notNull(),
+  projectId: int("projectId").notNull(),
+  lastParsed: timestamp("lastParsed").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Sitemap = typeof sitemaps.$inferSelect;
+export type InsertSitemap = typeof sitemaps.$inferInsert;
+
+export interface SitemapUrl {
+  url: string;
+  title?: string;
+  lastmod?: string;
+}
+
+/**
+ * Citation Sources — trusted reference URLs for AI to cite in generated articles.
+ */
+export const citationSources = mysqlTable("citation_sources", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Display name (e.g., "Medicare.gov - Official Medicare Information") */
+  name: varchar("name", { length: 512 }).notNull(),
+  /** Base URL (e.g., "https://www.medicare.gov") */
+  url: varchar("url", { length: 2048 }).notNull(),
+  /** Optional description of what this source covers */
+  description: text("description"),
+  /** Optional category (e.g., "Government", "Research", "Industry") */
+  category: varchar("category", { length: 128 }),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CitationSource = typeof citationSources.$inferSelect;
+export type InsertCitationSource = typeof citationSources.$inferInsert;

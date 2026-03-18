@@ -11,9 +11,13 @@ import {
   getICPsByProject, getICPById, createICP, updateICP, deleteICP,
   getBrandVoicesByProject, getBrandVoiceById, createBrandVoice, updateBrandVoice, deleteBrandVoice,
   getCTAsByProject, getCTAById, createCTA, updateCTA, deleteCTA,
+  getSitemapsByProject, getSitemapById, createSitemap, updateSitemap, deleteSitemap,
+  getCitationsByProject, getCitationById, createCitation, updateCitation, deleteCitation,
+  updateProjectReferenceDoc,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
-import type { OutlineSection, OutlineSettings, ICPDemographics } from "../drizzle/schema";
+import { parseSitemap } from "./sitemap-parser";
+import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -485,6 +489,218 @@ Return ONLY valid JSON, no markdown code blocks.`;
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteCTA(input.id);
+      }),
+  }),
+
+  sitemaps: router({
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getSitemapsByProject(input.projectId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getSitemapById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        url: z.string().url().min(1),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        // Parse the sitemap to extract URLs
+        const parsedUrls = await parseSitemap(input.url);
+
+        if (parsedUrls.length === 0) {
+          throw new Error("Could not parse any URLs from the sitemap. Please verify the URL is correct and accessible.");
+        }
+
+        return createSitemap({
+          url: input.url,
+          parsedUrls,
+          urlCount: parsedUrls.length,
+          projectId: input.projectId,
+        });
+      }),
+
+    refresh: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const sitemap = await getSitemapById(input.id);
+        if (!sitemap) throw new Error("Sitemap not found");
+
+        const parsedUrls = await parseSitemap(sitemap.url);
+        if (parsedUrls.length === 0) {
+          throw new Error("Could not parse any URLs from the sitemap during refresh.");
+        }
+
+        return updateSitemap(input.id, {
+          parsedUrls,
+          urlCount: parsedUrls.length,
+          lastParsed: new Date(),
+        });
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteSitemap(input.id);
+      }),
+  }),
+
+  citations: router({
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getCitationsByProject(input.projectId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getCitationById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(512),
+        url: z.string().url().min(1),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createCitation({
+          name: input.name,
+          url: input.url,
+          description: input.description ?? null,
+          category: input.category ?? null,
+          projectId: input.projectId,
+          userId: ctx.user.id,
+        });
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(512).optional(),
+        url: z.string().url().optional(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return updateCitation(id, data as any);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteCitation(input.id);
+      }),
+  }),
+
+  crossCheck: router({
+    /** Get the reference document for a project */
+    getReferenceDoc: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        const project = await getProjectById(input.projectId);
+        if (!project) throw new Error("Project not found");
+        return {
+          referenceDoc: project.referenceDoc,
+          referenceDocName: project.referenceDocName,
+        };
+      }),
+
+    /** Update the reference document for a project */
+    updateReferenceDoc: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        referenceDoc: z.string().nullable(),
+        referenceDocName: z.string().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        return updateProjectReferenceDoc(input.projectId, input.referenceDoc, input.referenceDocName);
+      }),
+
+    /** Run cross-check on an article against the project's reference document */
+    checkArticle: protectedProcedure
+      .input(z.object({ articleId: z.number() }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new Error("Article not found");
+
+        const project = await getProjectById(article.projectId);
+        if (!project) throw new Error("Project not found");
+
+        if (!project.referenceDoc) {
+          throw new Error("No reference document found for this project. Add one in Project Settings > Cross Check tab.");
+        }
+
+        const referenceDoc = project.referenceDoc;
+        const referenceDocName = project.referenceDocName || "Reference Document";
+
+        const systemPrompt = `You are a meticulous fact-checker. Your ONLY job is to compare an article against a reference document and identify factual discrepancies.
+
+IMPORTANT RULES:
+1. You are ONLY checking for factual accuracy — not grammar, tone, style, SEO, or structure.
+2. A "discrepancy" means the article states something that CONTRADICTS or MISREPRESENTS specific facts in the reference document.
+3. If the article discusses topics NOT covered in the reference document, that is NOT a discrepancy — ignore those sections entirely.
+4. If the article does not touch on any information from the reference document, return an empty discrepancies array.
+5. Be very precise — quote the exact text from the article and the exact contradicting fact from the reference document.
+6. Do NOT invent issues. Only flag genuine factual conflicts between the two documents.
+7. For each discrepancy, provide a corrected version of the article text that aligns with the reference document.
+
+Respond in this exact JSON format:
+{
+  "summary": "A 1-2 sentence overall assessment of factual alignment",
+  "discrepancies": [
+    {
+      "articleText": "The exact text from the article that contains the inaccuracy",
+      "referenceText": "The exact fact from the reference document that contradicts it",
+      "correction": "The corrected version of the article text that aligns with the reference document",
+      "severity": "high" | "medium" | "low"
+    }
+  ],
+  "alignedFacts": [
+    "Brief description of facts in the article that correctly match the reference document"
+  ]
+}
+
+Severity guide:
+- "high": Critical factual errors (wrong numbers, dates, names, costs)
+- "medium": Misleading or outdated information that could confuse readers
+- "low": Minor inaccuracies or imprecise language that slightly misrepresents the reference
+
+Respond with ONLY the JSON object. No markdown, no explanation.`;
+
+        const userPrompt = `REFERENCE DOCUMENT ("${referenceDocName}"):\n---\n${referenceDoc}\n---\n\nARTICLE TO CROSS-CHECK:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${article.content}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const contentStr = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+
+        // Parse JSON from response
+        const jsonMatch = contentStr.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse cross-check response");
+
+        const results = JSON.parse(jsonMatch[0]);
+
+        return {
+          results,
+          referenceDocName,
+        };
       }),
   }),
 

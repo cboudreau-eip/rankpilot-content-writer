@@ -29,6 +29,13 @@
       "when": 1773776311811,
       "tag": "0003_condemned_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1773835938276,
+      "tag": "0004_military_strong_guy",
+      "breakpoints": true
     }
   ]
 }

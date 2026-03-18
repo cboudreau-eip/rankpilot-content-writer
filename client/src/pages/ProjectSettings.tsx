@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveProject } from "@/components/AppLayout";
 import {
   Users, Mic, MousePointerClick, Plus, Pencil, Trash2, ChevronRight,
   Target, MapPin, GraduationCap, Briefcase, DollarSign, AlertCircle,
-  Goal, ShieldAlert, BookOpen, Search, Star, X, Check, Loader2
+  Goal, ShieldAlert, BookOpen, Search, Star, X, Check, Loader2,
+  Globe, Link2, FileCheck, RefreshCw, ExternalLink, Upload, FileText,
+  CheckCircle2, XCircle, AlertTriangle, Info
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
-type Tab = "icp" | "voice" | "cta";
+type Tab = "icp" | "voice" | "cta" | "sitemaps" | "citations" | "crosscheck";
 
 // ---- Tag Input Component ----
 function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
@@ -204,48 +206,45 @@ function BrandVoiceForm({ projectId, existing, onClose }: { projectId: number; e
     <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
       <div className="space-y-2">
         <Label className="text-base font-semibold">Voice Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Medicare FAQ Main Voice" className="text-base" />
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Friendly Expert" className="text-base" />
       </div>
       <div className="space-y-2">
         <Label className="text-base font-semibold">Description</Label>
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe this brand voice..." className="text-base min-h-[80px]" />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Tone</Label>
-        <Select value={tone} onValueChange={setTone}>
-          <SelectTrigger className="text-base">
-            <SelectValue placeholder="Select a tone..." />
-          </SelectTrigger>
-          <SelectContent>
-            {toneOptions.map((t) => (
-              <SelectItem key={t} value={t.toLowerCase()}>{t}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Writing Style Guidelines</Label>
-        <Textarea value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Describe the writing style: sentence length, paragraph structure, use of jargon, etc." className="text-base min-h-[100px]" />
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of this voice..." className="text-base min-h-[80px]" />
       </div>
 
       <Separator />
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Tone</Label>
+        <div className="flex flex-wrap gap-2">
+          {toneOptions.map((t) => (
+            <Badge
+              key={t}
+              variant={tone === t.toLowerCase() ? "default" : "outline"}
+              className="cursor-pointer text-sm py-1.5 px-3"
+              onClick={() => setTone(t.toLowerCase())}
+            >
+              {t}
+            </Badge>
+          ))}
+        </div>
+      </div>
 
-      <h3 className="text-lg font-semibold">Preferred Vocabulary</h3>
-      <p className="text-sm text-muted-foreground">Words and phrases to use frequently in content.</p>
-      <TagInput value={vocabulary} onChange={setVocabulary} placeholder="Add a word or phrase..." />
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Style Guidelines</Label>
+        <Textarea value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Describe the writing style..." className="text-base min-h-[80px]" />
+      </div>
 
-      <h3 className="text-lg font-semibold">Words to Avoid</h3>
-      <p className="text-sm text-muted-foreground">Words and phrases that should never appear in content.</p>
+      <h3 className="text-lg font-semibold flex items-center gap-2"><Check className="w-5 h-5 text-green-500" /> Preferred Vocabulary</h3>
+      <TagInput value={vocabulary} onChange={setVocabulary} placeholder="Add a preferred word..." />
+
+      <h3 className="text-lg font-semibold flex items-center gap-2"><X className="w-5 h-5 text-red-500" /> Words to Avoid</h3>
       <TagInput value={avoidWords} onChange={setAvoidWords} placeholder="Add a word to avoid..." />
 
-      <h3 className="text-lg font-semibold">Example Sentences</h3>
-      <p className="text-sm text-muted-foreground">Sentences that demonstrate this voice. The AI will use these as reference.</p>
+      <h3 className="text-lg font-semibold flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Example Sentences</h3>
       <TagInput value={examples} onChange={setExamples} placeholder="Add an example sentence..." />
 
-      <h3 className="text-lg font-semibold">Brand Rules</h3>
-      <p className="text-sm text-muted-foreground">Specific rules (e.g., "Always capitalize Medicare", "Never use first person").</p>
+      <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-500" /> Brand Rules</h3>
       <TagInput value={rules} onChange={setRules} placeholder="Add a rule..." />
 
       <div className="flex justify-end gap-3 pt-4">
@@ -298,19 +297,15 @@ function CTAForm({ projectId, existing, onClose }: { projectId: number; existing
         <Label className="text-base font-semibold">Template Name</Label>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Free Consultation CTA" className="text-base" />
       </div>
-
       <div className="space-y-2">
         <Label className="text-base font-semibold">CTA Content</Label>
-        <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write the CTA text or HTML..." className="text-base min-h-[120px]" />
+        <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write the CTA text/HTML..." className="text-base min-h-[100px]" />
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label className="text-base font-semibold">Type</Label>
           <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="text-base">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="text-base"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="inline">Inline</SelectItem>
               <SelectItem value="banner">Banner</SelectItem>
@@ -323,27 +318,23 @@ function CTAForm({ projectId, existing, onClose }: { projectId: number; existing
         <div className="space-y-2">
           <Label className="text-base font-semibold">Placement</Label>
           <Select value={placement} onValueChange={setPlacement}>
-            <SelectTrigger className="text-base">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="text-base"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="start">Start of Article</SelectItem>
-              <SelectItem value="middle">Middle of Article</SelectItem>
-              <SelectItem value="end">End of Article</SelectItem>
+              <SelectItem value="beginning">Beginning</SelectItem>
+              <SelectItem value="middle">Middle</SelectItem>
+              <SelectItem value="end">End</SelectItem>
               <SelectItem value="after-h2">After Each H2</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
       <div className="space-y-2">
-        <Label className="text-base font-semibold">Link URL (optional)</Label>
+        <Label className="text-base font-semibold">URL (optional)</Label>
         <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="text-base" />
       </div>
-
       <div className="space-y-2">
         <Label className="text-base font-semibold">Button Text (optional)</Label>
-        <Input value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="e.g., Get Started Free" className="text-base" />
+        <Input value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="e.g., Get Started" className="text-base" />
       </div>
 
       <div className="flex justify-end gap-3 pt-4">
@@ -353,6 +344,432 @@ function CTAForm({ projectId, existing, onClose }: { projectId: number; existing
           {existing ? "Update Template" : "Create Template"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ---- Citation Form ----
+function CitationForm({ projectId, existing, onClose }: { projectId: number; existing?: any; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const createMut = trpc.citations.create.useMutation({ onSuccess: () => { utils.citations.list.invalidate(); onClose(); toast.success("Citation source added"); } });
+  const updateMut = trpc.citations.update.useMutation({ onSuccess: () => { utils.citations.list.invalidate(); onClose(); toast.success("Citation source updated"); } });
+
+  const [name, setName] = useState(existing?.name ?? "");
+  const [url, setUrl] = useState(existing?.url ?? "");
+  const [description, setDescription] = useState(existing?.description ?? "");
+  const [category, setCategory] = useState(existing?.category ?? "");
+
+  const loading = createMut.isPending || updateMut.isPending;
+
+  const categoryOptions = [
+    "Government", "Research", "Industry", "News", "Academic", "Medical", "Legal", "Technical", "Other"
+  ];
+
+  const handleSubmit = () => {
+    if (!name.trim()) { toast.error("Name is required"); return; }
+    if (!url.trim()) { toast.error("URL is required"); return; }
+    const data = {
+      name: name.trim(),
+      url: url.trim(),
+      description: description || undefined,
+      category: category || undefined,
+    };
+    if (existing) {
+      updateMut.mutate({ id: existing.id, ...data });
+    } else {
+      createMut.mutate({ ...data, projectId });
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Source Name</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Medicare.gov - Official Medicare Information" className="text-base" />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">URL</Label>
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.medicare.gov" className="text-base" />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Description (optional)</Label>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this source cover?" className="text-base min-h-[80px]" />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Category</Label>
+        <div className="flex flex-wrap gap-2">
+          {categoryOptions.map((c) => (
+            <Badge
+              key={c}
+              variant={category === c.toLowerCase() ? "default" : "outline"}
+              className="cursor-pointer text-sm py-1.5 px-3"
+              onClick={() => setCategory(c.toLowerCase())}
+            >
+              {c}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4">
+        <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button onClick={handleSubmit} disabled={loading}>
+          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          {existing ? "Update Source" : "Add Source"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Sitemaps Tab Content ----
+function SitemapsTab({ projectId }: { projectId: number }) {
+  const utils = trpc.useUtils();
+  const { data: sitemapList = [], isLoading } = trpc.sitemaps.list.useQuery({ projectId });
+  const [addUrl, setAddUrl] = useState("");
+  const [showUrls, setShowUrls] = useState<number | null>(null);
+
+  const createMut = trpc.sitemaps.create.useMutation({
+    onSuccess: () => {
+      utils.sitemaps.list.invalidate();
+      setAddUrl("");
+      toast.success("Sitemap added and parsed successfully");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const refreshMut = trpc.sitemaps.refresh.useMutation({
+    onSuccess: () => {
+      utils.sitemaps.list.invalidate();
+      toast.success("Sitemap refreshed");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMut = trpc.sitemaps.delete.useMutation({
+    onSuccess: () => {
+      utils.sitemaps.list.invalidate();
+      toast.success("Sitemap removed");
+    },
+  });
+
+  const handleAdd = () => {
+    if (!addUrl.trim()) { toast.error("Please enter a sitemap URL"); return; }
+    createMut.mutate({ url: addUrl.trim(), projectId });
+  };
+
+  const totalUrls = useMemo(() => sitemapList.reduce((sum: number, s: any) => sum + (s.urlCount || 0), 0), [sitemapList]);
+
+  return (
+    <div className="space-y-6">
+      {/* Add Sitemap */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-1">Add Sitemap URL</h3>
+          <p className="text-muted-foreground text-sm mb-4">
+            Paste your sitemap URL and we'll parse it to extract all page URLs. These URLs will be available for internal linking during article generation.
+          </p>
+          <div className="flex gap-3">
+            <Input
+              value={addUrl}
+              onChange={(e) => setAddUrl(e.target.value)}
+              placeholder="https://example.com/sitemap.xml"
+              className="text-base flex-1"
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            />
+            <Button onClick={handleAdd} disabled={createMut.isPending} className="gap-2 shrink-0">
+              {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add Sitemap
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats */}
+      {sitemapList.length > 0 && (
+        <div className="flex gap-4">
+          <div className="bg-blue-50 rounded-xl px-5 py-3 flex items-center gap-3">
+            <Globe className="w-5 h-5 text-blue-500" />
+            <div>
+              <div className="text-2xl font-bold text-blue-700">{sitemapList.length}</div>
+              <div className="text-xs text-blue-600">Sitemaps</div>
+            </div>
+          </div>
+          <div className="bg-indigo-50 rounded-xl px-5 py-3 flex items-center gap-3">
+            <Link2 className="w-5 h-5 text-indigo-500" />
+            <div>
+              <div className="text-2xl font-bold text-indigo-700">{totalUrls}</div>
+              <div className="text-xs text-indigo-600">Total URLs</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sitemap List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+      ) : sitemapList.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+              <Globe className="w-7 h-7 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">No Sitemaps Yet</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-4">
+              Add your website's sitemap so the AI can use your existing pages for internal linking in generated articles.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        sitemapList.map((sitemap: any) => (
+          <Card key={sitemap.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                      <Globe className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-medium truncate">{sitemap.url}</p>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                        <span className="flex items-center gap-1"><Link2 className="w-3.5 h-3.5" /> {sitemap.urlCount} URLs</span>
+                        <span>Parsed: {new Date(sitemap.lastParsed).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Toggle URL list */}
+                  {showUrls === sitemap.id && sitemap.parsedUrls && (
+                    <div className="mt-3 ml-13 bg-muted/40 rounded-lg p-4 max-h-60 overflow-y-auto">
+                      <div className="space-y-1.5">
+                        {(sitemap.parsedUrls as any[]).slice(0, 50).map((u: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-sm">
+                            <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground truncate">{u.title || u.url}</span>
+                          </div>
+                        ))}
+                        {(sitemap.parsedUrls as any[]).length > 50 && (
+                          <p className="text-xs text-muted-foreground mt-2">...and {(sitemap.parsedUrls as any[]).length - 50} more</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-1 shrink-0 ml-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setShowUrls(showUrls === sitemap.id ? null : sitemap.id)}
+                  >
+                    {showUrls === sitemap.id ? "Hide" : "View"} URLs
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => refreshMut.mutate({ id: sitemap.id })}
+                    disabled={refreshMut.isPending}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshMut.isPending ? "animate-spin" : ""}`} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => deleteMut.mutate({ id: sitemap.id })}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ---- Cross Check Tab Content ----
+function CrossCheckTab({ projectId }: { projectId: number }) {
+  const utils = trpc.useUtils();
+  const { data: refDoc, isLoading } = trpc.crossCheck.getReferenceDoc.useQuery({ projectId });
+  const [docContent, setDocContent] = useState("");
+  const [docName, setDocName] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+
+  const updateMut = trpc.crossCheck.updateReferenceDoc.useMutation({
+    onSuccess: () => {
+      utils.crossCheck.getReferenceDoc.invalidate();
+      setIsEditing(false);
+      toast.success("Reference document updated");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const startEditing = () => {
+    setDocContent(refDoc?.referenceDoc ?? "");
+    setDocName(refDoc?.referenceDocName ?? "");
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    if (!docContent.trim()) {
+      toast.error("Please enter the reference document content");
+      return;
+    }
+    updateMut.mutate({
+      projectId,
+      referenceDoc: docContent.trim(),
+      referenceDocName: docName.trim() || "Reference Document",
+    });
+  };
+
+  const handleRemove = () => {
+    updateMut.mutate({
+      projectId,
+      referenceDoc: null,
+      referenceDocName: null,
+    });
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large. Maximum size is 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setDocContent(text);
+      setDocName(file.name);
+      setIsEditing(true);
+    };
+    reader.readAsText(file);
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Info Card */}
+      <Card className="bg-violet-50/50 border-violet-200">
+        <CardContent className="p-5">
+          <div className="flex gap-3">
+            <Info className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-violet-900 mb-1">How Cross Check Works</h4>
+              <p className="text-sm text-violet-700">
+                Upload a reference document (product specs, company facts, guidelines, etc.) and the AI will compare your generated articles against it to identify factual discrepancies. This is especially useful for regulated industries where accuracy is critical.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Current Reference Doc or Upload */}
+      {!isEditing && refDoc?.referenceDoc ? (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-violet-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">{refDoc.referenceDocName || "Reference Document"}</h3>
+                  <p className="text-sm text-muted-foreground">{refDoc.referenceDoc.length.toLocaleString()} characters</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={startEditing} className="gap-1.5">
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </Button>
+                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1.5" onClick={handleRemove} disabled={updateMut.isPending}>
+                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                </Button>
+              </div>
+            </div>
+            <div className="bg-muted/40 rounded-lg p-4 max-h-64 overflow-y-auto">
+              <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">{refDoc.referenceDoc.substring(0, 2000)}{refDoc.referenceDoc.length > 2000 ? "\n\n... (truncated for preview)" : ""}</pre>
+            </div>
+          </CardContent>
+        </Card>
+      ) : !isEditing ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center mb-4">
+              <FileCheck className="w-7 h-7 text-violet-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">No Reference Document</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-6">
+              Add a reference document to enable fact-checking against your articles. You can paste text directly or upload a .txt or .md file.
+            </p>
+            <div className="flex gap-3">
+              <Button onClick={() => setIsEditing(true)} className="gap-2">
+                <Pencil className="w-4 h-4" /> Paste Text
+              </Button>
+              <label>
+                <Button variant="outline" className="gap-2" asChild>
+                  <span>
+                    <Upload className="w-4 h-4" /> Upload File
+                    <input type="file" accept=".txt,.md,.text" className="hidden" onChange={handleFileUpload} />
+                  </span>
+                </Button>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Edit Reference Document</h3>
+              <label>
+                <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                  <span>
+                    <Upload className="w-3.5 h-3.5" /> Upload File
+                    <input type="file" accept=".txt,.md,.text" className="hidden" onChange={handleFileUpload} />
+                  </span>
+                </Button>
+              </label>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Document Name</Label>
+              <Input
+                value={docName}
+                onChange={(e) => setDocName(e.target.value)}
+                placeholder="e.g., Medicare 2025 Fact Sheet"
+                className="text-base"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Document Content</Label>
+              <Textarea
+                value={docContent}
+                onChange={(e) => setDocContent(e.target.value)}
+                placeholder="Paste your reference document content here..."
+                className="text-base min-h-[300px] font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">{docContent.length.toLocaleString()} characters</p>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+              <Button onClick={handleSave} disabled={updateMut.isPending} className="gap-2">
+                {updateMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save Document
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -377,10 +794,19 @@ export default function ProjectSettings() {
     { projectId: activeProjectId! },
     { enabled: !!activeProjectId }
   );
+  const { data: sitemapList = [] } = trpc.sitemaps.list.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: !!activeProjectId }
+  );
+  const { data: citationList = [] } = trpc.citations.list.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: !!activeProjectId }
+  );
 
   const deleteICP = trpc.icpProfiles.delete.useMutation({ onSuccess: () => { trpc.useUtils().icpProfiles.list.invalidate(); toast.success("ICP Profile deleted"); } });
   const deleteVoice = trpc.brandVoices.delete.useMutation({ onSuccess: () => { trpc.useUtils().brandVoices.list.invalidate(); toast.success("Brand Voice deleted"); } });
   const deleteCTA = trpc.ctaTemplates.delete.useMutation({ onSuccess: () => { trpc.useUtils().ctaTemplates.list.invalidate(); toast.success("CTA Template deleted"); } });
+  const deleteCitation = trpc.citations.delete.useMutation({ onSuccess: () => { trpc.useUtils().citations.list.invalidate(); toast.success("Citation source deleted"); } });
 
   if (!activeProjectId) {
     return (
@@ -397,6 +823,9 @@ export default function ProjectSettings() {
     { id: "icp" as Tab, label: "ICP Profiles", icon: Users, count: icpList.length, color: "text-indigo-500", bg: "bg-indigo-50" },
     { id: "voice" as Tab, label: "Brand Voice", icon: Mic, count: voiceList.length, color: "text-emerald-500", bg: "bg-emerald-50" },
     { id: "cta" as Tab, label: "CTA Templates", icon: MousePointerClick, count: ctaList.length, color: "text-amber-500", bg: "bg-amber-50" },
+    { id: "sitemaps" as Tab, label: "Sitemaps", icon: Globe, count: sitemapList.length, color: "text-blue-500", bg: "bg-blue-50" },
+    { id: "citations" as Tab, label: "Citations", icon: Link2, count: citationList.length, color: "text-rose-500", bg: "bg-rose-50" },
+    { id: "crosscheck" as Tab, label: "Cross Check", icon: FileCheck, count: 0, color: "text-violet-500", bg: "bg-violet-50" },
   ];
 
   const openCreate = () => { setEditItem(null); setDialogOpen(true); };
@@ -406,23 +835,34 @@ export default function ProjectSettings() {
     ? (editItem ? "Edit ICP Profile" : "New ICP Profile")
     : activeTab === "voice"
     ? (editItem ? "Edit Brand Voice" : "New Brand Voice")
-    : (editItem ? "Edit CTA Template" : "New CTA Template");
+    : activeTab === "cta"
+    ? (editItem ? "Edit CTA Template" : "New CTA Template")
+    : activeTab === "citations"
+    ? (editItem ? "Edit Citation Source" : "New Citation Source")
+    : "";
 
   const dialogDesc = activeTab === "icp"
     ? "Define your ideal customer profile to tailor content generation."
     : activeTab === "voice"
     ? "Configure writing style and tone for consistent brand messaging."
-    : "Create reusable call-to-action blocks for your articles.";
+    : activeTab === "cta"
+    ? "Create reusable call-to-action blocks for your articles."
+    : activeTab === "citations"
+    ? "Add trusted sources that the AI should cite in generated articles."
+    : "";
+
+  // Determine if the active tab has a "create" button
+  const showCreateButton = ["icp", "voice", "cta", "citations"].includes(activeTab);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Project Settings</h1>
-        <p className="text-muted-foreground text-lg mt-1">Configure ICP targeting, brand voice, and CTAs for your content.</p>
+        <p className="text-muted-foreground text-lg mt-1">Configure content generation settings for your project.</p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-8">
+      <div className="flex gap-2 mb-8 flex-wrap">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -448,27 +888,32 @@ export default function ProjectSettings() {
         })}
       </div>
 
-      {/* Content Area */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-semibold">
-            {activeTab === "icp" && "ICP Profiles"}
-            {activeTab === "voice" && "Brand Voices"}
-            {activeTab === "cta" && "CTA Templates"}
-          </h2>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {activeTab === "icp" && "Define your target audience to generate more relevant content."}
-            {activeTab === "voice" && "Set the tone and style for your AI-generated articles."}
-            {activeTab === "cta" && "Create reusable calls-to-action to embed in articles."}
-          </p>
+      {/* Content Area Header */}
+      {showCreateButton && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold">
+              {activeTab === "icp" && "ICP Profiles"}
+              {activeTab === "voice" && "Brand Voices"}
+              {activeTab === "cta" && "CTA Templates"}
+              {activeTab === "citations" && "Citation Sources"}
+            </h2>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {activeTab === "icp" && "Define your target audience to generate more relevant content."}
+              {activeTab === "voice" && "Set the tone and style for your AI-generated articles."}
+              {activeTab === "cta" && "Create reusable calls-to-action to embed in articles."}
+              {activeTab === "citations" && "Add trusted sources the AI should reference in articles."}
+            </p>
+          </div>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" />
+            {activeTab === "icp" && "New ICP Profile"}
+            {activeTab === "voice" && "New Brand Voice"}
+            {activeTab === "cta" && "New CTA Template"}
+            {activeTab === "citations" && "New Citation Source"}
+          </Button>
         </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" />
-          {activeTab === "icp" && "New ICP Profile"}
-          {activeTab === "voice" && "New Brand Voice"}
-          {activeTab === "cta" && "New CTA Template"}
-        </Button>
-      </div>
+      )}
 
       {/* ICP Profiles Tab */}
       {activeTab === "icp" && (
@@ -629,6 +1074,62 @@ export default function ProjectSettings() {
         </div>
       )}
 
+      {/* Sitemaps Tab */}
+      {activeTab === "sitemaps" && <SitemapsTab projectId={activeProjectId} />}
+
+      {/* Citations Tab */}
+      {activeTab === "citations" && (
+        <div className="space-y-4">
+          {citationList.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
+                  <Link2 className="w-7 h-7 text-rose-500" />
+                </div>
+                <h3 className="text-lg font-semibold mb-1">No Citation Sources Yet</h3>
+                <p className="text-muted-foreground text-center max-w-md mb-4">
+                  Add trusted sources that the AI should reference and cite when generating articles. This improves credibility and E-E-A-T signals.
+                </p>
+                <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" /> Add First Source</Button>
+              </CardContent>
+            </Card>
+          ) : (
+            citationList.map((citation: any) => (
+              <Card key={citation.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                          <Link2 className="w-5 h-5 text-rose-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold">{citation.name}</h3>
+                          <a href={citation.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline flex items-center gap-1">
+                            {citation.url} <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+                      {citation.description && <p className="text-muted-foreground mb-3">{citation.description}</p>}
+                      <div className="flex flex-wrap gap-2 text-sm">
+                        {citation.category && <Badge variant="outline" className="capitalize">{citation.category}</Badge>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(citation)}><Pencil className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteCitation.mutate({ id: citation.id })}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Cross Check Tab */}
+      {activeTab === "crosscheck" && <CrossCheckTab projectId={activeProjectId} />}
+
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -639,6 +1140,7 @@ export default function ProjectSettings() {
           {activeTab === "icp" && <ICPForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
           {activeTab === "voice" && <BrandVoiceForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
           {activeTab === "cta" && <CTAForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
+          {activeTab === "citations" && <CitationForm projectId={activeProjectId} existing={editItem} onClose={() => setDialogOpen(false)} />}
         </DialogContent>
       </Dialog>
     </div>

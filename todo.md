@@ -145,3 +145,4 @@
 - [ ] Add Cross Check button/action to Article Editor
 - [x] Write vitest tests for new routes
 - [x] Save checkpoint
+- [x] Widen Generate Article form by ~200px

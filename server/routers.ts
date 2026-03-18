@@ -147,45 +147,103 @@ export const appRouter = router({
         numSections: z.number().optional(),
         numFaqs: z.number().optional(),
         additionalInstructions: z.string().optional(),
-        icpProfileId: z.number().optional(),
-        brandVoiceId: z.number().optional(),
         projectId: z.number(),
       }))
       .mutation(async ({ ctx, input }) => {
-        // Fetch ICP and Brand Voice if selected
-        const icpProfile = input.icpProfileId ? await getICPById(input.icpProfileId) : null;
-        const brandVoice = input.brandVoiceId ? await getBrandVoiceById(input.brandVoiceId) : null;
+        // Auto-fetch ICP from project and default brand voice
+        const project = await getProjectById(input.projectId);
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
-        // Build ICP context for the prompt
-        let icpContext = "";
-        if (icpProfile) {
-          icpContext = `\n\nTARGET AUDIENCE (ICP Profile: ${icpProfile.name}):\n`;
-          if (icpProfile.description) icpContext += `- Description: ${icpProfile.description}\n`;
-          if (icpProfile.demographics) {
-            const d = icpProfile.demographics as any;
-            if (d.ageRange) icpContext += `- Age Range: ${d.ageRange}\n`;
-            if (d.location) icpContext += `- Location: ${d.location}\n`;
-            if (d.income) icpContext += `- Income: ${d.income}\n`;
-            if (d.education) icpContext += `- Education: ${d.education}\n`;
-            if (d.occupation) icpContext += `- Occupation: ${d.occupation}\n`;
-          }
-          if (icpProfile.painPoints?.length) icpContext += `- Pain Points: ${(icpProfile.painPoints as string[]).join(", ")}\n`;
-          if (icpProfile.goals?.length) icpContext += `- Goals: ${(icpProfile.goals as string[]).join(", ")}\n`;
-          if (icpProfile.objections?.length) icpContext += `- Objections: ${(icpProfile.objections as string[]).join(", ")}\n`;
-          if (icpProfile.searchBehavior) icpContext += `- Search Behavior: ${icpProfile.searchBehavior}\n`;
-          icpContext += `\nIMPORTANT: Tailor the outline structure to address this audience's pain points, goals, and objections. Use language and framing that resonates with their search behavior.`;
+        // Build ICP section for outline (project-level ICP)
+        let icpSection = "";
+        if (project?.icpPrimaryName) {
+          const formatList = (items: string[] | null | undefined, label: string): string => {
+            if (!items?.length) return '';
+            return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+          };
+          icpSection = `
+=== IDEAL CUSTOMER PROFILE (ICP) - CRITICAL ===
+The outline MUST be structured to serve this specific audience:
+
+TARGET AUDIENCE: ${project.icpPrimaryName}
+${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}
+
+${formatList(project.icpPains as string[] | null, 'PAIN POINTS (structure H2 headings around these)')}
+${formatList(project.icpGoals as string[] | null, 'GOALS (address these in content sections)')}
+${formatList(project.icpObjections as string[] | null, 'OBJECTIONS (create FAQ questions from these)')}
+${formatList(project.icpDecisionTriggers as string[] | null, 'DECISION TRIGGERS (weave into content flow)')}
+${formatList(project.icpTrustSignals as string[] | null, 'TRUST SIGNALS (incorporate in relevant sections)')}
+
+ICP OUTLINE REQUIREMENTS:
+1. At least 30% of H2 headings MUST directly reflect the pain points listed above
+2. FAQ section MUST include questions that address the objections listed above
+3. Include sections that speak to the decision triggers
+4. Structure content to move the reader toward their goals
+5. Use language and examples that resonate with "${project.icpPrimaryName}"
+`;
         }
 
-        // Build Brand Voice context for the prompt
-        let voiceContext = "";
+        // Build Brand Voice section for outline
+        let brandVoiceSection = "";
         if (brandVoice) {
-          voiceContext = `\n\nBRAND VOICE (${brandVoice.name}):\n`;
-          if (brandVoice.toneTraits) voiceContext += `- Tone: ${brandVoice.toneTraits}\n`;
-          if (brandVoice.perspective) voiceContext += `- Perspective: ${brandVoice.perspective === "first" ? "First person (we/our)" : brandVoice.perspective === "second" ? "Second person (you/your)" : "Third person"}\n`;
-          if (brandVoice.sentenceStyle) voiceContext += `- Sentence Style: ${brandVoice.sentenceStyle === "short" ? "Short and Direct" : brandVoice.sentenceStyle === "detailed" ? "Detailed and Explanatory" : "Mixed (Varied and Natural Rhythm)"}\n`;
-          if (brandVoice.writingStyleSample) voiceContext += `- Writing Style Sample: "${brandVoice.writingStyleSample.slice(0, 500)}"\n`;
-          if (brandVoice.avoidList) voiceContext += `- Things to Avoid: ${brandVoice.avoidList}\n`;
-          voiceContext += `\nIMPORTANT: Ensure the outline headings and structure reflect this brand voice.`;
+          const perspectiveMap: Record<string, string> = {
+            first: "First person (we/our/us)",
+            second: "Second person (you/your)",
+            third: "Third person (they/their)",
+          };
+          const styleMap: Record<string, string> = {
+            short: "Concise, punchy sentences",
+            mixed: "Varied sentence lengths",
+            detailed: "Detailed, explanatory sentences",
+          };
+
+          // Parse avoid list (format: "PRESETS:id1,id2|CUSTOM:text" or legacy text)
+          const AVOID_LABELS: Record<string, string> = {
+            jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+            fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+            cliches: "Industry clichés", passive: "Passive voice",
+            buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+            unverified: "Unverified statistics", competitor: "Competitor comparisons",
+          };
+          let avoidItems: string[] = [];
+          const avoidList = brandVoice.avoidList || "";
+          if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+            const parts = avoidList.split("|");
+            for (const part of parts) {
+              if (part.startsWith("PRESETS:")) {
+                const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+                avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+              } else if (part.startsWith("CUSTOM:")) {
+                const custom = part.replace("CUSTOM:", "").trim();
+                if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+              }
+            }
+          } else if (avoidList) {
+            avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+          }
+
+          brandVoiceSection = `
+=== BRAND VOICE GUIDELINES - APPLY TO ALL CONTENT ===
+Voice Name: ${brandVoice.name}
+
+TONE TRAITS: ${brandVoice.toneTraits || 'Professional'}
+
+WRITING PERSPECTIVE: ${perspectiveMap[brandVoice.perspective] || brandVoice.perspective}
+
+SENTENCE STYLE: ${styleMap[brandVoice.sentenceStyle] || brandVoice.sentenceStyle}
+
+${avoidItems.length > 0 ? `AVOID:\n${avoidItems.map(item => `- ${item}`).join('\n')}` : ''}
+
+${brandVoice.writingStyleSample ? `STYLE EXAMPLE (for tone reference only — do NOT copy phrases):\n"${brandVoice.writingStyleSample.slice(0, 500)}${brandVoice.writingStyleSample.length > 500 ? '...' : ''}"` : ''}
+
+BRAND VOICE REQUIREMENTS FOR OUTLINE:
+1. Craft all section headings using the specified tone traits
+2. Key points should reflect the writing perspective (${perspectiveMap[brandVoice.perspective] || brandVoice.perspective})
+3. Hook and quick answer sections must match the brand tone
+4. FAQ questions should be phrased in a way that matches the voice
+5. Avoid anything listed in the "AVOID" section above
+`;
         }
 
         const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the given keyword.
@@ -207,8 +265,8 @@ Guidelines:
 - Tone: ${input.tone ?? "professional and informative"}
 - Target word count: ${input.targetWordCount ?? 2000} words
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
-${icpContext}
-${voiceContext}
+${icpSection}
+${brandVoiceSection}
 
 Return ONLY valid JSON, no markdown code blocks.`;
 
@@ -789,46 +847,150 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
       .input(z.object({
         outlineId: z.number(),
         projectId: z.number(),
-        icpProfileId: z.number().optional(),
-        brandVoiceId: z.number().optional(),
         additionalInstructions: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const outline = await getOutlineById(input.outlineId);
         if (!outline) throw new Error("Outline not found");
 
-        // Fetch ICP and Brand Voice if selected
-        const icpProfile = input.icpProfileId ? await getICPById(input.icpProfileId) : null;
-        const brandVoice = input.brandVoiceId ? await getBrandVoiceById(input.brandVoiceId) : null;
+        // Auto-fetch ICP from project and default brand voice
+        const project = await getProjectById(input.projectId);
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
-        // Build ICP context
-        let icpContext = "";
-        if (icpProfile) {
-          icpContext = `\n\nTARGET AUDIENCE (ICP Profile: ${icpProfile.name}):\n`;
-          if (icpProfile.description) icpContext += `- Description: ${icpProfile.description}\n`;
-          if (icpProfile.demographics) {
-            const d = icpProfile.demographics as any;
-            if (d.ageRange) icpContext += `- Age Range: ${d.ageRange}\n`;
-            if (d.location) icpContext += `- Location: ${d.location}\n`;
-            if (d.occupation) icpContext += `- Occupation: ${d.occupation}\n`;
-          }
-          if (icpProfile.painPoints?.length) icpContext += `- Pain Points: ${(icpProfile.painPoints as string[]).join(", ")}\n`;
-          if (icpProfile.goals?.length) icpContext += `- Goals: ${(icpProfile.goals as string[]).join(", ")}\n`;
-          if (icpProfile.objections?.length) icpContext += `- Common Objections to Address: ${(icpProfile.objections as string[]).join(", ")}\n`;
-          if (icpProfile.searchBehavior) icpContext += `- Search Behavior: ${icpProfile.searchBehavior}\n`;
-          icpContext += `\nIMPORTANT ICP RULES:\n1. Address the audience's specific pain points throughout the article\n2. Frame solutions around their goals and motivations\n3. Proactively address their objections and concerns\n4. Use language and examples that resonate with their demographics\n5. Match the reading level and content depth to their education and occupation`;
+        // Build ICP section with enforcement rules (project-level ICP)
+        let icpSection = "";
+        if (project?.icpPrimaryName) {
+          const formatList = (items: string[] | null | undefined, prefix: string): string => {
+            if (!items?.length) return '';
+            return `${prefix}:\n${items.map((item, i) => `${i + 1}. ${item}`).join('\n')}`;
+          };
+
+          const painsSection = formatList(project.icpPains as string[] | null, 'PAIN POINTS (emphasize these problems)');
+          const goalsSection = formatList(project.icpGoals as string[] | null, 'GOALS (what they want to achieve)');
+          const objectionsSection = formatList(project.icpObjections as string[] | null, 'COMMON OBJECTIONS (address these concerns)');
+          const triggersSection = formatList(project.icpDecisionTriggers as string[] | null, 'DECISION TRIGGERS (what prompts action)');
+          const trustSection = formatList(project.icpTrustSignals as string[] | null, 'TRUST SIGNALS (what builds confidence)');
+
+          icpSection = `
+IDEAL CUSTOMER PROFILE (ICP) - CONTENT TARGETING LAYER
+======================================================
+ICP works alongside Brand Voice: Brand Voice controls HOW content sounds (tone, personality, style).
+ICP controls WHO content is written for (pain points, framing, vocabulary, examples).
+If any guidance overlaps, Brand Voice takes priority for tone/style.
+
+TARGET AUDIENCE:
+- ICP Name: ${project.icpPrimaryName}
+${project.icpWhoTheyAre ? `- Who They Are: ${project.icpWhoTheyAre}` : ''}
+
+${painsSection}
+
+${goalsSection}
+
+${objectionsSection}
+
+${triggersSection}
+
+${trustSection}
+
+=== ICP ENFORCEMENT RULES (MUST FOLLOW) ===
+
+**FIT CHECK (do this first):**
+Before writing, verify the topic "${outline.keyword ?? outline.title}" aligns with the ICP "${project.icpPrimaryName}".
+If the topic doesn't directly serve this audience, adjust the angle to match their needs.
+
+**RULE 1 - INTRO:** Mention the ICP's situation or a relatable scenario in the first 2 sentences of the article.
+
+**RULE 2 - HEADINGS:** At least 30% of H2/H3 headings must reflect ICP pain points or intent language.
+
+**RULE 3 - FAQs:** At least 60% of FAQ questions must be derived from the ICP's objections and decision triggers listed above.
+
+**RULE 4 - EXAMPLES:** Include at least 2 examples or scenarios that are consistent with "${project.icpWhoTheyAre || project.icpPrimaryName}".
+
+**RULE 5 - TRUST:** Naturally incorporate at least 2 trust signals from the list above into the content.
+
+**RULE 6 - COMPLIANCE:** Avoid guarantees, exaggerated claims, or fear-based messaging.
+
+IMPORTANT: Do NOT add any ICP metadata, snapshots, or debugging information to the article. The ICP guidance should influence the content naturally without any visible markers.
+`;
         }
 
-        // Build Brand Voice context
-        let voiceContext = "";
+        // Build Brand Voice section with full guidelines
+        let brandVoiceSection = "";
         if (brandVoice) {
-          voiceContext = `\n\nBRAND VOICE (${brandVoice.name}):\n`;
-          if (brandVoice.toneTraits) voiceContext += `- Tone: ${brandVoice.toneTraits}\n`;
-          if (brandVoice.perspective) voiceContext += `- Perspective: ${brandVoice.perspective === "first" ? "First person (we/our)" : brandVoice.perspective === "second" ? "Second person (you/your)" : "Third person"}\n`;
-          if (brandVoice.sentenceStyle) voiceContext += `- Sentence Style: ${brandVoice.sentenceStyle === "short" ? "Short and Direct" : brandVoice.sentenceStyle === "detailed" ? "Detailed and Explanatory" : "Mixed (Varied and Natural Rhythm)"}\n`;
-          if (brandVoice.writingStyleSample) voiceContext += `- Writing Style Sample (match this style): "${brandVoice.writingStyleSample.slice(0, 500)}"\n`;
-          if (brandVoice.avoidList) voiceContext += `- Things to AVOID: ${brandVoice.avoidList}\n`;
-          voiceContext += `\nIMPORTANT VOICE RULES:\n1. Maintain the specified tone consistently throughout the entire article\n2. Use the correct perspective (${brandVoice.perspective || "second"} person) throughout\n3. Match the sentence style and pacing\n4. NEVER use anything from the avoid list\n5. Match the writing style demonstrated in the sample`;
+          // Parse tone traits (format: "PRIMARY:x,y|SUPPORTING:a,b,c" or legacy comma-separated)
+          let primaryTones: string[] = [];
+          let supportingTones: string[] = [];
+          const toneTraits = brandVoice.toneTraits || "";
+          if (toneTraits.includes("PRIMARY:") || toneTraits.includes("SUPPORTING:")) {
+            const parts = toneTraits.split("|");
+            for (const part of parts) {
+              if (part.startsWith("PRIMARY:")) {
+                primaryTones = part.replace("PRIMARY:", "").split(",").filter(Boolean);
+              } else if (part.startsWith("SUPPORTING:")) {
+                supportingTones = part.replace("SUPPORTING:", "").split(",").filter(Boolean);
+              }
+            }
+          } else {
+            primaryTones = toneTraits.split(",").map((s: string) => s.trim()).filter(Boolean);
+          }
+
+          // Parse avoid list (format: "PRESETS:id1,id2|CUSTOM:text" or legacy text)
+          const AVOID_LABELS: Record<string, string> = {
+            jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+            fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+            cliches: "Industry clichés", passive: "Passive voice",
+            buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+            unverified: "Unverified statistics", competitor: "Competitor comparisons",
+          };
+          let avoidItems: string[] = [];
+          const avoidList = brandVoice.avoidList || "";
+          if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+            const parts = avoidList.split("|");
+            for (const part of parts) {
+              if (part.startsWith("PRESETS:")) {
+                const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+                avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+              } else if (part.startsWith("CUSTOM:")) {
+                const custom = part.replace("CUSTOM:", "").trim();
+                if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+              }
+            }
+          } else if (avoidList) {
+            avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+          }
+
+          // Sentence style descriptions
+          const SENTENCE_STYLES: Record<string, string> = {
+            short: "Short and Direct - Concise sentences under 12 words, minimal filler, tight paragraphs (1-3 sentences)",
+            mixed: "Mixed - Varied sentence length for natural rhythm, paragraphs of 2-5 sentences",
+            detailed: "Detailed and Explanatory - Longer sentences with expanded context, thorough explanations",
+          };
+          const sentenceStyleDesc = SENTENCE_STYLES[brandVoice.sentenceStyle || "mixed"] || SENTENCE_STYLES.mixed;
+
+          brandVoiceSection = `BRAND VOICE GUIDELINES (FOLLOW THESE CAREFULLY):
+Voice Name: ${brandVoice.name}
+
+PRIMARY TONE (emphasize these most): ${primaryTones.length > 0 ? primaryTones.join(", ") : "Professional"}
+${supportingTones.length > 0 ? `SUPPORTING TONE (subtle undertones): ${supportingTones.join(", ")}` : ''}
+
+PERSPECTIVE: ${brandVoice.perspective === "first" ? "First person (use 'we', 'our', 'us')" : brandVoice.perspective === "second" ? "Second person (address reader as 'you', 'your')" : "Third person (neutral/objective perspective)"}
+
+SENTENCE STYLE: ${sentenceStyleDesc}
+
+${avoidItems.length > 0 ? `THINGS TO STRICTLY AVOID (these are hard constraints):\n${avoidItems.map(item => `- DO NOT use ${item}`).join("\n")}\n` : ''}
+${brandVoice.writingStyleSample ? `
+Writing Style Example (learn the STYLE, not the content):
+"""
+${brandVoice.writingStyleSample}
+"""
+CRITICAL - DO NOT COPY from the example above:
+- Do NOT reuse any specific phrases, sentences, or openings from this sample
+- Do NOT start your article with the same hook or premise as this sample
+- The sample demonstrates TONE and STYLE patterns only — extract the rhythm, word choice tendencies, and structural approach
+- Create a FRESH opening and unique phrasing relevant to your assigned topic` : ''}
+
+IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The tone, word choice, perspective, and sentence structure must be consistent from start to finish.`;
         }
 
         // Fetch CTA templates for this project
@@ -876,8 +1038,10 @@ Guidelines:
 - Use short paragraphs (2-3 sentences) for readability
 - Include bullet points and numbered lists where appropriate
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
-${icpContext}
-${voiceContext}
+
+${brandVoiceSection}
+
+${icpSection}
 ${ctaContext}
 
 Return ONLY the HTML content of the article body (no <html>, <head>, or <body> tags). Start with the first <h2> section.`;

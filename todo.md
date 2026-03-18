@@ -173,3 +173,13 @@
 - [x] Update Brand Voice section in Project Settings to match original
 - [x] Update tests if needed
 - [x] Save checkpoint
+
+## Full ICP & Brand Voice Prompt Integration
+- [x] Review current outline/article generation prompts
+- [x] Update outline generation prompt with full ICP section (pain points → headings, objections → FAQs, decision triggers, trust signals)
+- [x] Update outline generation prompt with full Brand Voice section (tone traits, perspective, sentence style, avoid list, style sample)
+- [x] Update article generation prompt with full ICP enforcement rules (fit check, intro rule, headings rule, FAQ rule, examples rule, trust rule)
+- [x] Update article generation prompt with full Brand Voice guidelines (primary/supporting tones, perspective, sentence style, avoid constraints, style sample with anti-copy rules)
+- [x] Add ICP/Brand Voice priority note ("Brand Voice controls HOW, ICP controls WHO")
+- [x] Update tests
+- [x] Save checkpoint

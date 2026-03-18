@@ -6,7 +6,8 @@ import {
   Target, MapPin, GraduationCap, Briefcase, DollarSign, AlertCircle,
   Goal, ShieldAlert, BookOpen, Search, Star, X, Check, Loader2,
   Globe, Link2, FileCheck, RefreshCw, ExternalLink, Upload, FileText,
-  CheckCircle2, XCircle, AlertTriangle, Info, Save, Zap, Shield, TrendingUp
+  CheckCircle2, XCircle, AlertTriangle, Info, Save, Zap, Shield, TrendingUp,
+  Crown, Sparkles, MessageSquareText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -290,34 +291,157 @@ function ICPTab({ projectId }: { projectId: number }) {
   );
 }
 
+// ---- Brand Voice Helpers ----
+const TONE_PRESETS = [
+  "Friendly", "Professional", "Supportive", "Educational",
+  "Authoritative", "Conversational", "Empathetic", "Trustworthy",
+  "Enthusiastic", "Calm", "Witty", "Formal",
+];
+
+const PERSPECTIVE_OPTIONS = [
+  { value: "first", label: "First Person (we/our)", example: '"We help you..."' },
+  { value: "second", label: "Second Person (you/your)", example: '"You can expect..."' },
+  { value: "third", label: "Third Person", example: '"The company provides..."' },
+];
+
+const SENTENCE_STYLE_OPTIONS = [
+  { value: "short", label: "Short and Direct", description: "Concise sentences under 12 words. Minimal filler, tight paragraphs (1-3 sentences). Strong clarity with no unnecessary elaboration." },
+  { value: "mixed", label: "Mixed (Varied and Natural Rhythm)", description: "Varied sentence length\u2014short for emphasis, medium for clarity, longer for explanation. Natural rhythm with paragraphs of 2-5 sentences." },
+  { value: "detailed", label: "Detailed and Explanatory", description: "Longer, fully developed sentences with expanded context. Thorough explanations, logical transitions, structured paragraphs that unpack complex ideas." },
+];
+
+const AVOID_PRESETS = [
+  { id: "jargon", label: "Overly technical jargon" },
+  { id: "salesy", label: "Sales-heavy language" },
+  { id: "fear", label: "Fear-based messaging" },
+  { id: "exaggerated", label: "Exaggerated claims" },
+  { id: "cliches", label: "Industry clich\u00e9s" },
+  { id: "passive", label: "Passive voice" },
+  { id: "buzzwords", label: "Buzzwords" },
+  { id: "rhetorical", label: "Rhetorical questions" },
+  { id: "unverified", label: "Unverified statistics" },
+  { id: "competitor", label: "Competitor comparisons" },
+];
+
+function parseToneTraits(toneTraits: string): { primary: string[]; supporting: string[] } {
+  if (toneTraits.includes("PRIMARY:") || toneTraits.includes("SUPPORTING:")) {
+    const parts = toneTraits.split("|");
+    let primary: string[] = [];
+    let supporting: string[] = [];
+    for (const part of parts) {
+      if (part.startsWith("PRIMARY:")) primary = part.replace("PRIMARY:", "").split(",").map(t => t.trim()).filter(Boolean);
+      else if (part.startsWith("SUPPORTING:")) supporting = part.replace("SUPPORTING:", "").split(",").map(t => t.trim()).filter(Boolean);
+    }
+    return { primary, supporting };
+  }
+  const allTraits = toneTraits.split(",").map(t => t.trim()).filter(Boolean);
+  return { primary: allTraits.slice(0, 2), supporting: allTraits.slice(2, 5) };
+}
+
+function serializeToneTraits(primary: string[], supporting: string[]): string {
+  const parts: string[] = [];
+  if (primary.length > 0) parts.push(`PRIMARY:${primary.join(",")}`);
+  if (supporting.length > 0) parts.push(`SUPPORTING:${supporting.join(",")}`);
+  return parts.join("|");
+}
+
+function parseAvoidList(avoidList: string): { presets: string[]; custom: string } {
+  if (!avoidList) return { presets: [], custom: "" };
+  if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+    const parts = avoidList.split("|");
+    let presets: string[] = [];
+    let custom = "";
+    for (const part of parts) {
+      if (part.startsWith("PRESETS:")) presets = part.replace("PRESETS:", "").split(",").filter(Boolean);
+      else if (part.startsWith("CUSTOM:")) custom = part.replace("CUSTOM:", "");
+    }
+    return { presets, custom };
+  }
+  return { presets: [], custom: avoidList };
+}
+
+function serializeAvoidList(presets: string[], custom: string): string {
+  const parts: string[] = [];
+  if (presets.length > 0) parts.push(`PRESETS:${presets.join(",")}`);
+  if (custom.trim()) parts.push(`CUSTOM:${custom.trim()}`);
+  return parts.join("|");
+}
+
+function getAvoidListDisplay(avoidList: string): string[] {
+  const { presets, custom } = parseAvoidList(avoidList);
+  const labels = presets.map(id => AVOID_PRESETS.find(p => p.id === id)?.label || id);
+  if (custom.trim()) labels.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+  return labels;
+}
+
 // ---- Brand Voice Form ----
 function BrandVoiceForm({ projectId, existing, onClose }: { projectId: number; existing?: any; onClose: () => void }) {
   const utils = trpc.useUtils();
   const createMut = trpc.brandVoices.create.useMutation({ onSuccess: () => { utils.brandVoices.list.invalidate(); onClose(); toast.success("Brand Voice created"); } });
   const updateMut = trpc.brandVoices.update.useMutation({ onSuccess: () => { utils.brandVoices.list.invalidate(); onClose(); toast.success("Brand Voice updated"); } });
 
+  // Parse existing tone traits
+  const existingTones = existing?.toneTraits ? parseToneTraits(existing.toneTraits) : { primary: [], supporting: [] };
+  const existingAvoid = existing?.avoidList ? parseAvoidList(existing.avoidList) : { presets: [], custom: "" };
+
   const [name, setName] = useState(existing?.name ?? "");
-  const [description, setDescription] = useState(existing?.description ?? "");
-  const [tone, setTone] = useState(existing?.tone ?? "");
-  const [style, setStyle] = useState(existing?.style ?? "");
-  const [vocabulary, setVocabulary] = useState<string[]>(existing?.vocabulary ?? []);
-  const [avoidWords, setAvoidWords] = useState<string[]>(existing?.avoidWords ?? []);
-  const [examples, setExamples] = useState<string[]>(existing?.examples ?? []);
-  const [rules, setRules] = useState<string[]>(existing?.rules ?? []);
+  const [primaryTones, setPrimaryTones] = useState<string[]>(existingTones.primary);
+  const [supportingTones, setSupportingTones] = useState<string[]>(existingTones.supporting);
+  const [perspective, setPerspective] = useState(existing?.perspective ?? "second");
+  const [sentenceStyle, setSentenceStyle] = useState(existing?.sentenceStyle ?? "mixed");
+  const [writingStyleSample, setWritingStyleSample] = useState(existing?.writingStyleSample ?? "");
+  const [selectedAvoidPresets, setSelectedAvoidPresets] = useState<string[]>(existingAvoid.presets);
+  const [customAvoidText, setCustomAvoidText] = useState(existingAvoid.custom);
+  const [isDefault, setIsDefault] = useState(existing?.isDefault === 1);
 
   const loading = createMut.isPending || updateMut.isPending;
 
+  const togglePrimaryTone = (trait: string) => {
+    if (primaryTones.includes(trait)) { setPrimaryTones(prev => prev.filter(t => t !== trait)); return; }
+    if (supportingTones.includes(trait)) {
+      if (primaryTones.length >= 2) { toast.error("Maximum 2 primary tones allowed"); return; }
+      setSupportingTones(prev => prev.filter(t => t !== trait));
+      setPrimaryTones(prev => [...prev, trait]);
+      return;
+    }
+    if (primaryTones.length >= 2) { toast.error("Maximum 2 primary tones allowed"); return; }
+    setPrimaryTones(prev => [...prev, trait]);
+  };
+
+  const toggleSupportingTone = (trait: string) => {
+    if (supportingTones.includes(trait)) { setSupportingTones(prev => prev.filter(t => t !== trait)); return; }
+    if (primaryTones.includes(trait)) {
+      if (supportingTones.length >= 3) { toast.error("Maximum 3 supporting tones allowed"); return; }
+      setPrimaryTones(prev => prev.filter(t => t !== trait));
+      setSupportingTones(prev => [...prev, trait]);
+      return;
+    }
+    if (supportingTones.length >= 3) { toast.error("Maximum 3 supporting tones allowed"); return; }
+    setSupportingTones(prev => [...prev, trait]);
+  };
+
+  const removeTone = (trait: string) => {
+    setPrimaryTones(prev => prev.filter(t => t !== trait));
+    setSupportingTones(prev => prev.filter(t => t !== trait));
+  };
+
+  const toggleAvoidPreset = (presetId: string) => {
+    setSelectedAvoidPresets(prev => prev.includes(presetId) ? prev.filter(id => id !== presetId) : [...prev, presetId]);
+  };
+
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Name is required"); return; }
+    if (primaryTones.length === 0) { toast.error("Please select at least one primary tone"); return; }
+    const toneTraits = serializeToneTraits(primaryTones, supportingTones);
+    const avoidList = serializeAvoidList(selectedAvoidPresets, customAvoidText);
     const data = {
       name: name.trim(),
-      description: description || undefined,
-      tone: tone || undefined,
-      style: style || undefined,
-      vocabulary: vocabulary.length ? vocabulary : undefined,
-      avoidWords: avoidWords.length ? avoidWords : undefined,
-      examples: examples.length ? examples : undefined,
-      rules: rules.length ? rules : undefined,
+      toneTraits: toneTraits || undefined,
+      perspective,
+      sentenceStyle,
+      writingStyleSample: writingStyleSample || undefined,
+      avoidList: avoidList || undefined,
+      isDefault: isDefault ? 1 : 0,
     };
     if (existing) {
       updateMut.mutate({ id: existing.id, ...data });
@@ -326,55 +450,235 @@ function BrandVoiceForm({ projectId, existing, onClose }: { projectId: number; e
     }
   };
 
-  const toneOptions = [
-    "Professional", "Conversational", "Authoritative", "Friendly",
-    "Academic", "Casual", "Empathetic", "Persuasive", "Technical", "Inspirational"
-  ];
-
   return (
-    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+    <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-2">
+      {/* Voice Name */}
       <div className="space-y-2">
-        <Label className="text-base font-semibold">Voice Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Friendly Expert" className="text-base" />
-      </div>
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Description</Label>
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of this voice..." className="text-base min-h-[80px]" />
+        <Label className="text-base font-semibold">Voice Name *</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Medicare Educational Voice" className="text-base" />
       </div>
 
-      <Separator />
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Tone</Label>
+      {/* Primary Tones */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Crown className="w-4 h-4 text-amber-500" />
+          <Label className="text-base font-semibold">Primary Tone (max 2) *</Label>
+        </div>
+        <p className="text-sm text-muted-foreground">These tones will have the strongest influence on generated content</p>
         <div className="flex flex-wrap gap-2">
-          {toneOptions.map((t) => (
-            <Badge
-              key={t}
-              variant={tone === t.toLowerCase() ? "default" : "outline"}
-              className="cursor-pointer text-sm py-1.5 px-3"
-              onClick={() => setTone(t.toLowerCase())}
-            >
-              {t}
-            </Badge>
-          ))}
+          {TONE_PRESETS.map((trait) => {
+            const isPrimary = primaryTones.includes(trait);
+            const isSupporting = supportingTones.includes(trait);
+            return (
+              <button
+                key={trait}
+                type="button"
+                onClick={() => togglePrimaryTone(trait)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  isPrimary
+                    ? "bg-amber-500 text-white"
+                    : isSupporting
+                    ? "bg-purple-100 text-purple-700 border border-purple-300"
+                    : "bg-muted text-muted-foreground hover:bg-amber-100 hover:text-amber-700"
+                }`}
+              >
+                {isPrimary && <Crown className="w-3 h-3 inline mr-1" />}
+                {trait}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">Style Guidelines</Label>
-        <Textarea value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Describe the writing style..." className="text-base min-h-[80px]" />
+      {/* Supporting Tones */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-500" />
+          <Label className="text-base font-semibold">Supporting Tone (max 3)</Label>
+        </div>
+        <p className="text-sm text-muted-foreground">These tones add nuance and balance to your content</p>
+        <div className="flex flex-wrap gap-2">
+          {TONE_PRESETS.map((trait) => {
+            const isPrimary = primaryTones.includes(trait);
+            const isSupporting = supportingTones.includes(trait);
+            return (
+              <button
+                key={trait}
+                type="button"
+                onClick={() => toggleSupportingTone(trait)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  isSupporting
+                    ? "bg-purple-500 text-white"
+                    : isPrimary
+                    ? "bg-amber-100 text-amber-700 border border-amber-300"
+                    : "bg-muted text-muted-foreground hover:bg-purple-100 hover:text-purple-700"
+                }`}
+              >
+                {isSupporting && <Check className="w-3 h-3 inline mr-1" />}
+                {trait}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <h3 className="text-lg font-semibold flex items-center gap-2"><Check className="w-5 h-5 text-green-500" /> Preferred Vocabulary</h3>
-      <TagInput value={vocabulary} onChange={setVocabulary} placeholder="Add a preferred word..." />
+      {/* Tone Summary */}
+      {(primaryTones.length > 0 || supportingTones.length > 0) && (
+        <div className="bg-muted/50 rounded-lg p-3 border">
+          <p className="text-xs font-medium text-foreground mb-2">Selected Tones Summary</p>
+          <div className="space-y-1.5">
+            {primaryTones.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-amber-600 font-medium flex items-center gap-1"><Crown className="w-3 h-3" /> Leading:</span>
+                {primaryTones.map((trait) => (
+                  <span key={trait} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
+                    {trait}
+                    <button type="button" onClick={() => removeTone(trait)} className="hover:text-amber-900"><X className="w-3 h-3" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {supportingTones.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-purple-600 font-medium flex items-center gap-1"><Sparkles className="w-3 h-3" /> Supporting:</span>
+                {supportingTones.map((trait) => (
+                  <span key={trait} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">
+                    {trait}
+                    <button type="button" onClick={() => removeTone(trait)} className="hover:text-purple-900"><X className="w-3 h-3" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-      <h3 className="text-lg font-semibold flex items-center gap-2"><X className="w-5 h-5 text-red-500" /> Words to Avoid</h3>
-      <TagInput value={avoidWords} onChange={setAvoidWords} placeholder="Add a word to avoid..." />
+      <Separator />
 
-      <h3 className="text-lg font-semibold flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Example Sentences</h3>
-      <TagInput value={examples} onChange={setExamples} placeholder="Add an example sentence..." />
+      {/* Perspective */}
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Perspective</Label>
+        <Select value={perspective} onValueChange={setPerspective}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PERSPECTIVE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                <span>{opt.label}</span>
+                <span className="text-xs text-muted-foreground ml-2">{opt.example}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-500" /> Brand Rules</h3>
-      <TagInput value={rules} onChange={setRules} placeholder="Add a rule..." />
+      {/* Sentence Style */}
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Sentence Style *</Label>
+        <p className="text-sm text-muted-foreground">Controls sentence length, pacing, and paragraph structure</p>
+        <Select value={sentenceStyle} onValueChange={setSentenceStyle}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {SENTENCE_STYLE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+          <p className="text-xs text-blue-700">
+            {SENTENCE_STYLE_OPTIONS.find(opt => opt.value === sentenceStyle)?.description}
+          </p>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Writing Style Sample */}
+      <div className="space-y-2">
+        <Label className="text-base font-semibold">Writing Style Sample</Label>
+        <p className="text-sm text-muted-foreground">Paste 1-3 paragraphs that demonstrate your ideal voice</p>
+        <Textarea
+          value={writingStyleSample}
+          onChange={(e) => setWritingStyleSample(e.target.value)}
+          placeholder="Medicare can feel confusing at first \u2014 but you're not alone. Whether you're turning 65 soon or exploring new coverage options, understanding the basics can make the process much easier..."
+          className="text-base min-h-[120px]"
+        />
+      </div>
+
+      <Separator />
+
+      {/* Things to Avoid */}
+      <div className="space-y-3">
+        <Label className="text-base font-semibold">Things to Avoid</Label>
+        <p className="text-sm text-muted-foreground">Select constraints the AI should follow\u2014these will override default tendencies</p>
+        <div className="grid grid-cols-2 gap-2">
+          {AVOID_PRESETS.map((preset) => {
+            const isSelected = selectedAvoidPresets.includes(preset.id);
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => toggleAvoidPreset(preset.id)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors border ${
+                  isSelected
+                    ? "bg-red-50 border-red-300 text-red-700"
+                    : "bg-muted/50 border-border text-muted-foreground hover:bg-red-50 hover:border-red-200"
+                }`}
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                  isSelected ? "bg-red-500 border-red-500" : "border-muted-foreground/30"
+                }`}>
+                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                </div>
+                <span className="truncate">{preset.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2">
+          <Label className="text-sm text-muted-foreground">Additional restrictions (optional)</Label>
+          <Input
+            value={customAvoidText}
+            onChange={(e) => setCustomAvoidText(e.target.value)}
+            placeholder="e.g., Brand name misspellings, Specific competitor mentions"
+            className="mt-1 text-base"
+          />
+        </div>
+        {(selectedAvoidPresets.length > 0 || customAvoidText.trim()) && (
+          <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+            <p className="text-xs font-medium text-red-700 mb-1.5">
+              {selectedAvoidPresets.length + (customAvoidText.trim() ? customAvoidText.split(",").filter(s => s.trim()).length : 0)} constraint(s) enabled
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {selectedAvoidPresets.map((presetId) => {
+                const preset = AVOID_PRESETS.find(p => p.id === presetId);
+                return (
+                  <span key={presetId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
+                    {preset?.label}
+                    <button type="button" onClick={() => toggleAvoidPreset(presetId)} className="hover:text-red-900"><X className="w-3 h-3" /></button>
+                  </span>
+                );
+              })}
+              {customAvoidText.trim() && customAvoidText.split(",").filter(s => s.trim()).map((item, idx) => (
+                <span key={`custom-${idx}`} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
+                  {item.trim()}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Set as Default */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="isDefault"
+          checked={isDefault}
+          onChange={(e) => setIsDefault(e.target.checked)}
+          className="rounded border-muted-foreground/30"
+        />
+        <Label htmlFor="isDefault" className="cursor-pointer text-sm">Set as default voice for this project</Label>
+      </div>
 
       <div className="flex justify-end gap-3 pt-4">
         <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
@@ -931,6 +1235,7 @@ export default function ProjectSettings() {
   const utils = trpc.useUtils();
 
   const deleteVoice = trpc.brandVoices.delete.useMutation({ onSuccess: () => { utils.brandVoices.list.invalidate(); toast.success("Brand Voice deleted"); } });
+  const setDefaultVoice = trpc.brandVoices.update.useMutation({ onSuccess: () => { utils.brandVoices.list.invalidate(); toast.success("Default voice updated"); } });
   const deleteCTA = trpc.ctaTemplates.delete.useMutation({ onSuccess: () => { utils.ctaTemplates.list.invalidate(); toast.success("CTA Template deleted"); } });
   const deleteCitation = trpc.citations.delete.useMutation({ onSuccess: () => { utils.citations.list.invalidate(); toast.success("Citation source deleted"); } });
 
@@ -1056,36 +1361,81 @@ export default function ProjectSettings() {
               </CardContent>
             </Card>
           ) : (
-            voiceList.map((voice: any) => (
-              <Card key={voice.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                          <Mic className="w-5 h-5 text-emerald-500" />
+            voiceList.map((voice: any) => {
+              const { primary, supporting } = voice.toneTraits ? parseToneTraits(voice.toneTraits) : { primary: [], supporting: [] };
+              const avoidItems = voice.avoidList ? getAvoidListDisplay(voice.avoidList) : [];
+              return (
+                <Card key={voice.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                            <MessageSquareText className="w-5 h-5 text-emerald-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold">{voice.name}</h3>
+                            {voice.isDefault === 1 && <Badge className="bg-purple-100 text-purple-700 text-xs">Default</Badge>}
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-lg font-semibold">{voice.name}</h3>
-                          {voice.isDefault === 1 && <Badge className="bg-emerald-100 text-emerald-700 text-xs">Default</Badge>}
+
+                        {/* Tone Traits */}
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {primary.map((trait: string, idx: number) => (
+                            <span key={`p-${idx}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
+                              <Crown className="w-3 h-3" />{trait}
+                            </span>
+                          ))}
+                          {supporting.map((trait: string, idx: number) => (
+                            <span key={`s-${idx}`} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">
+                              {trait}
+                            </span>
+                          ))}
                         </div>
+
+                        {/* Perspective & Sentence Style */}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <p>Perspective: <span className="font-medium">{PERSPECTIVE_OPTIONS.find(p => p.value === voice.perspective)?.label || voice.perspective || "Not set"}</span></p>
+                          <p>Style: <span className="font-medium">{SENTENCE_STYLE_OPTIONS.find(s => s.value === voice.sentenceStyle)?.label || "Mixed"}</span></p>
+                        </div>
+
+                        {/* Avoid Constraints */}
+                        {avoidItems.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            <span className="text-xs text-red-500 mr-1">Avoids:</span>
+                            {avoidItems.slice(0, 3).map((item: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-50 text-red-600">{item}</span>
+                            ))}
+                            {avoidItems.length > 3 && <span className="text-xs text-red-400">+{avoidItems.length - 3} more</span>}
+                          </div>
+                        )}
+
+                        {/* Writing Sample Preview */}
+                        {voice.writingStyleSample && (
+                          <div className="mt-2 p-2 bg-muted/50 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Writing sample:</p>
+                            <p className="text-xs text-foreground/70 italic line-clamp-2">
+                              "{voice.writingStyleSample.slice(0, 150)}{voice.writingStyleSample.length > 150 ? "..." : ""}"
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      {voice.description && <p className="text-muted-foreground mb-3">{voice.description}</p>}
-                      <div className="flex flex-wrap gap-2 text-sm">
-                        {voice.tone && <Badge variant="outline" className="capitalize">{voice.tone}</Badge>}
-                        {voice.vocabulary?.length > 0 && <Badge variant="secondary">{voice.vocabulary.length} preferred words</Badge>}
-                        {voice.avoidWords?.length > 0 && <Badge variant="secondary">{voice.avoidWords.length} words to avoid</Badge>}
-                        {voice.rules?.length > 0 && <Badge variant="secondary">{voice.rules.length} rules</Badge>}
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 ml-4">
+                        {voice.isDefault !== 1 && (
+                          <Button variant="ghost" size="icon" title="Set as default" onClick={() => setDefaultVoice.mutate({ id: voice.id, isDefault: 1 })}>
+                            <Star className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(voice)}><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteVoice.mutate({ id: voice.id })}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(voice)}><Pencil className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteVoice.mutate({ id: voice.id })}><Trash2 className="w-4 h-4" /></Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}
@@ -1200,7 +1550,7 @@ export default function ProjectSettings() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-[712px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDesc}</DialogDescription>

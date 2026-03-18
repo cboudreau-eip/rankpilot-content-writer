@@ -180,12 +180,11 @@ export const appRouter = router({
         let voiceContext = "";
         if (brandVoice) {
           voiceContext = `\n\nBRAND VOICE (${brandVoice.name}):\n`;
-          if (brandVoice.tone) voiceContext += `- Tone: ${brandVoice.tone}\n`;
-          if (brandVoice.style) voiceContext += `- Style: ${brandVoice.style}\n`;
-          if (brandVoice.vocabulary?.length) voiceContext += `- Preferred Vocabulary: ${(brandVoice.vocabulary as string[]).join(", ")}\n`;
-          if (brandVoice.avoidWords?.length) voiceContext += `- Words to Avoid: ${(brandVoice.avoidWords as string[]).join(", ")}\n`;
-          if (brandVoice.rules?.length) voiceContext += `- Rules: ${(brandVoice.rules as string[]).join("; ")}\n`;
-          if (brandVoice.examples?.length) voiceContext += `- Example Sentences: ${(brandVoice.examples as string[]).join(" | ")}\n`;
+          if (brandVoice.toneTraits) voiceContext += `- Tone: ${brandVoice.toneTraits}\n`;
+          if (brandVoice.perspective) voiceContext += `- Perspective: ${brandVoice.perspective === "first" ? "First person (we/our)" : brandVoice.perspective === "second" ? "Second person (you/your)" : "Third person"}\n`;
+          if (brandVoice.sentenceStyle) voiceContext += `- Sentence Style: ${brandVoice.sentenceStyle === "short" ? "Short and Direct" : brandVoice.sentenceStyle === "detailed" ? "Detailed and Explanatory" : "Mixed (Varied and Natural Rhythm)"}\n`;
+          if (brandVoice.writingStyleSample) voiceContext += `- Writing Style Sample: "${brandVoice.writingStyleSample.slice(0, 500)}"\n`;
+          if (brandVoice.avoidList) voiceContext += `- Things to Avoid: ${brandVoice.avoidList}\n`;
           voiceContext += `\nIMPORTANT: Ensure the outline headings and structure reflect this brand voice.`;
         }
 
@@ -387,26 +386,22 @@ Return ONLY valid JSON, no markdown code blocks.`;
     create: protectedProcedure
       .input(z.object({
         name: z.string().min(1).max(255),
-        description: z.string().optional(),
-        tone: z.string().optional(),
-        style: z.string().optional(),
-        vocabulary: z.array(z.string()).optional(),
-        avoidWords: z.array(z.string()).optional(),
-        examples: z.array(z.string()).optional(),
-        rules: z.array(z.string()).optional(),
+        toneTraits: z.string().optional(),
+        perspective: z.string().default("second"),
+        sentenceStyle: z.string().default("mixed"),
+        writingStyleSample: z.string().optional(),
+        avoidList: z.string().optional(),
         isDefault: z.number().optional(),
         projectId: z.number(),
       }))
       .mutation(async ({ ctx, input }) => {
         return createBrandVoice({
           name: input.name,
-          description: input.description ?? null,
-          tone: input.tone ?? null,
-          style: input.style ?? null,
-          vocabulary: input.vocabulary ?? null,
-          avoidWords: input.avoidWords ?? null,
-          examples: input.examples ?? null,
-          rules: input.rules ?? null,
+          toneTraits: input.toneTraits ?? null,
+          perspective: input.perspective,
+          sentenceStyle: input.sentenceStyle,
+          writingStyleSample: input.writingStyleSample ?? null,
+          avoidList: input.avoidList ?? null,
           isDefault: input.isDefault ?? 0,
           projectId: input.projectId,
           userId: ctx.user.id,
@@ -417,13 +412,11 @@ Return ONLY valid JSON, no markdown code blocks.`;
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(255).optional(),
-        description: z.string().optional(),
-        tone: z.string().optional(),
-        style: z.string().optional(),
-        vocabulary: z.array(z.string()).optional(),
-        avoidWords: z.array(z.string()).optional(),
-        examples: z.array(z.string()).optional(),
-        rules: z.array(z.string()).optional(),
+        toneTraits: z.string().optional(),
+        perspective: z.string().optional(),
+        sentenceStyle: z.string().optional(),
+        writingStyleSample: z.string().optional(),
+        avoidList: z.string().optional(),
         isDefault: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
@@ -830,13 +823,12 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         let voiceContext = "";
         if (brandVoice) {
           voiceContext = `\n\nBRAND VOICE (${brandVoice.name}):\n`;
-          if (brandVoice.tone) voiceContext += `- Tone: ${brandVoice.tone}\n`;
-          if (brandVoice.style) voiceContext += `- Style Guidelines: ${brandVoice.style}\n`;
-          if (brandVoice.vocabulary?.length) voiceContext += `- Preferred Vocabulary (USE these words): ${(brandVoice.vocabulary as string[]).join(", ")}\n`;
-          if (brandVoice.avoidWords?.length) voiceContext += `- Words to AVOID (NEVER use these): ${(brandVoice.avoidWords as string[]).join(", ")}\n`;
-          if (brandVoice.rules?.length) voiceContext += `- Brand Rules (MUST follow): ${(brandVoice.rules as string[]).join("; ")}\n`;
-          if (brandVoice.examples?.length) voiceContext += `- Example Sentences (match this style): ${(brandVoice.examples as string[]).join(" | ")}\n`;
-          voiceContext += `\nIMPORTANT VOICE RULES:\n1. Maintain the specified tone consistently throughout the entire article\n2. Use preferred vocabulary naturally in the content\n3. NEVER use any words from the avoid list\n4. Follow all brand rules strictly\n5. Match the writing style demonstrated in the example sentences`;
+          if (brandVoice.toneTraits) voiceContext += `- Tone: ${brandVoice.toneTraits}\n`;
+          if (brandVoice.perspective) voiceContext += `- Perspective: ${brandVoice.perspective === "first" ? "First person (we/our)" : brandVoice.perspective === "second" ? "Second person (you/your)" : "Third person"}\n`;
+          if (brandVoice.sentenceStyle) voiceContext += `- Sentence Style: ${brandVoice.sentenceStyle === "short" ? "Short and Direct" : brandVoice.sentenceStyle === "detailed" ? "Detailed and Explanatory" : "Mixed (Varied and Natural Rhythm)"}\n`;
+          if (brandVoice.writingStyleSample) voiceContext += `- Writing Style Sample (match this style): "${brandVoice.writingStyleSample.slice(0, 500)}"\n`;
+          if (brandVoice.avoidList) voiceContext += `- Things to AVOID: ${brandVoice.avoidList}\n`;
+          voiceContext += `\nIMPORTANT VOICE RULES:\n1. Maintain the specified tone consistently throughout the entire article\n2. Use the correct perspective (${brandVoice.perspective || "second"} person) throughout\n3. Match the sentence style and pacing\n4. NEVER use anything from the avoid list\n5. Match the writing style demonstrated in the sample`;
         }
 
         // Fetch CTA templates for this project

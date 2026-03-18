@@ -171,23 +171,21 @@ export interface ICPDemographics {
 
 /**
  * Brand Voices — writing style and tone configuration for content generation.
+ * Matches original RankPilot: two-tier tones, perspective, sentence style, avoid list.
  */
 export const brandVoices = mysqlTable("brand_voices", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  description: text("description"),
-  /** Overall tone: professional, conversational, authoritative, friendly, etc. */
-  tone: varchar("tone", { length: 128 }),
-  /** Writing style guidelines */
-  style: text("style"),
-  /** Words/phrases to use frequently */
-  vocabulary: json("vocabulary").$type<string[]>(),
-  /** Words/phrases to avoid */
-  avoidWords: json("avoidWords").$type<string[]>(),
-  /** Example sentences demonstrating the voice */
-  examples: json("examples").$type<string[]>(),
-  /** Brand-specific rules (e.g., always capitalize Product Name, never use jargon) */
-  rules: json("rules").$type<string[]>(),
+  /** Serialized tone traits: "PRIMARY:Friendly,Professional|SUPPORTING:Empathetic,Calm,Trustworthy" */
+  toneTraits: text("toneTraits"),
+  /** Writing perspective: first, second, third */
+  perspective: varchar("perspective", { length: 32 }).default("second").notNull(),
+  /** Sentence style: short, mixed, detailed */
+  sentenceStyle: varchar("sentenceStyle", { length: 32 }).default("mixed").notNull(),
+  /** 1-3 paragraph sample demonstrating the ideal voice */
+  writingStyleSample: text("writingStyleSample"),
+  /** Serialized avoid list: "PRESETS:jargon,salesy|CUSTOM:competitor mentions" */
+  avoidList: text("avoidList"),
   /** Whether this is the default voice for the project */
   isDefault: int("isDefault").default(0).notNull(),
   projectId: int("projectId").notNull(),

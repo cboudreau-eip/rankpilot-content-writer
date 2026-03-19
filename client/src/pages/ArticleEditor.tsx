@@ -33,64 +33,121 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 /**
- * Simple word-level diff: extracts text from HTML, finds new words, and applies TipTap highlight marks.
+ * Build highlighted HTML by diffing old and new content at the sentence level.
+ * Returns HTML with <mark> tags wrapping changed/added sentences.
  */
-function highlightChanges(editor: any, oldHtml: string, newMarkdown: string) {
-  // Extract plain text from old HTML
-  const tmp = document.createElement('div');
-  tmp.innerHTML = oldHtml;
-  const oldText = tmp.textContent || '';
-  const oldWords = new Set(oldText.split(/\s+/).filter(Boolean));
+function buildHighlightedHtml(oldHtml: string, newHtml: string): string {
+  // Extract plain text from HTML
+  const extractText = (html: string) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || '';
+  };
 
-  // Build 3-grams from old text for context matching
-  const oldWordArr = oldText.split(/\s+/).filter(Boolean);
-  const oldTrigrams = new Set<string>();
-  for (let i = 0; i < oldWordArr.length - 2; i++) {
-    oldTrigrams.add(`${oldWordArr[i]} ${oldWordArr[i + 1]} ${oldWordArr[i + 2]}`);
-  }
+  const oldText = extractText(oldHtml);
+  const newText = extractText(newHtml);
 
-  // Get the new editor text
-  const newText = editor.getText();
-  const newWordArr = newText.split(/\s+/).filter(Boolean);
+  // Split into sentences for coarser matching
+  const splitSentences = (text: string) => {
+    return text.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(Boolean);
+  };
 
-  // Find runs of new words not in old text
-  const newRuns: string[] = [];
-  let run: string[] = [];
-  for (let i = 0; i < newWordArr.length; i++) {
-    const trigram = i < newWordArr.length - 2
-      ? `${newWordArr[i]} ${newWordArr[i + 1]} ${newWordArr[i + 2]}`
-      : null;
-    const inOld = oldWords.has(newWordArr[i]) || (trigram ? oldTrigrams.has(trigram) : false);
-    if (!inOld) {
-      run.push(newWordArr[i]);
-    } else {
-      if (run.length >= 2) newRuns.push(run.join(' '));
-      run = [];
+  const oldSentences = new Set(splitSentences(oldText));
+
+  // Find new/changed sentences
+  const newSentences = splitSentences(newText);
+  const changedPhrases: string[] = [];
+  for (const sentence of newSentences) {
+    if (!oldSentences.has(sentence) && sentence.length > 10) {
+      // Use a distinctive substring (first 40 chars) to find in HTML
+      changedPhrases.push(sentence);
     }
   }
-  if (run.length >= 2) newRuns.push(run.join(' '));
 
-  // Apply highlight to each new run found in the editor
-  if (newRuns.length > 0) {
-    // Use search and highlight for each run (limit to first 20 to avoid performance issues)
-    const runsToHighlight = newRuns.slice(0, 20);
-    for (const phrase of runsToHighlight) {
-      try {
-        // Find the phrase in the editor text and apply highlight
-        const pos = newText.indexOf(phrase);
-        if (pos >= 0) {
-          editor.chain()
-            .setTextSelection({ from: pos + 1, to: pos + phrase.length + 1 })
-            .setHighlight({ color: '#dbeafe' })
-            .run();
+  if (changedPhrases.length === 0) return newHtml;
+
+  // For each changed phrase, find it in the HTML text nodes and wrap with <mark>
+  let result = newHtml;
+  for (const phrase of changedPhrases.slice(0, 30)) {
+    // Escape special regex chars in the phrase
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match the phrase but not if already inside a tag
+    try {
+      // Simple approach: find the text and wrap it
+      // We need to be careful not to break HTML tags
+      const plainIdx = newText.indexOf(phrase);
+      if (plainIdx < 0) continue;
+
+      // Find the phrase in the HTML by walking through and matching text content
+      // Use a simpler approach: split HTML into text and tag segments
+      const segments: { type: 'tag' | 'text'; content: string }[] = [];
+      const tagRegex = /<[^>]+>/g;
+      let lastIdx = 0;
+      let match;
+      while ((match = tagRegex.exec(result)) !== null) {
+        if (match.index > lastIdx) {
+          segments.push({ type: 'text', content: result.slice(lastIdx, match.index) });
         }
-      } catch {
-        // Skip if highlight fails for this phrase
+        segments.push({ type: 'tag', content: match[0] });
+        lastIdx = match.index + match[0].length;
       }
+      if (lastIdx < result.length) {
+        segments.push({ type: 'text', content: result.slice(lastIdx) });
+      }
+
+      // Concatenate text segments to find the phrase position
+      let textSoFar = '';
+      let phraseStart = -1;
+      const textPositions: { segIdx: number; startInSeg: number; textStart: number }[] = [];
+      for (let i = 0; i < segments.length; i++) {
+        if (segments[i].type === 'text') {
+          textPositions.push({ segIdx: i, startInSeg: 0, textStart: textSoFar.length });
+          textSoFar += segments[i].content;
+        }
+      }
+
+      phraseStart = textSoFar.indexOf(phrase);
+      if (phraseStart < 0) continue;
+      const phraseEnd = phraseStart + phrase.length;
+
+      // Rebuild HTML with <mark> wrapping the matched text
+      const newSegments: string[] = [];
+      let textOffset = 0;
+      for (let i = 0; i < segments.length; i++) {
+        if (segments[i].type === 'tag') {
+          newSegments.push(segments[i].content);
+        } else {
+          const segText = segments[i].content;
+          const segStart = textOffset;
+          const segEnd = textOffset + segText.length;
+
+          if (segEnd <= phraseStart || segStart >= phraseEnd) {
+            // No overlap
+            newSegments.push(segText);
+          } else {
+            // Overlap — wrap the overlapping portion
+            const overlapStart = Math.max(0, phraseStart - segStart);
+            const overlapEnd = Math.min(segText.length, phraseEnd - segStart);
+            let built = '';
+            if (overlapStart > 0) built += segText.slice(0, overlapStart);
+            built += '<mark data-color="#dbeafe" style="background-color:#dbeafe;border-radius:2px">';
+            built += segText.slice(overlapStart, overlapEnd);
+            built += '</mark>';
+            if (overlapEnd < segText.length) built += segText.slice(overlapEnd);
+            newSegments.push(built);
+          }
+          textOffset += segText.length;
+        }
+      }
+
+      result = newSegments.join('');
+      // Only highlight first occurrence of each phrase
+    } catch {
+      // Skip on error
     }
-    // Deselect
-    editor.commands.setTextSelection(0);
   }
+
+  return result;
 }
 
 const STATUS_CONFIG = {
@@ -172,9 +229,9 @@ export default function ArticleEditor() {
       const oldContent = editor?.getHTML() || "";
       // Update editor content immediately with the improved version
       if (editor && data.content) {
-        editor.commands.setContent(data.content);
-        // Highlight changes: find new text and apply highlight marks
-        highlightChanges(editor, oldContent, data.content);
+        // Build HTML with <mark> tags highlighting the changes
+        const highlightedHtml = buildHighlightedHtml(oldContent, data.content);
+        editor.commands.setContent(highlightedHtml);
       }
       // Bump version to clear selections in GradePanel
       setAppliedVersion((v) => v + 1);
@@ -200,7 +257,7 @@ export default function ArticleEditor() {
       Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder: "Start writing your article..." }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Highlight,
+      Highlight.configure({ multicolor: true }),
     ],
     content: "",
     editorProps: {

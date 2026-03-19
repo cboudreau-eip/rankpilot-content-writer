@@ -229,3 +229,6 @@
 ## Fix Highlight Persistence After Apply
 - [x] Highlights disappear after applying improvements — fixed by skipping editor sync on refetch
 - [x] Ensure highlights persist until user edits or dismisses them
+
+## Fix Highlighting (Not Working)
+- [x] TipTap highlight approach is failing silently — rewrote to use buildHighlightedHtml with mark tags baked into HTML

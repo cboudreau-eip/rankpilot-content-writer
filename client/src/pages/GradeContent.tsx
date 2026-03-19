@@ -95,6 +95,33 @@ export default function GradeContent() {
 
   const getSelectedCount = (catKey: string) => (selectedImps[catKey]?.size || 0);
 
+  const [applyingCategory, setApplyingCategory] = useState<string | null>(null);
+
+  const applyMutation = trpc.grading.applyContentImprovements.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.appliedCount} improvement${data.appliedCount > 1 ? "s" : ""} applied — re-grading...`);
+      // Update the textarea with improved content
+      setContent(data.content);
+      // Clear selections for the applied category
+      if (applyingCategory) {
+        setSelectedImps((prev) => {
+          const next = { ...prev };
+          delete next[applyingCategory];
+          return next;
+        });
+      }
+      setApplyingCategory(null);
+      // Auto-re-grade with the improved content
+      setTimeout(() => {
+        gradeMutation.mutate({ content: data.content.trim() });
+      }, 300);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to apply improvements");
+      setApplyingCategory(null);
+    },
+  });
+
   const gradeMutation = trpc.grading.gradeContent.useMutation({
     onSuccess: (data) => {
       setResult(data as GradeResult);
@@ -388,19 +415,31 @@ export default function GradeContent() {
                             {/* Apply Selected Button */}
                             <Button
                               className={`w-full mt-3 gap-1.5 font-semibold transition-all ${
-                                selCount > 0
+                                selCount > 0 && !applyMutation.isPending
                                   ? "bg-orange-500 hover:bg-orange-600 text-white"
                                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
                               }`}
-                              disabled={selCount === 0}
+                              disabled={selCount === 0 || applyMutation.isPending}
                               onClick={() => {
                                 if (selCount === 0) return;
                                 const selectedList = cat.improvements.filter((_: string, i: number) => selectedImps[key]?.has(i));
-                                toast.info(`Selected ${selectedList.length} improvement(s) from ${cat.label}. Apply is available in the Article Editor.`);
+                                setApplyingCategory(key);
+                                applyMutation.mutate({
+                                  content: content.trim(),
+                                  categoryKey: key,
+                                  categoryLabel: cat.label,
+                                  selectedImprovements: selectedList,
+                                });
                               }}
                             >
-                              <Sparkles className="w-4 h-4" />
-                              {selCount > 0 ? `Apply Selected (${selCount})` : "Select improvements to apply"}
+                              {applyMutation.isPending && applyingCategory === key ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              {applyMutation.isPending && applyingCategory === key
+                                ? "Applying..."
+                                : selCount > 0 ? `Apply Selected (${selCount})` : "Select improvements to apply"}
                             </Button>
                           </div>
                         );

@@ -213,5 +213,95 @@ describe("Grading Routes", () => {
     it("should have grading.applyImprovements procedure", () => {
       expect(appRouter._def.procedures).toHaveProperty("grading.applyImprovements");
     });
+
+    it("should have grading.applyContentImprovements procedure", () => {
+      expect(appRouter._def.procedures).toHaveProperty("grading.applyContentImprovements");
+    });
+  });
+
+  describe("grading.applyContentImprovements (standalone)", () => {
+    it("should reject unauthenticated users", async () => {
+      const { ctx } = createUnauthContext();
+      await expect(
+        caller(ctx).grading.applyContentImprovements({
+          content: "This is a test article about Medicare coverage options.",
+          categoryKey: "eeatTrust",
+          categoryLabel: "E-E-A-T Trust Package",
+          selectedImprovements: ["Add author credentials"],
+        })
+      ).rejects.toThrow();
+    });
+
+    it("should reject empty content", async () => {
+      const { ctx } = createAuthContext();
+      await expect(
+        caller(ctx).grading.applyContentImprovements({
+          content: "",
+          categoryKey: "accuracy",
+          categoryLabel: "Accuracy",
+          selectedImprovements: ["Fix factual error"],
+        })
+      ).rejects.toThrow();
+    });
+
+    it("should reject content shorter than 10 characters", async () => {
+      const { ctx } = createAuthContext();
+      await expect(
+        caller(ctx).grading.applyContentImprovements({
+          content: "short",
+          categoryKey: "accuracy",
+          categoryLabel: "Accuracy",
+          selectedImprovements: ["Fix factual error"],
+        })
+      ).rejects.toThrow();
+    });
+
+    it("should reject empty improvements array", async () => {
+      const { ctx } = createAuthContext();
+      await expect(
+        caller(ctx).grading.applyContentImprovements({
+          content: "This is a sufficiently long piece of content for testing.",
+          categoryKey: "eeatTrust",
+          categoryLabel: "E-E-A-T Trust Package",
+          selectedImprovements: [],
+        })
+      ).rejects.toThrow();
+    });
+
+    it("should accept valid input with single improvement (validates schema)", async () => {
+      const { ctx } = createAuthContext();
+      try {
+        await caller(ctx).grading.applyContentImprovements({
+          content: "This is a sufficiently long piece of content for testing improvements.",
+          categoryKey: "eeatTrust",
+          categoryLabel: "E-E-A-T Trust Package",
+          selectedImprovements: ["Add author credentials"],
+        });
+      } catch (e: any) {
+        // Should fail at LLM level, not at schema validation
+        expect(e.message).not.toContain("too_small");
+        expect(e.message).not.toContain("Expected string");
+      }
+    }, 10000);
+
+    it("should accept valid input with multiple improvements (validates schema)", async () => {
+      const { ctx } = createAuthContext();
+      try {
+        await caller(ctx).grading.applyContentImprovements({
+          content: "This is a sufficiently long piece of content for testing multiple improvements.",
+          categoryKey: "readability",
+          categoryLabel: "Readability & UX",
+          selectedImprovements: [
+            "Add visual elements like icons",
+            "Include a table of contents",
+            "Add call-out boxes for tips",
+          ],
+        });
+      } catch (e: any) {
+        // Should fail at LLM level, not at schema validation
+        expect(e.message).not.toContain("too_small");
+        expect(e.message).not.toContain("Expected string");
+      }
+    }, 10000);
   });
 });

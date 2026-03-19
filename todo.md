@@ -208,3 +208,9 @@
 - [x] After applying improvements, auto-trigger re-grade to show updated scores
 - [x] Write/update vitest tests
 - [x] Save checkpoint
+
+## Fix Content Grader Apply Selected
+- [x] Content Grader Apply Selected button only shows a toast instead of actually applying changes
+- [x] Wire Apply Selected to a backend route that rewrites the pasted content with selected improvements
+- [x] After applying, update the textarea content and auto-re-grade
+- [x] Test and save checkpoint

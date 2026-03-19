@@ -1801,6 +1801,56 @@ IMPORTANT:
           category: input.categoryLabel,
         };
       }),
+
+    /** Apply selected improvements to raw content (standalone grader — no article ID needed) */
+    applyContentImprovements: protectedProcedure
+      .input(z.object({
+        content: z.string().min(10),
+        categoryKey: z.string(),
+        categoryLabel: z.string(),
+        selectedImprovements: z.array(z.string()).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const improvementsList = input.selectedImprovements.map((imp, i) => `${i + 1}. ${imp}`).join("\n");
+
+        const systemPrompt = `You are an expert content editor specializing in ${input.categoryLabel} improvements for SEO and AEO content. You match the original author's voice exactly.
+
+Your task is to apply ONLY the specified improvements to the content.
+
+Guidelines:
+- Apply ONLY the listed improvements - do not add extra changes
+- Maintain the content's original structure, tone, and formatting
+- Output ONLY pure markdown. NEVER output HTML tags.
+- Make changes seamlessly without disrupting readability
+- If an improvement mentions adding sources/citations, weave them naturally into sentences
+- Match the original content's sentence length patterns and formality level
+
+IMPORTANT:
+- Return ONLY the improved content
+- Do NOT include explanations or commentary
+- Do NOT wrap the output in markdown code blocks`;
+
+        const userPrompt = `Apply these ${input.categoryLabel} improvements to the content:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===ORIGINAL CONTENT===\n${input.content}\n===END CONTENT===\n\nReturn the improved content with these specific improvements applied.`;
+
+        const llmResponse = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        let improvedContent = ((llmResponse.choices?.[0]?.message?.content || input.content) as string).trim();
+        if (improvedContent.startsWith("```")) {
+          improvedContent = improvedContent.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+        }
+
+        return {
+          success: true,
+          content: improvedContent,
+          appliedCount: input.selectedImprovements.length,
+          category: input.categoryLabel,
+        };
+      }),
   }),
 });
 

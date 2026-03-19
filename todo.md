@@ -222,3 +222,6 @@
 - [x] Clear checked improvements after apply completes (both Content Grader and Article Editor)
 - [x] Highlight changed/added text after apply with subtle blue/gray background so users can see what changed
 - [x] Test and save checkpoint
+
+## Fix Article Editor Title Truncation
+- [x] Fix article title being cut off in the Article Editor header — ensure full title is visible

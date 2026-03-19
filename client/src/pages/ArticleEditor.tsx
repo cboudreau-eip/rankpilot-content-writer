@@ -272,12 +272,12 @@ export default function ArticleEditor() {
   return (
     <div className="space-y-4">
       {/* Top Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/articles")}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate("/articles")}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
+          <div className="min-w-0 flex-1">
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -300,7 +300,7 @@ export default function ArticleEditor() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Status Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -232,3 +232,6 @@
 
 ## Fix Highlighting (Not Working)
 - [x] TipTap highlight approach is failing silently — rewrote to use buildHighlightedHtml with mark tags baked into HTML
+
+## Clear Highlights Button
+- [x] Add a Clear Highlights button to the Article Editor toolbar to remove all blue marks

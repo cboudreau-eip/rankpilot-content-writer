@@ -187,6 +187,7 @@ export default function ArticleEditor() {
   const [title, setTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [gradeResult, setGradeResult] = useState<any>(null);
+  const [hasHighlights, setHasHighlights] = useState(false);
   const [expandedGradeCats, setExpandedGradeCats] = useState<Record<string, boolean>>({});
 
   const { data: article, isLoading, refetch } = trpc.articles.getById.useQuery(
@@ -232,6 +233,7 @@ export default function ArticleEditor() {
         // Build HTML with <mark> tags highlighting the changes
         const highlightedHtml = buildHighlightedHtml(oldContent, data.content);
         editor.commands.setContent(highlightedHtml);
+        setHasHighlights(true);
       }
       // Bump version to clear selections in GradePanel
       setAppliedVersion((v) => v + 1);
@@ -510,6 +512,22 @@ export default function ArticleEditor() {
               </ToolbarButton>
 
               <div className="flex-1" />
+
+              {hasHighlights && (
+                <button
+                  onClick={() => {
+                    editor.chain().focus().selectAll().unsetHighlight().run();
+                    editor.commands.setTextSelection(0);
+                    setHasHighlights(false);
+                    toast.success("Highlights cleared");
+                  }}
+                  title="Clear Highlights"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors border border-blue-200"
+                >
+                  <X className="w-3 h-3" />
+                  Clear Highlights
+                </button>
+              )}
 
               <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">
                 <Undo2 className="w-4 h-4" />

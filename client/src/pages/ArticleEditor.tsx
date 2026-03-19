@@ -32,6 +32,67 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
+/**
+ * Simple word-level diff: extracts text from HTML, finds new words, and applies TipTap highlight marks.
+ */
+function highlightChanges(editor: any, oldHtml: string, newMarkdown: string) {
+  // Extract plain text from old HTML
+  const tmp = document.createElement('div');
+  tmp.innerHTML = oldHtml;
+  const oldText = tmp.textContent || '';
+  const oldWords = new Set(oldText.split(/\s+/).filter(Boolean));
+
+  // Build 3-grams from old text for context matching
+  const oldWordArr = oldText.split(/\s+/).filter(Boolean);
+  const oldTrigrams = new Set<string>();
+  for (let i = 0; i < oldWordArr.length - 2; i++) {
+    oldTrigrams.add(`${oldWordArr[i]} ${oldWordArr[i + 1]} ${oldWordArr[i + 2]}`);
+  }
+
+  // Get the new editor text
+  const newText = editor.getText();
+  const newWordArr = newText.split(/\s+/).filter(Boolean);
+
+  // Find runs of new words not in old text
+  const newRuns: string[] = [];
+  let run: string[] = [];
+  for (let i = 0; i < newWordArr.length; i++) {
+    const trigram = i < newWordArr.length - 2
+      ? `${newWordArr[i]} ${newWordArr[i + 1]} ${newWordArr[i + 2]}`
+      : null;
+    const inOld = oldWords.has(newWordArr[i]) || (trigram ? oldTrigrams.has(trigram) : false);
+    if (!inOld) {
+      run.push(newWordArr[i]);
+    } else {
+      if (run.length >= 2) newRuns.push(run.join(' '));
+      run = [];
+    }
+  }
+  if (run.length >= 2) newRuns.push(run.join(' '));
+
+  // Apply highlight to each new run found in the editor
+  if (newRuns.length > 0) {
+    // Use search and highlight for each run (limit to first 20 to avoid performance issues)
+    const runsToHighlight = newRuns.slice(0, 20);
+    for (const phrase of runsToHighlight) {
+      try {
+        // Find the phrase in the editor text and apply highlight
+        const pos = newText.indexOf(phrase);
+        if (pos >= 0) {
+          editor.chain()
+            .setTextSelection({ from: pos + 1, to: pos + phrase.length + 1 })
+            .setHighlight({ color: '#dbeafe' })
+            .run();
+        }
+      } catch {
+        // Skip if highlight fails for this phrase
+      }
+    }
+    // Deselect
+    editor.commands.setTextSelection(0);
+  }
+}
+
 const STATUS_CONFIG = {
   draft: { label: "Draft", color: "bg-gray-100 text-gray-700", icon: FileEdit },
   review: { label: "Review", color: "bg-amber-100 text-amber-700", icon: Eye },
@@ -99,13 +160,22 @@ export default function ArticleEditor() {
     },
   });
 
+  // Track a version counter to signal GradePanel to clear selections
+  const [appliedVersion, setAppliedVersion] = useState(0);
+
   const applyImprovementsMutation = trpc.grading.applyImprovements.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.appliedCount} improvement${data.appliedCount > 1 ? "s" : ""} applied — re-grading...`);
+      toast.success(`${data.appliedCount} improvement${data.appliedCount > 1 ? "s" : ""} applied \u2014 re-grading...`);
+      // Save old content for diff highlighting
+      const oldContent = editor?.getHTML() || "";
       // Update editor content immediately with the improved version
       if (editor && data.content) {
         editor.commands.setContent(data.content);
+        // Highlight changes: find new text and apply highlight marks
+        highlightChanges(editor, oldContent, data.content);
       }
+      // Bump version to clear selections in GradePanel
+      setAppliedVersion((v) => v + 1);
       refetch();
       // Auto-trigger re-grade after a short delay to let the DB update settle
       setTimeout(() => {
@@ -398,6 +468,7 @@ export default function ArticleEditor() {
               });
             }}
             isApplying={applyImprovementsMutation.isPending}
+            appliedVersion={appliedVersion}
           />
         )}
 
@@ -511,6 +582,7 @@ function GradePanel({
   onClose,
   onApply,
   isApplying,
+  appliedVersion = 0,
 }: {
   result: any;
   expanded: Record<string, boolean>;
@@ -518,10 +590,18 @@ function GradePanel({
   onClose: () => void;
   onApply: (categoryKey: string, categoryLabel: string, improvements: string[]) => void;
   isApplying: boolean;
+  appliedVersion?: number;
 }) {
   const grades = result?.grades;
   // Track selected improvements per category: { [categoryKey]: Set<index> }
   const [selected, setSelected] = useState<Record<string, Set<number>>>({});
+
+  // Clear selections when appliedVersion changes (after successful apply)
+  useEffect(() => {
+    if (appliedVersion > 0) {
+      setSelected({});
+    }
+  }, [appliedVersion]);
 
   if (!grades) return null;
 

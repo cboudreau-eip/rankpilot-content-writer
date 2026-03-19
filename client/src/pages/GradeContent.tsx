@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,66 @@ function getScoreBarColor(score: number, max: number): string {
   return "[&>div]:bg-red-500";
 }
 
+/**
+ * Simple word-level diff highlighting.
+ * Splits old and new text into words, finds added/changed segments, and wraps them in a blue highlight.
+ */
+function HighlightedDiff({ oldText, newText }: { oldText: string; newText: string }) {
+  const oldWords = oldText.split(/\s+/);
+  const newWords = newText.split(/\s+/);
+
+  // Build a Set of old word sequences (3-grams) for quick lookup
+  const oldTrigrams = new Set<string>();
+  for (let i = 0; i < oldWords.length - 2; i++) {
+    oldTrigrams.add(`${oldWords[i]} ${oldWords[i + 1]} ${oldWords[i + 2]}`);
+  }
+  // Also track individual old words for single-word matching
+  const oldWordSet = new Set(oldWords);
+
+  // Walk through new words and mark runs that don't appear in old text
+  const segments: { text: string; isNew: boolean }[] = [];
+  let currentRun: string[] = [];
+  let currentIsNew = false;
+
+  for (let i = 0; i < newWords.length; i++) {
+    // Check if this 3-gram exists in old text
+    const trigram = i < newWords.length - 2
+      ? `${newWords[i]} ${newWords[i + 1]} ${newWords[i + 2]}`
+      : null;
+    const wordInOld = oldWordSet.has(newWords[i]);
+    const trigramInOld = trigram ? oldTrigrams.has(trigram) : wordInOld;
+    const isNew = !trigramInOld && !wordInOld;
+
+    if (isNew === currentIsNew) {
+      currentRun.push(newWords[i]);
+    } else {
+      if (currentRun.length > 0) {
+        segments.push({ text: currentRun.join(" "), isNew: currentIsNew });
+      }
+      currentRun = [newWords[i]];
+      currentIsNew = isNew;
+    }
+  }
+  if (currentRun.length > 0) {
+    segments.push({ text: currentRun.join(" "), isNew: currentIsNew });
+  }
+
+  return (
+    <>
+      {segments.map((seg, i) => (
+        <span key={i}>
+          {seg.isNew ? (
+            <mark className="bg-blue-100 text-foreground rounded px-0.5">{seg.text}</mark>
+          ) : (
+            <span className="text-foreground">{seg.text}</span>
+          )}
+          {i < segments.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export default function GradeContent() {
   const [content, setContent] = useState("");
   const [result, setResult] = useState<GradeResult | null>(null);
@@ -96,21 +156,22 @@ export default function GradeContent() {
   const getSelectedCount = (catKey: string) => (selectedImps[catKey]?.size || 0);
 
   const [applyingCategory, setApplyingCategory] = useState<string | null>(null);
+  const [previousContent, setPreviousContent] = useState<string>("");
+  const [showHighlight, setShowHighlight] = useState(false);
+  const applyingCategoryRef = useRef<string | null>(null);
 
   const applyMutation = trpc.grading.applyContentImprovements.useMutation({
     onSuccess: (data) => {
       toast.success(`${data.appliedCount} improvement${data.appliedCount > 1 ? "s" : ""} applied — re-grading...`);
+      // Save previous content for highlighting
+      setPreviousContent(content);
       // Update the textarea with improved content
       setContent(data.content);
-      // Clear selections for the applied category
-      if (applyingCategory) {
-        setSelectedImps((prev) => {
-          const next = { ...prev };
-          delete next[applyingCategory];
-          return next;
-        });
-      }
+      setShowHighlight(true);
+      // Clear ALL selections (re-grade will replace the results anyway)
+      setSelectedImps({});
       setApplyingCategory(null);
+      applyingCategoryRef.current = null;
       // Auto-re-grade with the improved content
       setTimeout(() => {
         gradeMutation.mutate({ content: data.content.trim() });
@@ -119,6 +180,7 @@ export default function GradeContent() {
     onError: (err) => {
       toast.error(err.message || "Failed to apply improvements");
       setApplyingCategory(null);
+      applyingCategoryRef.current = null;
     },
   });
 
@@ -192,12 +254,33 @@ export default function GradeContent() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
-                placeholder="Paste your article, blog post, or any content here..."
-                className="min-h-[300px] text-sm leading-relaxed resize-y"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
+              <div className="relative">
+                <Textarea
+                  placeholder="Paste your article, blog post, or any content here..."
+                  className={`min-h-[300px] text-sm leading-relaxed resize-y ${showHighlight ? 'text-transparent caret-foreground' : ''}`}
+                  value={content}
+                  onChange={(e) => {
+                    setContent(e.target.value);
+                    setShowHighlight(false);
+                  }}
+                />
+                {showHighlight && previousContent && (
+                  <div
+                    className="absolute inset-0 pointer-events-none p-3 text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden"
+                    aria-hidden="true"
+                  >
+                    <HighlightedDiff oldText={previousContent} newText={content} />
+                  </div>
+                )}
+              </div>
+              {showHighlight && (
+                <button
+                  onClick={() => setShowHighlight(false)}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  Dismiss highlights
+                </button>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
                   {wordCount.toLocaleString()} words &nbsp;&middot;&nbsp; {charCount.toLocaleString()} characters
@@ -424,6 +507,7 @@ export default function GradeContent() {
                                 if (selCount === 0) return;
                                 const selectedList = cat.improvements.filter((_: string, i: number) => selectedImps[key]?.has(i));
                                 setApplyingCategory(key);
+                                applyingCategoryRef.current = key;
                                 applyMutation.mutate({
                                   content: content.trim(),
                                   categoryKey: key,

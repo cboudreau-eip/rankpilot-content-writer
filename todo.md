@@ -214,3 +214,11 @@
 - [x] Wire Apply Selected to a backend route that rewrites the pasted content with selected improvements
 - [x] After applying, update the textarea content and auto-re-grade
 - [x] Test and save checkpoint
+
+## Fix Apply Selected Error (revoking)
+- [ ] Investigate and fix the error when applying improvements (something about revoking)
+
+## Fix Apply Selected UX
+- [x] Clear checked improvements after apply completes (both Content Grader and Article Editor)
+- [x] Highlight changed/added text after apply with subtle blue/gray background so users can see what changed
+- [x] Test and save checkpoint

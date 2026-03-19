@@ -199,3 +199,12 @@
 - [x] Rebuild standalone Grade Content results with score circle, grade band, per-category cards with progress bars and improvements
 - [x] Rebuild per-article Grade results in Article Editor with same detail level
 - [x] Test and save checkpoint
+
+## Selectable Improvement Suggestions
+- [x] Add selectable circle/checkbox to each improvement item in ArticleEditor GradePanel
+- [x] Add "Apply Selected (N)" button that only sends checked improvements
+- [x] Add selectable improvements to standalone GradeContent page
+- [x] Update backend applyImprovements to accept selected items only
+- [x] After applying improvements, auto-trigger re-grade to show updated scores
+- [x] Write/update vitest tests
+- [x] Save checkpoint

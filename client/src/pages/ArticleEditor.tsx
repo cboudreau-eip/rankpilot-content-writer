@@ -100,9 +100,17 @@ export default function ArticleEditor() {
   });
 
   const applyImprovementsMutation = trpc.grading.applyImprovements.useMutation({
-    onSuccess: () => {
-      toast.success("Improvements applied");
+    onSuccess: (data) => {
+      toast.success(`${data.appliedCount} improvement${data.appliedCount > 1 ? "s" : ""} applied — re-grading...`);
+      // Update editor content immediately with the improved version
+      if (editor && data.content) {
+        editor.commands.setContent(data.content);
+      }
       refetch();
+      // Auto-trigger re-grade after a short delay to let the DB update settle
+      setTimeout(() => {
+        gradeMutation.mutate({ articleId });
+      }, 500);
     },
     onError: (err) => {
       toast.error(err.message || "Failed to apply improvements");
@@ -512,6 +520,9 @@ function GradePanel({
   isApplying: boolean;
 }) {
   const grades = result?.grades;
+  // Track selected improvements per category: { [categoryKey]: Set<index> }
+  const [selected, setSelected] = useState<Record<string, Set<number>>>({});
+
   if (!grades) return null;
 
   const totalScore = grades.totalScore || 0;
@@ -530,6 +541,24 @@ function GradePanel({
   })();
   const gradeInfo = getGradeBandInfo(gradeBand);
   const categories = grades.categories || {};
+
+  const toggleSelection = (catKey: string, idx: number) => {
+    setSelected((prev) => {
+      const catSet = new Set(prev[catKey] || []);
+      if (catSet.has(idx)) catSet.delete(idx);
+      else catSet.add(idx);
+      return { ...prev, [catKey]: catSet };
+    });
+  };
+
+  const getSelectedCount = (catKey: string) => (selected[catKey]?.size || 0);
+
+  const handleApplySelected = (catKey: string, catLabel: string, improvements: string[]) => {
+    const catSet = selected[catKey];
+    if (!catSet || catSet.size === 0) return;
+    const selectedImps = improvements.filter((_: string, i: number) => catSet.has(i));
+    onApply(catKey, catLabel, selectedImps);
+  };
 
   return (
     <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
@@ -568,11 +597,12 @@ function GradePanel({
 
       {/* Scrollable content */}
       <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
-        {/* Category Cards — all expanded by default */}
+        {/* Category Cards */}
         {Object.entries(categories).map(([key, cat]: [string, any]) => {
           const meta = gradeCategoryMeta[key] || { icon: ShieldCheck, color: "text-gray-600", bgColor: "bg-gray-50" };
           const pct = cat.maxScore > 0 ? Math.round((cat.score / cat.maxScore) * 100) : 0;
           const analysis = cat.analysis || cat.explanation || cat.reason || "";
+          const selCount = getSelectedCount(key);
 
           return (
             <div key={key} className="border-b last:border-b-0 px-4 py-3">
@@ -604,31 +634,62 @@ function GradePanel({
                 </p>
               )}
 
-              {/* Improvements */}
+              {/* Selectable Improvements */}
               {cat.improvements?.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold text-orange-600 mb-1.5">Improvements:</p>
-                  <div className="space-y-1">
-                    {cat.improvements.map((imp: string, i: number) => (
-                      <div key={i} className="flex items-start gap-1.5 text-[11px]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                        <span className="text-muted-foreground">{imp}</span>
-                      </div>
-                    ))}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[10px] font-semibold text-orange-600">Improvements:</p>
+                    {selCount > 0 && (
+                      <span className="text-[10px] text-orange-600 font-medium">{selCount} selected</span>
+                    )}
                   </div>
+                  <div className="space-y-1.5">
+                    {cat.improvements.map((imp: string, i: number) => {
+                      const isSelected = selected[key]?.has(i) || false;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => toggleSelection(key, i)}
+                          className={`w-full text-left flex items-start gap-2 text-[11px] p-2 rounded-lg border transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-orange-400 bg-orange-50"
+                              : "border-border/40 bg-white hover:border-orange-300 hover:bg-orange-50/30"
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                            isSelected
+                              ? "border-orange-500 bg-orange-500"
+                              : "border-gray-300 bg-white"
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className={isSelected ? "text-foreground" : "text-muted-foreground"}>{imp}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Apply Selected Button */}
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="w-full mt-2 text-xs h-7 gap-1"
-                    disabled={isApplying}
-                    onClick={() => onApply(key, cat.label || key, cat.improvements)}
+                    className={`w-full mt-2.5 text-xs h-8 gap-1.5 font-semibold transition-all ${
+                      selCount > 0
+                        ? "bg-orange-500 hover:bg-orange-600 text-white"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    }`}
+                    disabled={selCount === 0 || isApplying}
+                    onClick={() => handleApplySelected(key, cat.label || key, cat.improvements)}
                   >
                     {isApplying ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
                       <Wand2 className="w-3 h-3" />
                     )}
-                    Apply Improvements
+                    {selCount > 0 ? `Apply Selected (${selCount})` : "Select improvements to apply"}
                   </Button>
                 </div>
               )}

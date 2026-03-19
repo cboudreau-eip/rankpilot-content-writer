@@ -165,6 +165,40 @@ describe("Grading Routes", () => {
         expect(e.message).not.toContain("too_small");
       }
     });
+
+    it("should accept a single selected improvement", async () => {
+      const { ctx } = createAuthContext();
+      try {
+        await caller(ctx).grading.applyImprovements({
+          articleId: 999,
+          categoryKey: "accuracy",
+          categoryLabel: "Accuracy",
+          selectedImprovements: ["Add source links for all specific dollar amounts"],
+        });
+      } catch (e: any) {
+        // Fails at DB level, not schema
+        expect(e.message).not.toContain("too_small");
+      }
+    });
+
+    it("should accept multiple selected improvements from same category", async () => {
+      const { ctx } = createAuthContext();
+      try {
+        await caller(ctx).grading.applyImprovements({
+          articleId: 999,
+          categoryKey: "readabilityUx",
+          categoryLabel: "Readability & UX",
+          selectedImprovements: [
+            "Add visual elements like icons or infographics",
+            "Include a table of contents for easier navigation",
+            "Add call-out boxes for important warnings or tips",
+          ],
+        });
+      } catch (e: any) {
+        // Fails at DB level, not schema
+        expect(e.message).not.toContain("too_small");
+      }
+    });
   });
 
   describe("Route structure", () => {

@@ -76,12 +76,24 @@ function getScoreBarColor(score: number, max: number): string {
 export default function GradeContent() {
   const [content, setContent] = useState("");
   const [result, setResult] = useState<GradeResult | null>(null);
+  const [selectedImps, setSelectedImps] = useState<Record<string, Set<number>>>({});
   const [enabledCategories, setEnabledCategories] = useState<Record<string, boolean>>({
     eeatTrust: true,
     accuracy: true,
     aioReadiness: true,
     readability: true,
   });
+
+  const toggleImpSelection = (catKey: string, idx: number) => {
+    setSelectedImps((prev) => {
+      const catSet = new Set(prev[catKey] || []);
+      if (catSet.has(idx)) catSet.delete(idx);
+      else catSet.add(idx);
+      return { ...prev, [catKey]: catSet };
+    });
+  };
+
+  const getSelectedCount = (catKey: string) => (selectedImps[catKey]?.size || 0);
 
   const gradeMutation = trpc.grading.gradeContent.useMutation({
     onSuccess: (data) => {
@@ -332,20 +344,67 @@ export default function GradeContent() {
                         </p>
                       )}
 
-                      {/* Improvements */}
-                      {cat.improvements?.length > 0 && (
-                        <div>
-                          <p className="text-sm font-semibold text-orange-600 mb-2.5">Improvements:</p>
-                          <div className="space-y-2">
-                            {cat.improvements.map((imp, i) => (
-                              <div key={i} className="flex items-start gap-2.5 text-sm">
-                                <CircleDot className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
-                                <span className="text-muted-foreground">{imp}</span>
-                              </div>
-                            ))}
+                      {/* Selectable Improvements */}
+                      {cat.improvements?.length > 0 && (() => {
+                        const selCount = getSelectedCount(key);
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between mb-2.5">
+                              <p className="text-sm font-semibold text-orange-600">Improvements:</p>
+                              {selCount > 0 && (
+                                <span className="text-xs text-orange-600 font-medium">{selCount} selected</span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {cat.improvements.map((imp, i) => {
+                                const isSelected = selectedImps[key]?.has(i) || false;
+                                return (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => toggleImpSelection(key, i)}
+                                    className={`w-full text-left flex items-start gap-2.5 text-sm p-2.5 rounded-lg border transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "border-orange-400 bg-orange-50"
+                                        : "border-border/40 bg-white hover:border-orange-300 hover:bg-orange-50/30"
+                                    }`}
+                                  >
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                                      isSelected
+                                        ? "border-orange-500 bg-orange-500"
+                                        : "border-gray-300 bg-white"
+                                    }`}>
+                                      {isSelected && (
+                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <span className={isSelected ? "text-foreground" : "text-muted-foreground"}>{imp}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {/* Apply Selected Button */}
+                            <Button
+                              className={`w-full mt-3 gap-1.5 font-semibold transition-all ${
+                                selCount > 0
+                                  ? "bg-orange-500 hover:bg-orange-600 text-white"
+                                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              }`}
+                              disabled={selCount === 0}
+                              onClick={() => {
+                                if (selCount === 0) return;
+                                const selectedList = cat.improvements.filter((_: string, i: number) => selectedImps[key]?.has(i));
+                                toast.info(`Selected ${selectedList.length} improvement(s) from ${cat.label}. Apply is available in the Article Editor.`);
+                              }}
+                            >
+                              <Sparkles className="w-4 h-4" />
+                              {selCount > 0 ? `Apply Selected (${selCount})` : "Select improvements to apply"}
+                            </Button>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   </Card>
                 );

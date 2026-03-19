@@ -1398,42 +1398,62 @@ Note: Remaining 15% is reserved for technical factors not assessed here.
 
 For EACH category, provide:
 - A score (out of the max for that category)
-- A brief explanation of why that score was given
-- 3-4 specific, actionable improvements
+- The weight percentage label
+- A detailed 2-3 sentence analysis explaining what the content does well and what it lacks in this category. Be specific — reference actual content elements, not generic observations.
+- 3-4 specific, actionable improvements. Each improvement should be concrete enough to act on immediately (e.g., "Add author bio with relevant healthcare/insurance credentials" not "Improve trust signals").
+
+Also provide:
+- keyStrengths: 3 specific things the content does well (with checkmarks)
+- keyWeaknesses: 2-3 specific weaknesses (with X marks)
+- penalties: any penalties applied (e.g., "Unverified statistics presented as fact")
+- prioritizedActions: top 3 most impactful corrective actions, numbered by priority
+
+CITATION SUGGESTION RULES:
+- Across ALL categories combined, suggest MAXIMUM 2 citation-related improvements total.
+- Consolidate citation suggestions into the single most impactful one.
 
 Respond in this exact JSON format:
 {
   "totalScore": <number 0-85>,
+  "gradeBand": "<A|A-|B+|B|B-|C+|C|D|F>",
   "categories": {
     "eeatTrust": {
       "score": <number 0-30>,
       "maxScore": 30,
+      "weight": "35%",
       "label": "E-E-A-T Trust Package",
-      "explanation": "<brief explanation>",
-      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+      "analysis": "<detailed 2-3 sentence analysis>",
+      "improvements": ["<specific improvement 1>", "<specific improvement 2>", "<specific improvement 3>", "<specific improvement 4>"]
     },
     "accuracy": {
       "score": <number 0-25>,
       "maxScore": 25,
+      "weight": "29%",
       "label": "Accuracy",
-      "explanation": "<brief explanation>",
-      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+      "analysis": "<detailed 2-3 sentence analysis>",
+      "improvements": ["<specific improvement 1>", "<specific improvement 2>", "<specific improvement 3>", "<specific improvement 4>"]
     },
     "aioReadiness": {
       "score": <number 0-20>,
       "maxScore": 20,
+      "weight": "24%",
       "label": "AIO Answer Readiness",
-      "explanation": "<brief explanation>",
-      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+      "analysis": "<detailed 2-3 sentence analysis>",
+      "improvements": ["<specific improvement 1>", "<specific improvement 2>", "<specific improvement 3>", "<specific improvement 4>"]
     },
     "readability": {
       "score": <number 0-10>,
       "maxScore": 10,
+      "weight": "12%",
       "label": "Readability & UX",
-      "explanation": "<brief explanation>",
-      "improvements": ["<improvement 1>", "<improvement 2>", "<improvement 3>"]
+      "analysis": "<detailed 2-3 sentence analysis>",
+      "improvements": ["<specific improvement 1>", "<specific improvement 2>", "<specific improvement 3>", "<specific improvement 4>"]
     }
-  }
+  },
+  "keyStrengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "keyWeaknesses": ["<weakness 1>", "<weakness 2>"],
+  "penalties": ["<penalty if any, or empty array>"],
+  "prioritizedActions": ["<action 1>", "<action 2>", "<action 3>"]
 }`;
 
         const response = await invokeLLM({
@@ -1619,22 +1639,34 @@ SCORING INSTRUCTIONS:
 ${defaultBrandVoice ? "- Include brandVoiceAlignment in response ONLY if brand voice reference was provided above" : "- Do NOT include brandVoiceAlignment in response (no brand voice defined)"}
 ${hasICP ? "- Include icpAlignment in response ONLY if ICP reference was provided above" : "- Do NOT include icpAlignment in response (no ICP defined)"}
 
+For EACH category, provide:
+- A score (out of the max for that category)
+- The weight percentage label
+- A detailed 2-3 sentence analysis explaining what the content does well and what it lacks. Be specific — reference actual content elements.
+- 3-4 specific, actionable improvements. Each improvement should be concrete enough to act on immediately.
+
+Also provide:
+- keyStrengths: 3 specific things the content does well
+- keyWeaknesses: 2-3 specific weaknesses
+- penalties: any penalties applied (e.g., "Unverified statistics presented as fact"), or empty array
+- prioritizedActions: top 3 most impactful corrective actions, numbered by priority
+
 RESPONSE FORMAT - Respond ONLY with valid JSON:
 {
-  "eeatTrust": { "score": <0-30>, "maxScore": 30, "reason": "...", "improvements": ["..."] },
-  "accuracy": { "score": <0-25>, "maxScore": 25, "reason": "...", "improvements": ["..."] },
-  "aioReadiness": { "score": <0-20>, "maxScore": 20, "reason": "...", "improvements": ["..."] },
-  "readabilityUx": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },
-  "seoEntityCoverage": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },
-  "riskHygiene": { "score": <0-5>, "maxScore": 5, "reason": "...", "improvements": ["..."] },${defaultBrandVoice ? `
-  "brandVoiceAlignment": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },` : ""}${hasICP ? `
-  "icpAlignment": { "score": <0-10>, "maxScore": 10, "reason": "...", "improvements": ["..."] },` : ""}
+  "eeatTrust": { "score": <0-30>, "maxScore": 30, "weight": "30%", "label": "E-E-A-T Trust Package", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },
+  "accuracy": { "score": <0-25>, "maxScore": 25, "weight": "25%", "label": "Accuracy", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },
+  "aioReadiness": { "score": <0-20>, "maxScore": 20, "weight": "20%", "label": "AIO Answer Readiness", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },
+  "readabilityUx": { "score": <0-10>, "maxScore": 10, "weight": "10%", "label": "Readability & UX", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },
+  "seoEntityCoverage": { "score": <0-10>, "maxScore": 10, "weight": "10%", "label": "SEO & Entity Coverage", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },
+  "riskHygiene": { "score": <0-5>, "maxScore": 5, "weight": "5%", "label": "Risk Hygiene", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },${defaultBrandVoice ? `
+  "brandVoiceAlignment": { "score": <0-10>, "maxScore": 10, "weight": "10%", "label": "Brand Voice Alignment", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },` : ""}${hasICP ? `
+  "icpAlignment": { "score": <0-10>, "maxScore": 10, "weight": "10%", "label": "ICP Alignment", "analysis": "<detailed 2-3 sentence analysis>", "improvements": ["...", "...", "..."] },` : ""}
   "totalScore": <number>,
-  "gradeBand": "<A|B|C|D|F>",
-  "keyStrengths": ["..."],
-  "keyWeaknesses": ["..."],
-  "penalties": ["..."],
-  "prioritizedActions": ["...", "...", "..."]
+  "gradeBand": "<A|A-|B+|B|B-|C+|C|D|F>",
+  "keyStrengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "keyWeaknesses": ["<weakness 1>", "<weakness 2>"],
+  "penalties": ["<penalty if any, or empty array>"],
+  "prioritizedActions": ["<action 1>", "<action 2>", "<action 3>"]
 }`;
 
         const userPrompt = `Grade this article:\n\nTitle: ${article.title}\nKeyword: ${article.keyword || "Not specified"}\n\nContent:\n${article.content}`;
@@ -1649,7 +1681,34 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
         const rawContent = (response.choices?.[0]?.message?.content || "") as string;
         const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("Failed to parse grading response");
-        const grades = JSON.parse(jsonMatch[0]);
+        const raw = JSON.parse(jsonMatch[0]);
+
+        // Normalize: the LLM returns categories as top-level keys. Restructure into { categories, totalScore, ... }
+        const categoryKeys = ["eeatTrust", "accuracy", "aioReadiness", "readabilityUx", "seoEntityCoverage", "riskHygiene", "brandVoiceAlignment", "icpAlignment"];
+        const categories: Record<string, any> = {};
+        for (const k of categoryKeys) {
+          if (raw[k] && typeof raw[k] === "object" && typeof raw[k].score === "number") {
+            categories[k] = {
+              score: raw[k].score,
+              maxScore: raw[k].maxScore,
+              weight: raw[k].weight || "",
+              label: raw[k].label || k,
+              analysis: raw[k].analysis || raw[k].reason || "",
+              improvements: raw[k].improvements || [],
+            };
+          }
+        }
+
+        const grades = {
+          totalScore: raw.totalScore || 0,
+          maxPossible: totalPoints,
+          gradeBand: raw.gradeBand || "",
+          categories,
+          keyStrengths: raw.keyStrengths || [],
+          keyWeaknesses: raw.keyWeaknesses || [],
+          penalties: raw.penalties || [],
+          prioritizedActions: raw.prioritizedActions || [],
+        };
 
         return {
           grades,

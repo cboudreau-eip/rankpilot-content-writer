@@ -192,3 +192,10 @@
 - [x] Display grade results with category breakdowns, grade band, strengths/weaknesses, prioritized actions
 - [x] Write vitest tests for grading routes
 - [x] Save checkpoint
+
+## Grader Display Improvements
+- [x] Update backend LLM prompts to return detailed per-category data (score, maxScore, weight, analysis, improvements list)
+- [x] Update backend to return key strengths, key weaknesses, penalties, prioritized corrective actions
+- [x] Rebuild standalone Grade Content results with score circle, grade band, per-category cards with progress bars and improvements
+- [x] Rebuild per-article Grade results in Article Editor with same detail level
+- [x] Test and save checkpoint

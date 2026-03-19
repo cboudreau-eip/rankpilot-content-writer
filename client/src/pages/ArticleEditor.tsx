@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -162,6 +162,8 @@ export default function ArticleEditor() {
 
   // Track a version counter to signal GradePanel to clear selections
   const [appliedVersion, setAppliedVersion] = useState(0);
+  // Skip the next article→editor sync so highlights aren't wiped by refetch
+  const skipNextSyncRef = useRef(false);
 
   const applyImprovementsMutation = trpc.grading.applyImprovements.useMutation({
     onSuccess: (data) => {
@@ -176,6 +178,8 @@ export default function ArticleEditor() {
       }
       // Bump version to clear selections in GradePanel
       setAppliedVersion((v) => v + 1);
+      // Skip the next useEffect sync so refetch doesn't wipe highlights
+      skipNextSyncRef.current = true;
       refetch();
       // Auto-trigger re-grade after a short delay to let the DB update settle
       setTimeout(() => {
@@ -209,6 +213,17 @@ export default function ArticleEditor() {
   // Load article data into editor
   useEffect(() => {
     if (article && editor) {
+      // After applying improvements, skip the content sync to preserve highlights
+      if (skipNextSyncRef.current) {
+        skipNextSyncRef.current = false;
+        // Still sync metadata fields (they may have changed)
+        setTitle(article.title);
+        setMetaTitle(article.metaTitle || "");
+        setMetaDescription(article.metaDescription || "");
+        setSlug(article.slug || "");
+        setKeyword(article.keyword || "");
+        return;
+      }
       editor.commands.setContent(article.content || "");
       setTitle(article.title);
       setMetaTitle(article.metaTitle || "");

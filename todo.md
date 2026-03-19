@@ -225,3 +225,7 @@
 
 ## Fix Article Editor Title Truncation
 - [x] Fix article title being cut off in the Article Editor header — ensure full title is visible
+
+## Fix Highlight Persistence After Apply
+- [x] Highlights disappear after applying improvements — fixed by skipping editor sync on refetch
+- [x] Ensure highlights persist until user edits or dismisses them

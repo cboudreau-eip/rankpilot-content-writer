@@ -262,3 +262,5 @@
 
 ## Copy Content Feature
 - [x] Add Copy Content button to Article Editor toolbar so users can copy article to clipboard
+- [x] Fix Copy button to copy raw HTML source code as plain text (not rendered text)
+- [x] Fix TipTap editor prose styling to properly render headings, bullets, tables, bold text etc.

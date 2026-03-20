@@ -16,7 +16,7 @@ import {
   FileText, Search, Clock, CheckCircle2, Send, FileEdit,
   Eye, ChevronDown, Loader2, BarChart3, Sparkles, ShieldCheck,
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
-  ChevronUp, Wand2, X,
+  ChevronUp, Wand2, X, Copy, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,6 +220,7 @@ export default function ArticleEditor() {
 
   // Track a version counter to signal GradePanel to clear selections
   const [appliedVersion, setAppliedVersion] = useState(0);
+  const [copied, setCopied] = useState(false);
   // Skip the next article→editor sync so highlights aren't wiped by refetch
   const skipNextSyncRef = useRef(false);
 
@@ -512,6 +513,52 @@ export default function ArticleEditor() {
               </ToolbarButton>
 
               <div className="flex-1" />
+
+              {/* Copy Content Button */}
+              <button
+                onClick={async () => {
+                  if (!editor) return;
+                  const htmlContent = editor.getHTML();
+                  const textContent = editor.getText();
+                  try {
+                    // Try to copy both HTML and plain text to clipboard
+                    if (navigator.clipboard && window.ClipboardItem) {
+                      const blob = new Blob([htmlContent], { type: 'text/html' });
+                      const textBlob = new Blob([textContent], { type: 'text/plain' });
+                      await navigator.clipboard.write([
+                        new ClipboardItem({
+                          'text/html': blob,
+                          'text/plain': textBlob,
+                        }),
+                      ]);
+                    } else {
+                      await navigator.clipboard.writeText(textContent);
+                    }
+                    setCopied(true);
+                    toast.success("Content copied to clipboard");
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    // Fallback: copy plain text
+                    try {
+                      await navigator.clipboard.writeText(textContent);
+                      setCopied(true);
+                      toast.success("Content copied as plain text");
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {
+                      toast.error("Failed to copy content");
+                    }
+                  }
+                }}
+                title="Copy Content"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
+                  copied
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"
+                }`}
+              >
+                {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied!" : "Copy"}
+              </button>
 
               {hasHighlights && (
                 <button

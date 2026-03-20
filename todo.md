@@ -259,3 +259,6 @@
 - [x] Verify and fix that selected icpProfileId overrides project-level ICP in outline generation
 - [x] Verify and fix that selected icpProfileId overrides project-level ICP in article generation
 - [x] Test and save checkpoint
+
+## Copy Content Feature
+- [x] Add Copy Content button to Article Editor toolbar so users can copy article to clipboard

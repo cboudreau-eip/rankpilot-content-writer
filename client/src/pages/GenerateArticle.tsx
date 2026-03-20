@@ -5,7 +5,7 @@ import { useActiveProject } from "@/components/AppLayout";
 import {
   Sparkles, FileText, GripVertical, ChevronDown, ChevronRight,
   Plus, Trash2, Loader2, ArrowRight, Settings2, Wand2, ListTree,
-  MapPin, Users, Link2, Globe,
+  MapPin, Users, Link2, Globe, MessageSquare, Target, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,6 +97,18 @@ export default function GenerateArticle() {
     { enabled: !!activeProjectId }
   );
 
+  // Fetch brand voices for the active project
+  const { data: brandVoices = [] } = trpc.brandVoices.list.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: !!activeProjectId }
+  );
+
+  // Brand voice selection state
+  const [selectedBrandVoiceId, setSelectedBrandVoiceId] = useState<number | null>(null);
+  // ICP targeting toggle
+  const [icpEnabled, setIcpEnabled] = useState(true);
+  const [selectedIcpId, setSelectedIcpId] = useState<number | null>(null);
+
   // Fetch sitemaps for the active project
   const { data: projectSitemaps = [] } = trpc.sitemaps.list.useQuery(
     { projectId: activeProjectId! },
@@ -116,6 +128,39 @@ export default function GenerateArticle() {
   const defaultIcpProfile = useMemo(() => {
     return icpProfiles.find((p: any) => p.isDefault) || icpProfiles[0];
   }, [icpProfiles]);
+
+  // Selected brand voice (default to the default one or first)
+  const selectedBrandVoice = useMemo(() => {
+    if (selectedBrandVoiceId) return brandVoices.find((v: any) => v.id === selectedBrandVoiceId);
+    return brandVoices.find((v: any) => v.isDefault) || brandVoices[0] || null;
+  }, [brandVoices, selectedBrandVoiceId]);
+
+  // Selected ICP profile
+  const selectedIcpProfile = useMemo(() => {
+    if (!icpEnabled) return null;
+    if (selectedIcpId) return icpProfiles.find((p: any) => p.id === selectedIcpId);
+    return defaultIcpProfile;
+  }, [icpProfiles, selectedIcpId, icpEnabled, defaultIcpProfile]);
+
+  // Parse tone traits from brand voice
+  const parseToneTraits = (toneTraits: string | null | undefined) => {
+    if (!toneTraits) return { primary: [], supporting: [], standalone: [] };
+    const primary: string[] = [];
+    const supporting: string[] = [];
+    const standalone: string[] = [];
+    const parts = toneTraits.split("|");
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith("PRIMARY:")) {
+        primary.push(...trimmed.replace("PRIMARY:", "").split(",").map(s => s.trim()).filter(Boolean));
+      } else if (trimmed.startsWith("SUPPORTING:")) {
+        supporting.push(...trimmed.replace("SUPPORTING:", "").split(",").map(s => s.trim()).filter(Boolean));
+      } else {
+        standalone.push(...trimmed.split(",").map(s => s.trim()).filter(Boolean));
+      }
+    }
+    return { primary, supporting, standalone };
+  };
 
   // Effective audience: ICP-based or custom override
   const effectiveAudience = useMemo(() => {
@@ -206,6 +251,8 @@ export default function GenerateArticle() {
       manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
       sitemapUrl: sitemapUrl.trim() || undefined,
       autoLinkCount: sitemapUrl.trim() ? parseInt(autoLinkCount) : undefined,
+      brandVoiceId: selectedBrandVoice?.id ?? undefined,
+      icpProfileId: selectedIcpProfile?.id ?? undefined,
     });
   };
 
@@ -221,6 +268,8 @@ export default function GenerateArticle() {
       manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
       sitemapUrl: sitemapUrl.trim() || undefined,
       autoLinkCount: sitemapUrl.trim() ? parseInt(autoLinkCount) : undefined,
+      brandVoiceId: selectedBrandVoice?.id ?? undefined,
+      icpProfileId: selectedIcpProfile?.id ?? undefined,
     });
   };
 
@@ -507,7 +556,151 @@ export default function GenerateArticle() {
               />
             </div>
 
-            {/* Divider */}
+            {/* Brand Voice Section */}
+            <div className="border-t border-border/60 pt-5">
+              <h3 className="text-base font-semibold flex items-center gap-2 mb-1">
+                <MessageSquare className="w-4 h-4 text-indigo-500" />
+                Brand Voice
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Select the brand voice to use for content generation.
+              </p>
+
+              {brandVoices.length > 0 ? (
+                <div className="space-y-3">
+                  <Select
+                    value={String(selectedBrandVoice?.id ?? "")}
+                    onValueChange={(v) => setSelectedBrandVoiceId(Number(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a brand voice" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {brandVoices.map((voice: any) => (
+                        <SelectItem key={voice.id} value={String(voice.id)}>
+                          {voice.name}{voice.isDefault ? " (Default)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {selectedBrandVoice && (() => {
+                    const traits = parseToneTraits(selectedBrandVoice.toneTraits);
+                    const perspectiveMap: Record<string, string> = {
+                      first: "First person (I/we)",
+                      second: "Second person (you/your)",
+                      third: "Third person (they/one)",
+                    };
+                    return (
+                      <div className="bg-indigo-50/60 border border-indigo-200/60 rounded-lg p-4 space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {traits.primary.map((t, i) => (
+                            <span key={`p-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                              PRIMARY:{t}
+                            </span>
+                          ))}
+                          {traits.supporting.map((t, i) => (
+                            <span key={`s-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                              SUPPORTING:{t}
+                            </span>
+                          ))}
+                          {traits.standalone.map((t, i) => (
+                            <span key={`st-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-indigo-600">
+                          Perspective: {perspectiveMap[selectedBrandVoice.perspective] || selectedBrandVoice.perspective}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="px-4 py-3 rounded-lg border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
+                  No brand voices configured for this project. Add one in Project Settings.
+                </div>
+              )}
+            </div>
+
+            {/* ICP Targeting Section */}
+            <div className="border-t border-border/60 pt-5">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-base font-semibold flex items-center gap-2">
+                  <Target className="w-4 h-4 text-teal-500" />
+                  ICP Targeting
+                </h3>
+                <button
+                  onClick={() => setIcpEnabled(!icpEnabled)}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    icpEnabled
+                      ? "bg-teal-100 text-teal-700"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {icpEnabled ? (
+                    <><Check className="w-3 h-3" /> Enabled</>
+                  ) : (
+                    "Disabled"
+                  )}
+                </button>
+              </div>
+
+              {icpEnabled && (
+                <div className="space-y-3 mt-3">
+                  {icpProfiles.length > 1 && (
+                    <Select
+                      value={String(selectedIcpProfile?.id ?? "")}
+                      onValueChange={(v) => setSelectedIcpId(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an ICP profile" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {icpProfiles.map((profile: any) => (
+                          <SelectItem key={profile.id} value={String(profile.id)}>
+                            {profile.name}{profile.isDefault ? " (Default)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {selectedIcpProfile ? (
+                    <div className="bg-teal-50/60 border border-teal-200/60 rounded-lg p-4 space-y-2.5">
+                      <p className="font-semibold text-sm text-teal-800">{selectedIcpProfile.name}</p>
+                      {selectedIcpProfile.description && (
+                        <p className="text-sm text-teal-700/80 leading-relaxed">{selectedIcpProfile.description}</p>
+                      )}
+                      {selectedIcpProfile.painPoints && selectedIcpProfile.painPoints.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedIcpProfile.painPoints.slice(0, 4).map((pp: string, i: number) => (
+                            <span key={i} className="px-2.5 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700">
+                              {pp}
+                            </span>
+                          ))}
+                          {selectedIcpProfile.painPoints.length > 4 && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700">
+                              +{selectedIcpProfile.painPoints.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-teal-600">
+                        Content will be tailored to address pain points, goals, and objections
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 rounded-lg border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
+                      No ICP profiles configured for this project. Add one in Project Settings.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Internal Linking Section */}
             <div className="border-t border-border/60 pt-5">
               <h3 className="text-base font-semibold flex items-center gap-2 mb-1">
                 <Link2 className="w-4 h-4 text-indigo-500" />

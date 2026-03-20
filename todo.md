@@ -249,3 +249,8 @@
 
 ## Outline Review Font Size
 - [x] Increase overall font size in the outline review section
+
+## Brand Voice & ICP in Article Generator
+- [x] Add Brand Voice dropdown selector with trait preview card (primary/supporting tones, perspective)
+- [x] Add ICP Targeting section with enable/disable toggle and detail preview card (name, description, pain points)
+- [x] Pass selected brand voice and ICP to the backend generation routes

@@ -157,12 +157,16 @@ export const appRouter = router({
         manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
         sitemapUrl: z.string().optional(),
         autoLinkCount: z.number().optional(),
+        brandVoiceId: z.number().optional(),
+        icpProfileId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        // Auto-fetch ICP from project and default brand voice
+        // Auto-fetch ICP from project and brand voice (use selected or default)
         const project = await getProjectById(input.projectId);
         const allVoices = await getBrandVoicesByProject(input.projectId);
-        const brandVoice = allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+        const brandVoice = input.brandVoiceId
+          ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
+          : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
         // Build ICP section for outline (project-level ICP)
         let icpSection = "";
@@ -873,15 +877,19 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
         sitemapUrl: z.string().optional(),
         autoLinkCount: z.number().optional(),
+        brandVoiceId: z.number().optional(),
+        icpProfileId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const outline = await getOutlineById(input.outlineId);
         if (!outline) throw new Error("Outline not found");
 
-        // Auto-fetch ICP from project and default brand voice
+        // Auto-fetch ICP from project and brand voice (use selected or default)
         const project = await getProjectById(input.projectId);
         const allVoices = await getBrandVoicesByProject(input.projectId);
-        const brandVoice = allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+        const brandVoice = input.brandVoiceId
+          ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
+          : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
         // Build ICP section with enforcement rules (project-level ICP)
         let icpSection = "";

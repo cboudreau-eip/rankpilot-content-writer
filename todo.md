@@ -267,3 +267,6 @@
 
 ## SEO Sidebar Layout
 - [x] Move Search Preview box to top of SEO sidebar (before Target Keyword and other fields)
+
+## Brand Voice Enforcement in Article Generation
+- [x] Fix article generation LLM prompt to enforce sentence style settings (paragraph length, sentence structure) from brand guidelines

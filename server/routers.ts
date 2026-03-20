@@ -243,9 +243,9 @@ ICP OUTLINE REQUIREMENTS:
             third: "Third person (they/their)",
           };
           const styleMap: Record<string, string> = {
-            short: "Concise, punchy sentences",
-            mixed: "Varied sentence lengths",
-            detailed: "Detailed, explanatory sentences",
+            short: "Concise, punchy sentences. Paragraphs of 1-3 sentences only.",
+            mixed: "Varied sentence lengths with natural rhythm. Paragraphs of 2-5 sentences only.",
+            detailed: "Detailed, explanatory sentences. Paragraphs of 3-6 sentences maximum.",
           };
 
           // Parse avoid list (format: "PRESETS:id1,id2|CUSTOM:text" or legacy text)
@@ -293,6 +293,7 @@ BRAND VOICE REQUIREMENTS FOR OUTLINE:
 3. Hook and quick answer sections must match the brand tone
 4. FAQ questions should be phrased in a way that matches the voice
 5. Avoid anything listed in the "AVOID" section above
+6. Plan section key points to be granular enough that each paragraph in the final article stays within the sentence style limits (${styleMap[brandVoice.sentenceStyle] || 'Varied sentence lengths'})
 `;
         }
 
@@ -1079,13 +1080,33 @@ IMPORTANT: Do NOT add any ICP metadata, snapshots, or debugging information to t
             avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
           }
 
-          // Sentence style descriptions
-          const SENTENCE_STYLES: Record<string, string> = {
-            short: "Short and Direct - Concise sentences under 12 words, minimal filler, tight paragraphs (1-3 sentences)",
-            mixed: "Mixed - Varied sentence length for natural rhythm, paragraphs of 2-5 sentences",
-            detailed: "Detailed and Explanatory - Longer sentences with expanded context, thorough explanations",
+          // Sentence style descriptions — detailed enforcement rules for the LLM
+          const SENTENCE_STYLES: Record<string, { label: string; rules: string }> = {
+            short: {
+              label: "Short and Direct",
+              rules: `- Keep most sentences under 12 words. Aim for punchy, direct phrasing.
+- Paragraphs MUST be 1-3 sentences maximum. Break up any paragraph longer than 3 sentences.
+- Eliminate filler words, qualifiers, and unnecessary clauses.
+- Prefer simple sentence structures. Avoid compound-complex sentences.
+- Each paragraph should make ONE clear point, then move on.`,
+            },
+            mixed: {
+              label: "Mixed (Varied and Natural Rhythm)",
+              rules: `- Vary sentence length: short for emphasis, medium for clarity, longer for explanation.
+- Paragraphs MUST be 2-5 sentences maximum. NEVER write a paragraph longer than 5 sentences.
+- If a paragraph exceeds 5 sentences, split it into two separate paragraphs.
+- Create natural rhythm by alternating short and medium sentences.
+- Each paragraph should cover one idea or sub-point before starting a new paragraph.`,
+            },
+            detailed: {
+              label: "Detailed and Explanatory",
+              rules: `- Use longer sentences with expanded context and thorough explanations where needed.
+- Paragraphs can be 3-6 sentences, but NEVER exceed 6 sentences per paragraph.
+- Include transitional phrases to connect ideas smoothly.
+- Balance detail with readability — break up dense sections with shorter transitional paragraphs.`,
+            },
           };
-          const sentenceStyleDesc = SENTENCE_STYLES[brandVoice.sentenceStyle || "mixed"] || SENTENCE_STYLES.mixed;
+          const sentenceStyle = SENTENCE_STYLES[brandVoice.sentenceStyle || "mixed"] || SENTENCE_STYLES.mixed;
 
           brandVoiceSection = `BRAND VOICE GUIDELINES (FOLLOW THESE CAREFULLY):
 Voice Name: ${brandVoice.name}
@@ -1095,7 +1116,13 @@ ${supportingTones.length > 0 ? `SUPPORTING TONE (subtle undertones): ${supportin
 
 PERSPECTIVE: ${brandVoice.perspective === "first" ? "First person (use 'we', 'our', 'us')" : brandVoice.perspective === "second" ? "Second person (address reader as 'you', 'your')" : "Third person (neutral/objective perspective)"}
 
-SENTENCE STYLE: ${sentenceStyleDesc}
+SENTENCE STYLE: ${sentenceStyle.label}
+
+=== PARAGRAPH & SENTENCE STRUCTURE RULES (MANDATORY — DO NOT IGNORE) ===
+${sentenceStyle.rules}
+
+CRITICAL: These paragraph length rules are NON-NEGOTIABLE. After writing each section, review it and break up any paragraph that violates the sentence count limit above. Wall-of-text paragraphs are the #1 quality failure.
+=== END STRUCTURE RULES ===
 
 ${avoidItems.length > 0 ? `THINGS TO STRICTLY AVOID (these are hard constraints):\n${avoidItems.map(item => `- DO NOT use ${item}`).join("\n")}\n` : ''}
 ${brandVoice.writingStyleSample ? `
@@ -1176,8 +1203,8 @@ ${formatInstructions}
 - End with a strong conclusion and call to action
 - Optimize for the target keyword: "${outline.keyword ?? outline.title}"
 - Make the content comprehensive, authoritative, and reader-friendly
-- Use short paragraphs (2-3 sentences) for readability
 - Include bullet points and numbered lists where appropriate
+- CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly. Do NOT write wall-of-text paragraphs.
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}

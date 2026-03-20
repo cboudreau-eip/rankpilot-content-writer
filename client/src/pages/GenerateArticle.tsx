@@ -654,7 +654,7 @@ export default function GenerateArticle() {
         <div className="space-y-4">
           {/* Outline Title */}
           <div className="bg-white rounded-xl border border-border/60 p-6">
-            <Label className="text-sm font-semibold text-muted-foreground">Article Title</Label>
+            <Label className="text-base font-semibold text-muted-foreground">Article Title</Label>
             <Input
               value={outlineTitle}
               onChange={(e) => setOutlineTitle(e.target.value)}
@@ -684,7 +684,7 @@ export default function GenerateArticle() {
                   <input
                     value={section.heading}
                     onChange={(e) => updateSectionHeading(section.id, e.target.value)}
-                    className="flex-1 font-semibold text-[15px] bg-transparent border-none outline-none focus:ring-0"
+                    className="flex-1 font-semibold text-lg bg-transparent border-none outline-none focus:ring-0"
                   />
                   <Button
                     variant="ghost"
@@ -702,8 +702,8 @@ export default function GenerateArticle() {
                     {section.points && section.points.length > 0 && (
                       <div className="space-y-1">
                         {section.points.map((point, pi) => (
-                          <div key={pi} className="flex items-start gap-2 text-sm text-muted-foreground">
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 flex-shrink-0" />
+                          <div key={pi} className="flex items-start gap-2 text-base text-muted-foreground">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 flex-shrink-0" />
                             <span>{point}</span>
                           </div>
                         ))}
@@ -722,7 +722,7 @@ export default function GenerateArticle() {
                               <input
                                 value={sub.heading}
                                 onChange={(e) => updateSectionHeading(sub.id, e.target.value)}
-                                className="flex-1 text-sm font-medium bg-transparent border-none outline-none focus:ring-0"
+                                className="flex-1 text-base font-medium bg-transparent border-none outline-none focus:ring-0"
                               />
                               <Button
                                 variant="ghost"
@@ -736,8 +736,8 @@ export default function GenerateArticle() {
                             {sub.points && sub.points.length > 0 && (
                               <div className="pl-10 space-y-1 pb-1">
                                 {sub.points.map((point, pi) => (
-                                  <div key={pi} className="flex items-start gap-2 text-xs text-muted-foreground">
-                                    <span className="w-1 h-1 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
+                                  <div key={pi} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                    <span className="w-1 h-1 rounded-full bg-purple-400 mt-2 flex-shrink-0" />
                                     <span>{point}</span>
                                   </div>
                                 ))}

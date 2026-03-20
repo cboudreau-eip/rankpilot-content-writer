@@ -246,3 +246,6 @@
 - [x] Update backend outline/article generation prompts to use all new fields
 - [x] Write/update vitest tests
 - [x] Save checkpoint
+
+## Outline Review Font Size
+- [x] Increase overall font size in the outline review section

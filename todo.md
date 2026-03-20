@@ -235,3 +235,14 @@
 
 ## Clear Highlights Button
 - [x] Add a Clear Highlights button to the Article Editor toolbar to remove all blue marks
+
+## Article Generator: New Configure Options
+- [x] Add Target Location field (free text, optional)
+- [x] Add Project selector (auto-populated from active project, optional)
+- [x] Add Target Audience field (pulls from ICP with override option)
+- [x] Add Output Format toggle (HTML default, Plain Text option)
+- [x] Add Manual Internal Links section (URL + anchor text pairs with Add button)
+- [x] Add Automatic Internal Linking from Sitemap (sitemap URL field auto-populated from project, link count dropdown)
+- [x] Update backend outline/article generation prompts to use all new fields
+- [x] Write/update vitest tests
+- [x] Save checkpoint

@@ -5,6 +5,7 @@ import { useActiveProject } from "@/components/AppLayout";
 import {
   Sparkles, FileText, GripVertical, ChevronDown, ChevronRight,
   Plus, Trash2, Loader2, ArrowRight, Settings2, Wand2, ListTree,
+  MapPin, Users, Link2, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,12 +35,25 @@ const TONES = [
   { value: "persuasive", label: "Persuasive" },
 ];
 
+const LINK_COUNT_OPTIONS = [
+  { value: "3", label: "3 links" },
+  { value: "5", label: "5 links (default)" },
+  { value: "7", label: "7 links" },
+  { value: "10", label: "10 links" },
+  { value: "15", label: "15 links" },
+];
+
 interface OutlineSection {
   id: string;
   heading: string;
   type: "h2" | "h3";
   points?: string[];
   subSections?: OutlineSection[];
+}
+
+interface ManualLink {
+  url: string;
+  anchorText: string;
 }
 
 export default function GenerateArticle() {
@@ -57,6 +71,17 @@ export default function GenerateArticle() {
   const [numFaqs, setNumFaqs] = useState("4");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
 
+  // New fields
+  const [targetLocation, setTargetLocation] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [targetAudienceSource, setTargetAudienceSource] = useState<"icp" | "custom">("icp");
+  const [outputFormat, setOutputFormat] = useState<"html" | "plaintext">("html");
+  const [manualLinks, setManualLinks] = useState<ManualLink[]>([]);
+  const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [newLinkAnchor, setNewLinkAnchor] = useState("");
+  const [sitemapUrl, setSitemapUrl] = useState("");
+  const [autoLinkCount, setAutoLinkCount] = useState("5");
+
   // Outline state
   const [outlineTitle, setOutlineTitle] = useState("");
   const [sections, setSections] = useState<OutlineSection[]>([]);
@@ -65,6 +90,67 @@ export default function GenerateArticle() {
 
   const { activeProject } = useActiveProject();
   const activeProjectId = activeProject?.id ?? null;
+
+  // Fetch ICP profiles for the active project
+  const { data: icpProfiles = [] } = trpc.icpProfiles.list.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: !!activeProjectId }
+  );
+
+  // Fetch sitemaps for the active project
+  const { data: projectSitemaps = [] } = trpc.sitemaps.list.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: !!activeProjectId }
+  );
+
+  // Build the ICP audience string from the active project
+  const icpAudienceString = useMemo(() => {
+    if (!activeProject) return "";
+    const parts: string[] = [];
+    if (activeProject.icpPrimaryName) parts.push(activeProject.icpPrimaryName);
+    if (activeProject.icpWhoTheyAre) parts.push(activeProject.icpWhoTheyAre);
+    return parts.join(" — ");
+  }, [activeProject]);
+
+  // Also check ICP profiles for a default
+  const defaultIcpProfile = useMemo(() => {
+    return icpProfiles.find((p: any) => p.isDefault) || icpProfiles[0];
+  }, [icpProfiles]);
+
+  // Effective audience: ICP-based or custom override
+  const effectiveAudience = useMemo(() => {
+    if (targetAudienceSource === "custom") return targetAudience;
+    // Use project-level ICP first, then profile-level
+    if (icpAudienceString) return icpAudienceString;
+    if (defaultIcpProfile) {
+      const parts: string[] = [];
+      if (defaultIcpProfile.name) parts.push(defaultIcpProfile.name);
+      if (defaultIcpProfile.description) parts.push(defaultIcpProfile.description);
+      return parts.join(" — ");
+    }
+    return "";
+  }, [targetAudienceSource, targetAudience, icpAudienceString, defaultIcpProfile]);
+
+  // Auto-populate sitemap URL from project sitemaps
+  useMemo(() => {
+    if (projectSitemaps.length > 0 && !sitemapUrl) {
+      setSitemapUrl(projectSitemaps[0].url);
+    }
+  }, [projectSitemaps]);
+
+  const addManualLink = () => {
+    if (!newLinkUrl.trim()) {
+      toast.error("Please enter a URL");
+      return;
+    }
+    setManualLinks((prev) => [...prev, { url: newLinkUrl.trim(), anchorText: newLinkAnchor.trim() }]);
+    setNewLinkUrl("");
+    setNewLinkAnchor("");
+  };
+
+  const removeManualLink = (index: number) => {
+    setManualLinks((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const generateOutlineMutation = trpc.outlines.generate.useMutation({
     onSuccess: (data: any) => {
@@ -114,6 +200,12 @@ export default function GenerateArticle() {
       numFaqs: parseInt(numFaqs),
       additionalInstructions: additionalInstructions || undefined,
       projectId: activeProjectId,
+      targetLocation: targetLocation.trim() || undefined,
+      targetAudience: effectiveAudience || undefined,
+      outputFormat,
+      manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
+      sitemapUrl: sitemapUrl.trim() || undefined,
+      autoLinkCount: sitemapUrl.trim() ? parseInt(autoLinkCount) : undefined,
     });
   };
 
@@ -123,6 +215,12 @@ export default function GenerateArticle() {
     generateArticleMutation.mutate({
       outlineId,
       projectId: activeProjectId,
+      targetLocation: targetLocation.trim() || undefined,
+      targetAudience: effectiveAudience || undefined,
+      outputFormat,
+      manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
+      sitemapUrl: sitemapUrl.trim() || undefined,
+      autoLinkCount: sitemapUrl.trim() ? parseInt(autoLinkCount) : undefined,
     });
   };
 
@@ -227,7 +325,8 @@ export default function GenerateArticle() {
       {/* Step 1: Settings */}
       {step === "settings" && (
         <div className="bg-white rounded-xl border border-border/60 p-6 space-y-6">
-          <div className="space-y-4">
+          <div className="space-y-5">
+            {/* Target Keyword */}
             <div>
               <Label className="text-sm font-semibold">Target Keyword *</Label>
               <Input
@@ -238,6 +337,7 @@ export default function GenerateArticle() {
               />
             </div>
 
+            {/* Content Type + Tone */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-semibold">Content Type</Label>
@@ -268,6 +368,7 @@ export default function GenerateArticle() {
               </div>
             </div>
 
+            {/* Word Count + Sections + FAQs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm font-semibold">Target Word Count</Label>
@@ -304,6 +405,97 @@ export default function GenerateArticle() {
               </div>
             </div>
 
+            {/* Target Location + Output Format */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                  Target Location
+                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <Input
+                  placeholder="e.g., Nevada, South Florida, United States"
+                  value={targetLocation}
+                  onChange={(e) => setTargetLocation(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-semibold">Output Format</Label>
+                <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as "html" | "plaintext")}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="html">HTML</SelectItem>
+                    <SelectItem value="plaintext">Plain Text</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Project + Target Audience */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                  Project
+                  <span className="text-xs text-muted-foreground font-normal">(Auto-populated)</span>
+                </Label>
+                <div className="mt-1.5 flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-muted/30 text-sm">
+                  {activeProject && (
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ background: activeProject.color }} />
+                  )}
+                  <span className="truncate">{activeProject?.name ?? "No project selected"}</span>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                  Target Audience
+                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <div className="mt-1.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setTargetAudienceSource("icp")}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        targetAudienceSource === "icp"
+                          ? "bg-indigo-100 text-indigo-700"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      From ICP
+                    </button>
+                    <button
+                      onClick={() => setTargetAudienceSource("custom")}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        targetAudienceSource === "custom"
+                          ? "bg-indigo-100 text-indigo-700"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                  {targetAudienceSource === "icp" ? (
+                    <div className="px-3 py-2 rounded-md border border-input bg-muted/30 text-sm text-muted-foreground min-h-[38px]">
+                      {effectiveAudience || "No ICP configured for this project. Set one in Project Settings or switch to Custom."}
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder="e.g., Medicare-eligible seniors in Florida aged 65+"
+                      value={targetAudience}
+                      onChange={(e) => setTargetAudience(e.target.value)}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Instructions */}
             <div>
               <Label className="text-sm font-semibold">Additional Instructions</Label>
               <Textarea
@@ -313,6 +505,124 @@ export default function GenerateArticle() {
                 className="mt-1.5"
                 rows={3}
               />
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-border/60 pt-5">
+              <h3 className="text-base font-semibold flex items-center gap-2 mb-1">
+                <Link2 className="w-4 h-4 text-indigo-500" />
+                Internal Linking
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Add internal links to weave into the generated article for better SEO.
+              </p>
+
+              {/* Manual Internal Links */}
+              <div className="space-y-3 mb-6">
+                <Label className="text-sm font-semibold">
+                  Manual Internal Links
+                  <span className="text-xs text-muted-foreground font-normal ml-1.5">(Optional)</span>
+                </Label>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Manually add specific URLs you want to link to within the article
+                </p>
+
+                {/* Existing links */}
+                {manualLinks.length > 0 && (
+                  <div className="space-y-2">
+                    {manualLinks.map((link, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2 text-sm">
+                        <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-indigo-600 font-medium truncate flex-1">{link.url}</span>
+                        {link.anchorText && (
+                          <>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="text-foreground truncate max-w-[200px]">{link.anchorText}</span>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
+                          onClick={() => removeManualLink(idx)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add new link row */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="URL (e.g., /about-us)"
+                    value={newLinkUrl}
+                    onChange={(e) => setNewLinkUrl(e.target.value)}
+                    className="flex-1"
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addManualLink(); } }}
+                  />
+                  <Input
+                    placeholder="Anchor text"
+                    value={newLinkAnchor}
+                    onChange={(e) => setNewLinkAnchor(e.target.value)}
+                    className="flex-1"
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addManualLink(); } }}
+                  />
+                  <Button
+                    onClick={addManualLink}
+                    className="bg-indigo-600 hover:bg-indigo-700 shrink-0"
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              {/* Automatic Internal Linking from Sitemap */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">
+                  Automatic Internal Linking from Sitemap
+                  <span className="text-xs text-muted-foreground font-normal ml-1.5">(Optional)</span>
+                </Label>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Provide a sitemap URL to automatically insert hyperlinks into your article. The AI will parse it and insert relevant hyperlinks into the article content.
+                </p>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Sitemap URL</Label>
+                  <Input
+                    placeholder="https://example.com/sitemap.xml"
+                    value={sitemapUrl}
+                    onChange={(e) => setSitemapUrl(e.target.value)}
+                    className="mt-1"
+                  />
+                  {projectSitemaps.length > 0 && sitemapUrl !== projectSitemaps[0]?.url && (
+                    <button
+                      onClick={() => setSitemapUrl(projectSitemaps[0].url)}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 mt-1"
+                    >
+                      Use project sitemap: {projectSitemaps[0].url}
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Number of Links to Insert</Label>
+                  <Select value={autoLinkCount} onValueChange={setAutoLinkCount}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LINK_COUNT_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Choose how many hyperlinks from the sitemap should be automatically inserted into the article content.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

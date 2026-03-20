@@ -151,6 +151,12 @@ export const appRouter = router({
         numFaqs: z.number().optional(),
         additionalInstructions: z.string().optional(),
         projectId: z.number(),
+        targetLocation: z.string().optional(),
+        targetAudience: z.string().optional(),
+        outputFormat: z.enum(["html", "plaintext"]).optional(),
+        manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
+        sitemapUrl: z.string().optional(),
+        autoLinkCount: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         // Auto-fetch ICP from project and default brand voice
@@ -268,6 +274,10 @@ Guidelines:
 - Tone: ${input.tone ?? "professional and informative"}
 - Target word count: ${input.targetWordCount ?? 2000} words
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
+${input.targetLocation ? `- Target location: ${input.targetLocation} — tailor the outline to be relevant for this geographic area` : ""}
+${input.targetAudience ? `- Target audience: ${input.targetAudience} — structure the outline to address this audience's needs` : ""}
+${input.manualLinks?.length ? `- The final article will include these internal links — plan sections where they fit naturally:\n${input.manualLinks.map(l => `  • ${l.url}${l.anchorText ? ` (anchor: "${l.anchorText}")` : ""}`).join("\n")}` : ""}
+${input.sitemapUrl ? `- The article will also include ${input.autoLinkCount ?? 5} automatic internal links from the sitemap at ${input.sitemapUrl}` : ""}
 ${icpSection}
 ${brandVoiceSection}
 
@@ -341,6 +351,12 @@ Return ONLY valid JSON, no markdown code blocks.`;
             numSections: input.numSections,
             numFaqs: input.numFaqs,
             additionalInstructions: input.additionalInstructions,
+            targetLocation: input.targetLocation,
+            targetAudience: input.targetAudience,
+            outputFormat: input.outputFormat,
+            manualLinks: input.manualLinks,
+            sitemapUrl: input.sitemapUrl,
+            autoLinkCount: input.autoLinkCount,
           },
           projectId: input.projectId,
           userId: ctx.user.id,
@@ -851,6 +867,12 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         outlineId: z.number(),
         projectId: z.number(),
         additionalInstructions: z.string().optional(),
+        targetLocation: z.string().optional(),
+        targetAudience: z.string().optional(),
+        outputFormat: z.enum(["html", "plaintext"]).optional(),
+        manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
+        sitemapUrl: z.string().optional(),
+        autoLinkCount: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const outline = await getOutlineById(input.outlineId);
@@ -1026,12 +1048,34 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
 
         const settings = outline.settings as OutlineSettings | null;
 
+        // Merge settings from outline with any overrides from the generate call
+        const effectiveLocation = input.targetLocation || settings?.targetLocation || "";
+        const effectiveAudience = input.targetAudience || settings?.targetAudience || "";
+        const effectiveFormat = input.outputFormat || settings?.outputFormat || "html";
+        const effectiveManualLinks = input.manualLinks || settings?.manualLinks || [];
+        const effectiveSitemapUrl = input.sitemapUrl || settings?.sitemapUrl || "";
+        const effectiveAutoLinkCount = input.autoLinkCount || settings?.autoLinkCount || 5;
+
+        // Build internal linking instructions
+        let linkingInstructions = "";
+        if (effectiveManualLinks.length > 0) {
+          linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all of these):\n${effectiveManualLinks.map((l, i) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : " with contextually appropriate anchor text"}`).join("\n")}\nWeave these links naturally into the article body. Use <a href="URL">anchor text</a> format.`;
+        }
+        if (effectiveSitemapUrl) {
+          linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links to relevant pages from the site's sitemap (${effectiveSitemapUrl}). Choose URLs that are contextually relevant to the article topic and link them naturally within the content using descriptive anchor text. Use <a href="URL">anchor text</a> format.`;
+        }
+
+        // Output format instructions
+        const formatInstructions = effectiveFormat === "plaintext"
+          ? `- Output as PLAIN TEXT with markdown-style headings (## for H2, ### for H3). Do NOT use HTML tags.\n- Use plain text formatting: **bold**, bullet points with -, numbered lists with 1. 2. 3.`
+          : `- Use proper HTML formatting: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em> tags\n- For links use <a href="URL">anchor text</a> format`;
+
         const systemPrompt = `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
 
 Guidelines:
 - Write in ${settings?.tone ?? "a professional and informative"} tone
 - Target approximately ${settings?.targetWordCount ?? 2000} words
-- Use proper HTML formatting: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em> tags
+${formatInstructions}
 - Include a compelling introduction that hooks the reader
 - Each section should flow naturally into the next
 - Include relevant statistics and examples where appropriate
@@ -1040,14 +1084,17 @@ Guidelines:
 - Make the content comprehensive, authoritative, and reader-friendly
 - Use short paragraphs (2-3 sentences) for readability
 - Include bullet points and numbered lists where appropriate
+${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
+${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
 
 ${brandVoiceSection}
 
 ${icpSection}
 ${ctaContext}
+${linkingInstructions}
 
-Return ONLY the HTML content of the article body (no <html>, <head>, or <body> tags). Start with the first <h2> section.`;
+Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} content of the article body${effectiveFormat === "html" ? " (no <html>, <head>, or <body> tags)" : ""}. Start with the first ${effectiveFormat === "plaintext" ? "## heading" : "<h2> section"}.`;
 
         const response = await invokeLLM({
           messages: [

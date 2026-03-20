@@ -91,6 +91,12 @@ export interface OutlineSettings {
   numSections?: number;
   numFaqs?: number;
   additionalInstructions?: string;
+  targetLocation?: string;
+  targetAudience?: string;
+  outputFormat?: "html" | "plaintext";
+  manualLinks?: { url: string; anchorText: string }[];
+  sitemapUrl?: string;
+  autoLinkCount?: number;
 }
 
 /**

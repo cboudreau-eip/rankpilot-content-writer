@@ -273,3 +273,7 @@
 
 ## Duplicate Brand Voice Bug
 - [x] Find and fix bug that creates duplicate "Professional Voice" brand voice entries on every app update
+
+## Paragraph Length Post-Processing
+- [x] Add post-processing step to split long paragraphs (>5 sentences) after article generation
+- [x] Strengthen LLM prompt to more aggressively enforce short paragraphs

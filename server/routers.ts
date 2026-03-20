@@ -22,6 +22,80 @@ import { articles, projects, brandVoices } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 
+/**
+ * Post-processing: split paragraphs that exceed the sentence limit.
+ * Works with both HTML (<p> tags) and plain text (double newlines).
+ * Uses a regex-based sentence splitter that handles common abbreviations.
+ */
+function splitSentences(text: string): string[] {
+  // Split on sentence-ending punctuation followed by a space or end of string.
+  // Handles common abbreviations like Dr., Mr., Mrs., U.S., etc.
+  const abbrevPattern = /(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Inc|Ltd|Corp|vs|etc|e\.g|i\.e|U\.S|U\.K)$/i;
+  const raw = text.match(/[^.!?]*[.!?]+[\s]*/g) || [text];
+  
+  // Rejoin fragments that were split on abbreviations
+  const sentences: string[] = [];
+  let buffer = "";
+  for (const frag of raw) {
+    buffer += frag;
+    const trimmed = buffer.trim();
+    // Check if this ends with an abbreviation — if so, keep accumulating
+    const beforePeriod = trimmed.replace(/[.!?]+$/, "");
+    if (abbrevPattern.test(beforePeriod) && frag !== raw[raw.length - 1]) {
+      continue;
+    }
+    sentences.push(buffer.trim());
+    buffer = "";
+  }
+  if (buffer.trim()) sentences.push(buffer.trim());
+  return sentences.filter(s => s.length > 0);
+}
+
+function splitLongParagraphs(content: string, maxSentences: number, format: string): string {
+  if (format === "plaintext") {
+    // Plain text: paragraphs are separated by double newlines
+    const blocks = content.split(/\n\n+/);
+    const result: string[] = [];
+    for (const block of blocks) {
+      const trimmed = block.trim();
+      // Skip headings, lists, and short blocks
+      if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("-") || trimmed.startsWith("*") || /^\d+\./.test(trimmed)) {
+        result.push(block);
+        continue;
+      }
+      const sentences = splitSentences(trimmed);
+      if (sentences.length <= maxSentences) {
+        result.push(block);
+        continue;
+      }
+      // Split into chunks of maxSentences
+      for (let i = 0; i < sentences.length; i += maxSentences) {
+        result.push(sentences.slice(i, i + maxSentences).join(" "));
+      }
+    }
+    return result.join("\n\n");
+  }
+
+  // HTML: split <p> tags that have too many sentences
+  return content.replace(/<p>([\s\S]*?)<\/p>/gi, (match, inner: string) => {
+    const text = inner.trim();
+    // Skip paragraphs that contain block-level elements or are very short
+    if (!text || text.includes("<ul") || text.includes("<ol") || text.includes("<table") || text.includes("<h")) {
+      return match;
+    }
+    const sentences = splitSentences(text);
+    if (sentences.length <= maxSentences) {
+      return match;
+    }
+    // Split into chunks of maxSentences sentences each
+    const chunks: string[] = [];
+    for (let i = 0; i < sentences.length; i += maxSentences) {
+      chunks.push(`<p>${sentences.slice(i, i + maxSentences).join(" ")}</p>`);
+    }
+    return chunks.join("\n");
+  });
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -1226,7 +1300,11 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
 
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
-        const articleContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const rawArticleContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+
+        // Post-process: split long paragraphs to enforce sentence limits
+        const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
+        const articleContent = splitLongParagraphs(rawArticleContent, maxSentences, effectiveFormat);
 
         // Count words
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;

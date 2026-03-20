@@ -254,3 +254,8 @@
 - [x] Add Brand Voice dropdown selector with trait preview card (primary/supporting tones, perspective)
 - [x] Add ICP Targeting section with enable/disable toggle and detail preview card (name, description, pain points)
 - [x] Pass selected brand voice and ICP to the backend generation routes
+
+## Fix ICP Profile Selection Override
+- [x] Verify and fix that selected icpProfileId overrides project-level ICP in outline generation
+- [x] Verify and fix that selected icpProfileId overrides project-level ICP in article generation
+- [x] Test and save checkpoint

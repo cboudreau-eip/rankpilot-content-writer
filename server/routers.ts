@@ -168,13 +168,50 @@ export const appRouter = router({
           ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
           : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
-        // Build ICP section for outline (project-level ICP)
+        // Build ICP section for outline — use selected ICP profile if provided, otherwise fall back to project-level ICP
         let icpSection = "";
-        if (project?.icpPrimaryName) {
-          const formatList = (items: string[] | null | undefined, label: string): string => {
-            if (!items?.length) return '';
-            return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
-          };
+        const formatList = (items: string[] | null | undefined, label: string): string => {
+          if (!items?.length) return '';
+          return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+        };
+
+        if (input.icpProfileId) {
+          // Use the specifically selected ICP profile
+          const icpProfile = await getICPById(input.icpProfileId);
+          if (icpProfile) {
+            const demographics = icpProfile.demographics;
+            const demoLines = demographics ? [
+              demographics.ageRange ? `Age Range: ${demographics.ageRange}` : '',
+              demographics.location ? `Location: ${demographics.location}` : '',
+              demographics.income ? `Income: ${demographics.income}` : '',
+              demographics.education ? `Education: ${demographics.education}` : '',
+              demographics.occupation ? `Occupation: ${demographics.occupation}` : '',
+              demographics.other ? `Other: ${demographics.other}` : '',
+            ].filter(Boolean).join('\n') : '';
+
+            icpSection = `
+=== IDEAL CUSTOMER PROFILE (ICP) - CRITICAL ===
+The outline MUST be structured to serve this specific audience:
+
+TARGET AUDIENCE: ${icpProfile.name}
+${icpProfile.description ? `Who They Are: ${icpProfile.description}` : ''}
+${demoLines ? `\nDEMOGRAPHICS:\n${demoLines}` : ''}
+
+${formatList(icpProfile.painPoints, 'PAIN POINTS (structure H2 headings around these)')}
+${formatList(icpProfile.goals, 'GOALS (address these in content sections)')}
+${formatList(icpProfile.objections, 'OBJECTIONS (create FAQ questions from these)')}
+${icpProfile.searchBehavior ? `SEARCH BEHAVIOR: ${icpProfile.searchBehavior}\n` : ''}
+${formatList(icpProfile.contentPreferences, 'CONTENT PREFERENCES')}
+
+ICP OUTLINE REQUIREMENTS:
+1. At least 30% of H2 headings MUST directly reflect the pain points listed above
+2. FAQ section MUST include questions that address the objections listed above
+3. Structure content to move the reader toward their goals
+4. Use language and examples that resonate with "${icpProfile.name}"
+`;
+          }
+        } else if (project?.icpPrimaryName) {
+          // Fall back to project-level ICP fields
           icpSection = `
 === IDEAL CUSTOMER PROFILE (ICP) - CRITICAL ===
 The outline MUST be structured to serve this specific audience:
@@ -891,19 +928,64 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
           ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
           : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
-        // Build ICP section with enforcement rules (project-level ICP)
+        // Build ICP section — use selected ICP profile if provided, otherwise fall back to project-level ICP
         let icpSection = "";
-        if (project?.icpPrimaryName) {
-          const formatList = (items: string[] | null | undefined, prefix: string): string => {
-            if (!items?.length) return '';
-            return `${prefix}:\n${items.map((item, i) => `${i + 1}. ${item}`).join('\n')}`;
-          };
+        const formatListArt = (items: string[] | null | undefined, prefix: string): string => {
+          if (!items?.length) return '';
+          return `${prefix}:\n${items.map((item, i) => `${i + 1}. ${item}`).join('\n')}`;
+        };
 
-          const painsSection = formatList(project.icpPains as string[] | null, 'PAIN POINTS (emphasize these problems)');
-          const goalsSection = formatList(project.icpGoals as string[] | null, 'GOALS (what they want to achieve)');
-          const objectionsSection = formatList(project.icpObjections as string[] | null, 'COMMON OBJECTIONS (address these concerns)');
-          const triggersSection = formatList(project.icpDecisionTriggers as string[] | null, 'DECISION TRIGGERS (what prompts action)');
-          const trustSection = formatList(project.icpTrustSignals as string[] | null, 'TRUST SIGNALS (what builds confidence)');
+        // Determine ICP source: selected profile or project-level fields
+        let icpName = "";
+        let icpDescription = "";
+        let icpPains: string[] = [];
+        let icpGoals: string[] = [];
+        let icpObjections: string[] = [];
+        let icpTriggers: string[] = [];
+        let icpTrust: string[] = [];
+        let icpDemoLines = "";
+        let icpSearchBehavior = "";
+        let icpContentPrefs: string[] = [];
+
+        if (input.icpProfileId) {
+          const icpProfile = await getICPById(input.icpProfileId);
+          if (icpProfile) {
+            icpName = icpProfile.name;
+            icpDescription = icpProfile.description || "";
+            icpPains = icpProfile.painPoints || [];
+            icpGoals = icpProfile.goals || [];
+            icpObjections = icpProfile.objections || [];
+            icpSearchBehavior = icpProfile.searchBehavior || "";
+            icpContentPrefs = icpProfile.contentPreferences || [];
+            const demographics = icpProfile.demographics;
+            if (demographics) {
+              icpDemoLines = [
+                demographics.ageRange ? `Age Range: ${demographics.ageRange}` : '',
+                demographics.location ? `Location: ${demographics.location}` : '',
+                demographics.income ? `Income: ${demographics.income}` : '',
+                demographics.education ? `Education: ${demographics.education}` : '',
+                demographics.occupation ? `Occupation: ${demographics.occupation}` : '',
+                demographics.other ? `Other: ${demographics.other}` : '',
+              ].filter(Boolean).join('\n');
+            }
+          }
+        } else if (project?.icpPrimaryName) {
+          icpName = project.icpPrimaryName;
+          icpDescription = project.icpWhoTheyAre || "";
+          icpPains = (project.icpPains as string[] | null) || [];
+          icpGoals = (project.icpGoals as string[] | null) || [];
+          icpObjections = (project.icpObjections as string[] | null) || [];
+          icpTriggers = (project.icpDecisionTriggers as string[] | null) || [];
+          icpTrust = (project.icpTrustSignals as string[] | null) || [];
+        }
+
+        if (icpName) {
+          const painsSection = formatListArt(icpPains, 'PAIN POINTS (emphasize these problems)');
+          const goalsSection = formatListArt(icpGoals, 'GOALS (what they want to achieve)');
+          const objectionsSection = formatListArt(icpObjections, 'COMMON OBJECTIONS (address these concerns)');
+          const triggersSection = formatListArt(icpTriggers, 'DECISION TRIGGERS (what prompts action)');
+          const trustSection = formatListArt(icpTrust, 'TRUST SIGNALS (what builds confidence)');
+          const contentPrefsSection = formatListArt(icpContentPrefs, 'CONTENT PREFERENCES');
 
           icpSection = `
 IDEAL CUSTOMER PROFILE (ICP) - CONTENT TARGETING LAYER
@@ -913,8 +995,10 @@ ICP controls WHO content is written for (pain points, framing, vocabulary, examp
 If any guidance overlaps, Brand Voice takes priority for tone/style.
 
 TARGET AUDIENCE:
-- ICP Name: ${project.icpPrimaryName}
-${project.icpWhoTheyAre ? `- Who They Are: ${project.icpWhoTheyAre}` : ''}
+- ICP Name: ${icpName}
+${icpDescription ? `- Who They Are: ${icpDescription}` : ''}
+${icpDemoLines ? `\nDEMOGRAPHICS:\n${icpDemoLines}` : ''}
+${icpSearchBehavior ? `\nSEARCH BEHAVIOR: ${icpSearchBehavior}` : ''}
 
 ${painsSection}
 
@@ -926,10 +1010,12 @@ ${triggersSection}
 
 ${trustSection}
 
+${contentPrefsSection}
+
 === ICP ENFORCEMENT RULES (MUST FOLLOW) ===
 
 **FIT CHECK (do this first):**
-Before writing, verify the topic "${outline.keyword ?? outline.title}" aligns with the ICP "${project.icpPrimaryName}".
+Before writing, verify the topic "${outline.keyword ?? outline.title}" aligns with the ICP "${icpName}".
 If the topic doesn't directly serve this audience, adjust the angle to match their needs.
 
 **RULE 1 - INTRO:** Mention the ICP's situation or a relatable scenario in the first 2 sentences of the article.
@@ -938,7 +1024,7 @@ If the topic doesn't directly serve this audience, adjust the angle to match the
 
 **RULE 3 - FAQs:** At least 60% of FAQ questions must be derived from the ICP's objections and decision triggers listed above.
 
-**RULE 4 - EXAMPLES:** Include at least 2 examples or scenarios that are consistent with "${project.icpWhoTheyAre || project.icpPrimaryName}".
+**RULE 4 - EXAMPLES:** Include at least 2 examples or scenarios that are consistent with "${icpDescription || icpName}".
 
 **RULE 5 - TRUST:** Naturally incorporate at least 2 trust signals from the list above into the content.
 

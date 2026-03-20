@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, name, projectId, isDefault, perspective, sentenceStyle, createdAt FROM brand_voices ORDER BY projectId, createdAt;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, projectId, isDefault, perspective, sentenceStyle, createdAt FROM brand_voices ORDER BY projectId, createdAt;",
+  "rows": [
+    {
+      "id": "150002",
+      "name": "Primary Voice",
+      "projectId": "1",
+      "isDefault": "0",
+      "perspective": "second",
+      "sentenceStyle": "mixed",
+      "createdAt": "2026-03-18 19:17:21"
+    },
+    {
+      "id": "360004",
+      "name": "Professional Voice",
+      "projectId": "1",
+      "isDefault": "0",
+      "perspective": "second",
+      "sentenceStyle": "mixed",
+      "createdAt": "2026-03-20 15:22:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tprojectId\tisDefault\tperspective\tsentenceStyle\tcreatedAt\n150002\tPrimary Voice\t1\t0\tsecond\tmixed\t2026-03-18 19:17:21\n360004\tProfessional Voice\t1\t0\tsecond\tmixed\t2026-03-20 15:22:00\n",
+  "stderr": "",
+  "execution_time_ms": 130
+}

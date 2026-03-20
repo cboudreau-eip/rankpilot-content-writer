@@ -270,3 +270,6 @@
 
 ## Brand Voice Enforcement in Article Generation
 - [x] Fix article generation LLM prompt to enforce sentence style settings (paragraph length, sentence structure) from brand guidelines
+
+## Duplicate Brand Voice Bug
+- [x] Find and fix bug that creates duplicate "Professional Voice" brand voice entries on every app update

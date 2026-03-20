@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, name, projectId, isDefault, userId, createdAt, updatedAt, toneTraits, writingStyleSample FROM brand_voices ORDER BY createdAt;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, projectId, isDefault, userId, createdAt, updatedAt, toneTraits, writingStyleSample FROM brand_voices ORDER BY createdAt;",
+  "rows": [
+    {
+      "id": "150002",
+      "name": "Primary Voice",
+      "projectId": "1",
+      "isDefault": "0",
+      "userId": "1",
+      "createdAt": "2026-03-18 19:17:21",
+      "updatedAt": "2026-03-18 19:32:17",
+      "toneTraits": "PRIMARY:Educational,Trustworthy|SUPPORTING:Professional,Supportive,Calm",
+      "writingStyleSample": "Medicare can feel confusing at first, but you are not alone. If you are 65 and older or reviewing your current coverage, the process gets easier when you break it into clear steps."
+    },
+    {
+      "id": "360004",
+      "name": "Professional Voice",
+      "projectId": "1",
+      "isDefault": "0",
+      "userId": "1",
+      "createdAt": "2026-03-20 15:22:00",
+      "updatedAt": "2026-03-20 15:22:00",
+      "toneTraits": "NULL",
+      "writingStyleSample": "NULL"
+    }
+  ],
+  "messages": [
+    "Start by looking at what matters most to you, like your doctors, prescriptions, and monthly budget. Then compare your Medicare options based on coverage and costs, not just the monthly premium. A lower premium can look good at first, but your total cost may be higher when you use care.",
+    "The goal is to help you make a confident decision with clear information and licensed support. If you want help reviewing your options, you can speak with a licensed Medicare agent and compare plans available in your area."
+  ],
+  "stdout": "id\tname\tprojectId\tisDefault\tuserId\tcreatedAt\tupdatedAt\ttoneTraits\twritingStyleSample\n150002\tPrimary Voice\t1\t0\t1\t2026-03-18 19:17:21\t2026-03-18 19:32:17\tPRIMARY:Educational,Trustworthy|SUPPORTING:Professional,Supportive,Calm\tMedicare can feel confusing at first, but you are not alone. If you are 65 and older or reviewing your current coverage, the process gets easier when you break it into clear steps.\n\nStart by looking at what matters most to you, like your doctors, prescriptions, and monthly budget. Then compare your Medicare options based on coverage and costs, not just the monthly premium. A lower premium can look good at first, but your total cost may be higher when you use care.\n\nThe goal is to help you make a confident decision with clear information and licensed support. If you want help reviewing your options, you can speak with a licensed Medicare agent and compare plans available in your area.\n360004\tProfessional Voice\t1\t0\t1\t2026-03-20 15:22:00\t2026-03-20 15:22:00\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 62
+}

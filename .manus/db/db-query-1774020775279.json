@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM brand_voices WHERE id = 360004;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute DELETE FROM brand_voices WHERE id = 360004;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 86
+}

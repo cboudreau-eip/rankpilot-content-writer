@@ -596,6 +596,22 @@ export default function ArticleEditor() {
               SEO Settings
             </h3>
 
+            {/* Search Preview - at top */}
+            <div className="pb-3 border-b border-border/40">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Search Preview</p>
+              <div className="bg-muted/30 rounded-lg p-3 space-y-1">
+                <p className="text-blue-700 text-sm font-medium truncate">
+                  {metaTitle || title || "Article Title"}
+                </p>
+                <p className="text-emerald-700 text-xs truncate">
+                  example.com/{slug || "article-slug"}
+                </p>
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  {metaDescription || "Meta description will appear here..."}
+                </p>
+              </div>
+            </div>
+
             <div>
               <Label className="text-sm font-medium">Target Keyword</Label>
               <Input
@@ -641,21 +657,7 @@ export default function ArticleEditor() {
               />
             </div>
 
-            {/* SEO Preview */}
-            <div className="pt-3 border-t border-border/40">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Search Preview</p>
-              <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                <p className="text-blue-700 text-sm font-medium truncate">
-                  {metaTitle || title || "Article Title"}
-                </p>
-                <p className="text-emerald-700 text-xs truncate">
-                  example.com/{slug || "article-slug"}
-                </p>
-                <p className="text-xs text-muted-foreground line-clamp-2">
-                  {metaDescription || "Meta description will appear here..."}
-                </p>
-              </div>
-            </div>
+
           </div>
         )}
       </div>

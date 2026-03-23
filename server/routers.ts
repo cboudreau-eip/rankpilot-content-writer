@@ -18,7 +18,7 @@ import {
 import { invokeLLM } from "./_core/llm";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 
@@ -1759,6 +1759,9 @@ Respond in this exact JSON format:
         const allVoices = project ? await db.select().from(brandVoices).where(eq(brandVoices.projectId, project.id)) : [];
         const defaultBrandVoice = allVoices.find(bv => bv.isDefault === 1) || allVoices[0] || null;
 
+        // Fetch project citation sources
+        const projectCitations = project ? await db.select().from(citationSources).where(eq(citationSources.projectId, project.id)) : [];
+
         // Check ICP
         const hasICP = !!(project?.icpPrimaryName && project?.icpPains);
         const icpData = hasICP ? {
@@ -1815,6 +1818,18 @@ Respond in this exact JSON format:
           return avoidList.split(",").map(t => t.trim()).filter(Boolean);
         };
 
+        // Build Citation Sources section
+        let citationSourcesSection = "";
+        if (projectCitations.length > 0) {
+          const sourcesList = projectCitations.map((c, i) => {
+            let entry = `  ${i + 1}. ${c.name} — ${c.url}`;
+            if (c.description) entry += ` (${c.description})`;
+            if (c.category) entry += ` [Category: ${c.category}]`;
+            return entry;
+          }).join("\n");
+          citationSourcesSection = `\nAVAILABLE CITATION SOURCES (curated by the project owner — use these when suggesting citation improvements):\n${sourcesList}\n\nWhen suggesting citation-related improvements, ALWAYS reference specific sources from this list by name and URL. For example: "Add a citation to Medicare.gov (https://www.medicare.gov) to support the enrollment deadline claim." Do NOT suggest generic citations — always point to a specific source from the list above.`;
+        }
+
         // Build Brand Voice section
         let brandVoiceSection = "";
         let brandVoiceGradingCriteria = "";
@@ -1840,6 +1855,7 @@ Respond in this exact JSON format:
         const totalPoints = basePoints + brandVoicePoints + icpPoints;
 
         const systemPrompt = `You are the GEO Content Grader — a precise, analytical grading system that evaluates content for GEO (Generative Engine Optimization) and AIO (AI Overview) readiness. You prioritize factual accuracy, trust signals, and AI extractability over stylistic polish.
+${citationSourcesSection}
 ${brandVoiceSection}
 ${icpSection}
 
@@ -1991,7 +2007,7 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
         };
       }),
 
-    /** Apply selected improvements from a grade to an article */
+    /** Apply selected improvements from a grade to an article — surgical section-level editing */
     applyImprovements: protectedProcedure
       .input(z.object({
         articleId: z.number(),
@@ -2024,38 +2040,100 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
           }
         }
 
+        // Fetch citation sources for the project
+        let citationSourcesSection = "";
+        if (project) {
+          const projectCitations = await db.select().from(citationSources).where(eq(citationSources.projectId, project.id));
+          if (projectCitations.length > 0) {
+            const sourcesList = projectCitations.map((c, i) => {
+              let entry = `  ${i + 1}. ${c.name} — ${c.url}`;
+              if (c.description) entry += ` (${c.description})`;
+              return entry;
+            }).join("\n");
+            citationSourcesSection = `\nAVAILABLE CITATION SOURCES (use these when adding citations):\n${sourcesList}\nWhen an improvement requires adding a citation or source link, you MUST use one of the sources above. Insert the link naturally as an HTML anchor tag, e.g. <a href="URL">Source Name</a>.`;
+          }
+        }
+
         const improvementsList = input.selectedImprovements.map((imp, i) => `${i + 1}. ${imp}`).join("\n");
 
-        const systemPrompt = `You are an expert content editor specializing in ${input.categoryLabel} improvements for SEO and AEO content. You match the original author's voice exactly.
+        // STEP 1: Ask LLM to identify which specific sections need changes and what the changes are
+        const planPrompt = `You are an expert content editor. Given the article and the improvements to apply, identify the EXACT sections (paragraphs or sentences) that need to change.
 ${brandVoiceSection}
+${citationSourcesSection}
 
-Your task is to apply ONLY the specified improvements to the article.
+For each improvement, identify:
+1. The exact original text snippet that needs to be modified (copy it VERBATIM from the article — must be an exact match)
+2. The replacement text with the improvement applied
 
-Guidelines:
-- Apply ONLY the listed improvements - do not add extra changes
-- Maintain the article's original structure, tone, and formatting
-- Output ONLY pure markdown. NEVER output HTML tags.
-- Make changes seamlessly without disrupting readability
-- If an improvement mentions adding sources/citations, weave them naturally into sentences
-- Match the original article's sentence length patterns and formality level
+Rules:
+- Each snippet should be the MINIMUM text needed — a single paragraph or a few sentences, NOT the whole article
+- The "original" field must be an EXACT substring of the article content (character-for-character match)
+- If an improvement requires adding NEW content (e.g., a new paragraph or citation), set "original" to the nearest existing paragraph AFTER which the new content should be inserted, and set "replacement" to that same paragraph PLUS the new content appended
+- If an improvement mentions adding sources/citations, use the available citation sources listed above
+- Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
+- Maintain the original tone, perspective, and formatting style
 
-IMPORTANT:
-- Return ONLY the improved article content
-- Do NOT include explanations or commentary
-- Do NOT wrap the output in markdown code blocks`;
+Respond with ONLY a JSON array:
+[
+  {
+    "improvement": "<which improvement this addresses>",
+    "original": "<exact verbatim text from the article to find>",
+    "replacement": "<the replacement text with improvement applied>"
+  }
+]
 
-        const userPrompt = `Apply these ${input.categoryLabel} improvements to the article:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===ORIGINAL ARTICLE===\n${article.content}\n===END ARTICLE===\n\nReturn the improved article content with these specific improvements applied.`;
+Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
+
+        const userPrompt = `Apply these ${input.categoryLabel} improvements to the article:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===FULL ARTICLE (for context only — do NOT rewrite the whole thing)===\n${article.content}\n===END ARTICLE===`;
 
         const llmResponse = await invokeLLM({
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: planPrompt },
             { role: "user", content: userPrompt },
           ],
         });
 
-        let improvedContent = ((llmResponse.choices?.[0]?.message?.content || article.content || "") as string).trim();
-        if (improvedContent.startsWith("```")) {
-          improvedContent = improvedContent.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+        const rawResponse = ((llmResponse.choices?.[0]?.message?.content || "") as string).trim();
+
+        // Parse the surgical edits
+        let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
+        try {
+          const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) {
+            edits = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error("No JSON array found");
+          }
+        } catch {
+          // Fallback: if parsing fails, return error rather than rewriting the whole article
+          throw new Error("Failed to parse improvement plan. Please try again.");
+        }
+
+        // STEP 2: Apply edits surgically to the original content
+        let improvedContent = article.content || "";
+        let appliedCount = 0;
+
+        for (const edit of edits) {
+          if (!edit.original || !edit.replacement) continue;
+
+          // Try exact match first
+          if (improvedContent.includes(edit.original)) {
+            improvedContent = improvedContent.replace(edit.original, edit.replacement);
+            appliedCount++;
+          } else {
+            // Try trimmed match (whitespace differences)
+            const trimmedOriginal = edit.original.trim();
+            if (trimmedOriginal && improvedContent.includes(trimmedOriginal)) {
+              improvedContent = improvedContent.replace(trimmedOriginal, edit.replacement.trim());
+              appliedCount++;
+            }
+            // If still no match, skip this edit silently — better to skip than corrupt the article
+          }
+        }
+
+        // If no edits were applied, throw an error
+        if (appliedCount === 0) {
+          throw new Error("Could not match any sections in the article. Please try again.");
         }
 
         const wordCount = improvedContent.split(/\s+/).filter((w: string) => w.length > 0).length;
@@ -2069,12 +2147,12 @@ IMPORTANT:
           success: true,
           content: improvedContent,
           wordCount,
-          appliedCount: input.selectedImprovements.length,
+          appliedCount,
           category: input.categoryLabel,
         };
       }),
 
-    /** Apply selected improvements to raw content (standalone grader — no article ID needed) */
+    /** Apply selected improvements to raw content (standalone grader — surgical section-level editing) */
     applyContentImprovements: protectedProcedure
       .input(z.object({
         content: z.string().min(10),
@@ -2085,41 +2163,78 @@ IMPORTANT:
       .mutation(async ({ input }) => {
         const improvementsList = input.selectedImprovements.map((imp, i) => `${i + 1}. ${imp}`).join("\n");
 
-        const systemPrompt = `You are an expert content editor specializing in ${input.categoryLabel} improvements for SEO and AEO content. You match the original author's voice exactly.
+        const planPrompt = `You are an expert content editor. Given the content and the improvements to apply, identify the EXACT sections (paragraphs or sentences) that need to change.
 
-Your task is to apply ONLY the specified improvements to the content.
+For each improvement, identify:
+1. The exact original text snippet that needs to be modified (copy it VERBATIM from the content — must be an exact match)
+2. The replacement text with the improvement applied
 
-Guidelines:
-- Apply ONLY the listed improvements - do not add extra changes
-- Maintain the content's original structure, tone, and formatting
-- Output ONLY pure markdown. NEVER output HTML tags.
-- Make changes seamlessly without disrupting readability
-- If an improvement mentions adding sources/citations, weave them naturally into sentences
-- Match the original content's sentence length patterns and formality level
+Rules:
+- Each snippet should be the MINIMUM text needed — a single paragraph or a few sentences, NOT the whole content
+- The "original" field must be an EXACT substring of the content (character-for-character match)
+- If an improvement requires adding NEW content, set "original" to the nearest existing paragraph AFTER which the new content should be inserted, and set "replacement" to that same paragraph PLUS the new content appended
+- Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
+- Maintain the original tone, perspective, and formatting style
 
-IMPORTANT:
-- Return ONLY the improved content
-- Do NOT include explanations or commentary
-- Do NOT wrap the output in markdown code blocks`;
+Respond with ONLY a JSON array:
+[
+  {
+    "improvement": "<which improvement this addresses>",
+    "original": "<exact verbatim text from the content to find>",
+    "replacement": "<the replacement text with improvement applied>"
+  }
+]
 
-        const userPrompt = `Apply these ${input.categoryLabel} improvements to the content:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===ORIGINAL CONTENT===\n${input.content}\n===END CONTENT===\n\nReturn the improved content with these specific improvements applied.`;
+Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
+
+        const userPrompt = `Apply these ${input.categoryLabel} improvements to the content:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===FULL CONTENT (for context only — do NOT rewrite the whole thing)===\n${input.content}\n===END CONTENT===`;
 
         const llmResponse = await invokeLLM({
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: planPrompt },
             { role: "user", content: userPrompt },
           ],
         });
 
-        let improvedContent = ((llmResponse.choices?.[0]?.message?.content || input.content) as string).trim();
-        if (improvedContent.startsWith("```")) {
-          improvedContent = improvedContent.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+        const rawResponse = ((llmResponse.choices?.[0]?.message?.content || "") as string).trim();
+
+        let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
+        try {
+          const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) {
+            edits = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error("No JSON array found");
+          }
+        } catch {
+          throw new Error("Failed to parse improvement plan. Please try again.");
+        }
+
+        let improvedContent = input.content;
+        let appliedCount = 0;
+
+        for (const edit of edits) {
+          if (!edit.original || !edit.replacement) continue;
+          if (improvedContent.includes(edit.original)) {
+            improvedContent = improvedContent.replace(edit.original, edit.replacement);
+            appliedCount++;
+          } else {
+            const trimmedOriginal = edit.original.trim();
+            if (trimmedOriginal && improvedContent.includes(trimmedOriginal)) {
+              improvedContent = improvedContent.replace(trimmedOriginal, edit.replacement.trim());
+              appliedCount++;
+            }
+          }
+        }
+
+        if (appliedCount === 0) {
+          throw new Error("Could not match any sections in the content. Please try again.");
         }
 
         return {
           success: true,
           content: improvedContent,
-          appliedCount: input.selectedImprovements.length,
+          appliedCount,
           category: input.categoryLabel,
         };
       }),

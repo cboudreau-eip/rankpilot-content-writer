@@ -278,3 +278,11 @@
 - [x] Add post-processing step to split long paragraphs (>5 sentences) after article generation
 - [x] Strengthen LLM prompt to more aggressively enforce short paragraphs
 - [x] Debug and fix paragraph splitter — bare text not wrapped in <p> tags, added wrapBareTextInPTags step
+
+
+## Grading System Improvements
+- [x] Integrate project citation sources into gradeArticle prompt so it suggests specific sources
+- [x] Integrate citation sources into applyImprovements prompt so it uses actual URLs
+- [x] Rewrite applyImprovements to surgically edit specific sections, not rewrite entire article
+- [x] Update standalone gradeContent/applyContentImprovements similarly where applicable
+- [x] Write and run tests for the updated grading system

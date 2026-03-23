@@ -304,3 +304,9 @@
 - [x] Add ability to remove key points per section
 - [x] Add delete section button (already existed)
 - [x] Add "Add Below" button to insert new sections between existing ones
+
+## Per-Section AI Instructions
+- [x] Add AI instructions text field to each section in the outline editor UI
+- [x] Store AI instructions in the outline data structure
+- [x] Pass AI instructions to article generation backend
+- [x] Include per-section AI instructions in LLM prompt for article generation

@@ -6,7 +6,7 @@ import {
   Sparkles, FileText, GripVertical, ChevronDown, ChevronRight,
   Plus, Trash2, Loader2, ArrowRight, Settings2, Wand2, ListTree,
   MapPin, Users, Link2, Globe, MessageSquare, Target, Check,
-  ChevronUp, X, PlusCircle,
+  ChevronUp, X, PlusCircle, BotMessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,7 @@ interface OutlineSection {
   type: "h2" | "h3";
   points?: string[];
   subSections?: OutlineSection[];
+  aiInstructions?: string;
 }
 
 interface ManualLink {
@@ -412,6 +413,23 @@ export default function GenerateArticle() {
               sub.id === sectionId
                 ? { ...sub, points: (sub.points || []).filter((_, i) => i !== pointIndex) }
                 : sub
+            ),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const updateAiInstructions = (sectionId: string, instructions: string) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sectionId) return { ...s, aiInstructions: instructions };
+        if (s.subSections) {
+          return {
+            ...s,
+            subSections: s.subSections.map((sub) =>
+              sub.id === sectionId ? { ...sub, aiInstructions: instructions } : sub
             ),
           };
         }
@@ -1052,6 +1070,22 @@ export default function GenerateArticle() {
                       </button>
                     </div>
 
+                    {/* AI Instructions for this section */}
+                    <div className="pl-8 mt-2">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <BotMessageSquare className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-xs font-semibold text-amber-700">AI Instructions</span>
+                        <span className="text-xs text-muted-foreground">(optional)</span>
+                      </div>
+                      <textarea
+                        value={section.aiInstructions || ""}
+                        onChange={(e) => updateAiInstructions(section.id, e.target.value)}
+                        placeholder="e.g., Include a comparison table, add a chart, use bullet points, focus on statistics..."
+                        className="w-full text-sm text-muted-foreground bg-amber-50/50 border border-amber-200/60 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-amber-300 focus:border-amber-300 placeholder:text-amber-400/60 resize-none"
+                        rows={2}
+                      />
+                    </div>
+
                     {/* Sub-sections */}
                     {section.subSections && section.subSections.length > 0 && (
                       <div className="pl-6 space-y-2 mt-3 border-l-2 border-indigo-100">
@@ -1103,6 +1137,21 @@ export default function GenerateArticle() {
                                 <PlusCircle className="w-3 h-3" />
                                 Add point
                               </button>
+                              {/* AI Instructions for sub-section */}
+                              <div className="mt-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <BotMessageSquare className="w-3 h-3 text-amber-500" />
+                                  <span className="text-xs font-semibold text-amber-700">AI Instructions</span>
+                                  <span className="text-xs text-muted-foreground">(optional)</span>
+                                </div>
+                                <textarea
+                                  value={sub.aiInstructions || ""}
+                                  onChange={(e) => updateAiInstructions(sub.id, e.target.value)}
+                                  placeholder="e.g., Include a chart, focus on examples..."
+                                  className="w-full text-xs text-muted-foreground bg-amber-50/50 border border-amber-200/60 rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-amber-300 focus:border-amber-300 placeholder:text-amber-400/60 resize-none"
+                                  rows={2}
+                                />
+                              </div>
                             </div>
                           </div>
                         ))}

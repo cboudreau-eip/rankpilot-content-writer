@@ -1255,11 +1255,17 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           if (section.points) {
             text += section.points.map((p: string) => `- ${p}`).join("\n") + "\n";
           }
+          if (section.aiInstructions?.trim()) {
+            text += `[AI INSTRUCTIONS FOR THIS SECTION: ${section.aiInstructions.trim()}]\n`;
+          }
           if (section.subSections) {
             for (const sub of section.subSections) {
               text += `### ${sub.heading}\n`;
               if (sub.points) {
                 text += sub.points.map((p: string) => `- ${p}`).join("\n") + "\n";
+              }
+              if (sub.aiInstructions?.trim()) {
+                text += `[AI INSTRUCTIONS FOR THIS SUB-SECTION: ${sub.aiInstructions.trim()}]\n`;
               }
             }
           }
@@ -1304,6 +1310,7 @@ ${formatInstructions}
 - Make the content comprehensive, authoritative, and reader-friendly
 - Include bullet points and numbered lists where appropriate
 - CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly. Do NOT write wall-of-text paragraphs.
+- PER-SECTION AI INSTRUCTIONS: Some sections in the outline may include [AI INSTRUCTIONS FOR THIS SECTION: ...] or [AI INSTRUCTIONS FOR THIS SUB-SECTION: ...] directives. You MUST follow these instructions precisely when writing that specific section. These may request specific content formats (tables, charts, bullet lists), specific focus areas, examples, statistics, or other structural requirements. Treat them as mandatory requirements for that section.
 - CITATION LINK RULES: When inserting any external links or citations:
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
   * The anchor text MUST be the actual claim or fact being cited (e.g., <a href="...">covers outpatient services including doctor visits</a>)

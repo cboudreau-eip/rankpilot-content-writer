@@ -286,3 +286,8 @@
 - [x] Rewrite applyImprovements to surgically edit specific sections, not rewrite entire article
 - [x] Update standalone gradeContent/applyContentImprovements similarly where applicable
 - [x] Write and run tests for the updated grading system
+
+
+## Citation Quality Improvements
+- [x] Fix anchor text: use natural, contextual phrases (the actual claim/fact) instead of generic "Learn more at" text
+- [x] Fix link targets: link to specific deep pages relevant to the cited info, not homepages

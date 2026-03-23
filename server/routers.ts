@@ -1304,6 +1304,10 @@ ${formatInstructions}
 - Make the content comprehensive, authoritative, and reader-friendly
 - Include bullet points and numbered lists where appropriate
 - CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly. Do NOT write wall-of-text paragraphs.
+- CITATION LINK RULES: When inserting any external links or citations:
+  * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
+  * The anchor text MUST be the actual claim or fact being cited (e.g., <a href="...">covers outpatient services including doctor visits</a>)
+  * NEVER link to a homepage URL — always use the most specific deep page URL relevant to the claim
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
@@ -1827,7 +1831,7 @@ Respond in this exact JSON format:
             if (c.category) entry += ` [Category: ${c.category}]`;
             return entry;
           }).join("\n");
-          citationSourcesSection = `\nAVAILABLE CITATION SOURCES (curated by the project owner — use these when suggesting citation improvements):\n${sourcesList}\n\nWhen suggesting citation-related improvements, ALWAYS reference specific sources from this list by name and URL. For example: "Add a citation to Medicare.gov (https://www.medicare.gov) to support the enrollment deadline claim." Do NOT suggest generic citations — always point to a specific source from the list above.`;
+          citationSourcesSection = `\nAVAILABLE CITATION SOURCES (curated by the project owner):\n${sourcesList}\n\nCITATION QUALITY RULES (MANDATORY):\n1. ANCHOR TEXT: NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or "[Source Name]". Instead, the anchor text MUST be the actual claim, fact, or phrase being cited. Example:\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>"\n   - BAD: "<a href=\"...\">Find out more about Part B coverage</a>"\n   - GOOD: "Medicare Part B <a href=\"...\">covers outpatient services including doctor visits and lab tests</a>"\n   - GOOD: "The annual deductible for Part B is <a href=\"...\">$257 in 2026</a>"\n\n2. DEEP LINKING: NEVER link to a homepage (e.g., medicare.gov or cms.gov). Always construct the most specific URL path that would contain the cited information. Use the source's base URL + a logical path. Example:\n   - BAD: https://www.medicare.gov\n   - GOOD: https://www.medicare.gov/what-medicare-covers/what-part-b-covers\n   - If you cannot determine the exact deep page, append a relevant path based on the topic (e.g., /enrollment, /costs, /coverage, /part-a, /part-b)\n\n3. When suggesting citation improvements, specify EXACTLY which sentence/claim needs the citation and which source + deep page URL to use.`;
         }
 
         // Build Brand Voice section
@@ -2050,7 +2054,7 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
               if (c.description) entry += ` (${c.description})`;
               return entry;
             }).join("\n");
-            citationSourcesSection = `\nAVAILABLE CITATION SOURCES (use these when adding citations):\n${sourcesList}\nWhen an improvement requires adding a citation or source link, you MUST use one of the sources above. Insert the link naturally as an HTML anchor tag, e.g. <a href="URL">Source Name</a>.`;
+            citationSourcesSection = `\nAVAILABLE CITATION SOURCES:\n${sourcesList}\n\nCITATION INSERTION RULES (MANDATORY):\n1. ANCHOR TEXT: NEVER use generic phrases like "Learn more at", "Find out more", "Click here", "Visit [Source]", or just the source name as anchor text. The anchor text MUST be the actual claim, fact, or phrase being supported by the citation. Examples:\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>"\n   - BAD: "<a href=\"...\">Click here</a> for details"\n   - GOOD: "Medicare Part B <a href=\"...\">covers outpatient services including doctor visits and lab tests</a>"\n   - GOOD: "The annual deductible is <a href=\"...\">$257 in 2026</a>"\n\n2. DEEP LINKING: NEVER link to a homepage URL. Always use the most specific page URL relevant to the cited claim. Construct a logical deep path from the source's base URL:\n   - BAD: https://www.medicare.gov\n   - GOOD: https://www.medicare.gov/what-medicare-covers/what-part-b-covers\n   - Append relevant path segments like /enrollment, /costs, /coverage, /eligibility based on the topic\n\n3. Place the <a> tag inline within the sentence, wrapping the specific factual claim it supports.`;
           }
         }
 
@@ -2070,6 +2074,7 @@ Rules:
 - The "original" field must be an EXACT substring of the article content (character-for-character match)
 - If an improvement requires adding NEW content (e.g., a new paragraph or citation), set "original" to the nearest existing paragraph AFTER which the new content should be inserted, and set "replacement" to that same paragraph PLUS the new content appended
 - If an improvement mentions adding sources/citations, use the available citation sources listed above
+- When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", or the source name). Link to a specific deep page URL, NOT the homepage.
 - Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
 - Maintain the original tone, perspective, and formatting style
 
@@ -2173,6 +2178,7 @@ Rules:
 - Each snippet should be the MINIMUM text needed — a single paragraph or a few sentences, NOT the whole content
 - The "original" field must be an EXACT substring of the content (character-for-character match)
 - If an improvement requires adding NEW content, set "original" to the nearest existing paragraph AFTER which the new content should be inserted, and set "replacement" to that same paragraph PLUS the new content appended
+- When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", "Find out more", or just the source name). Link to a specific deep page URL, NOT a homepage.
 - Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
 - Maintain the original tone, perspective, and formatting style
 

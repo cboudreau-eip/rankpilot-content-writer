@@ -1,0 +1,34 @@
+{
+  "query": "SELECT SUBSTRING(content, 1, 1500) as content_start FROM articles WHERE id = 210001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT SUBSTRING(content, 1, 1500) as content_start FROM articles WHERE id = 210001;",
+  "rows": [
+    {
+      "content_start": "<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>"
+    },
+    {
+      "content_start": "Navigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices."
+    },
+    {
+      "content_start": "Medicare is a federal health insurance program. It primarily serves individuals aged 65 or older. Additionally, certain younger people with disabilities and those with End-Stage Renal Disease (ESRD) also qualify."
+    },
+    {
+      "content_start": "The core purpose of Medicare is to provide essential health coverage. It offers peace of mind as you age or face specific health conditions. This article will help you confidently explore your options."
+    },
+    {
+      "content_start": "<h2>Demystifying Medicare Parts: What Each Component Covers</h2>"
+    },
+    {
+      "content_start": "Medicare is structured into different parts, each covering specific services. Understanding these distinctions is the first step toward choosing the right plan for your needs. We will break down each part clearly."
+    },
+    {
+      "content_start": "Original Medicare consists of Part A and Part B. These two parts form the foundation of the federal health insurance program. They cover a wide range of medical services."
+    },
+    {
+      "content_start": "Medicare Part C, known as Medicare Advantage plans, offers an alternative. These plans are provided by private companies approved by Medicare. They combine your Part A and Part B benefits into one plan."
+    }
+  ],
+  "messages": [],
+  "stdout": "content_start\n<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>\nNavigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices.\n\nMedicare is a federal health insurance program. It primarily serves individuals aged 65 or older. Additionally, certain younger people with disabilities and those with End-Stage Renal Disease (ESRD) also qualify.\n\nThe core purpose of Medicare is to provide essential health coverage. It offers peace of mind as you age or face specific health conditions. This article will help you confidently explore your options.\n\n<h2>Demystifying Medicare Parts: What Each Component Covers</h2>\nMedicare is structured into different parts, each covering specific services. Understanding these distinctions is the first step toward choosing the right plan for your needs. We will break down each part clearly.\n\nOriginal Medicare consists of Part A and Part B. These two parts form the foundation of the federal health insurance program. They cover a wide range of medical services.\n\nMedicare Part C, known as Medicare Advantage plans, offers an alternative. These plans are provided by private companies approved by Medicare. They combine your Part A and Part B benefits into one plan.\n\n\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

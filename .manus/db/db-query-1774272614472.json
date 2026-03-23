@@ -1,0 +1,64 @@
+{
+  "query": "SELECT SUBSTRING(content, 1, 3000) as content_chunk FROM articles WHERE id = 210001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT SUBSTRING(content, 1, 3000) as content_chunk FROM articles WHERE id = 210001;",
+  "rows": [
+    {
+      "content_chunk": "<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>"
+    },
+    {
+      "content_chunk": "Navigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices."
+    },
+    {
+      "content_chunk": "Medicare is a federal health insurance program. It primarily serves individuals aged 65 or older. Additionally, certain younger people with disabilities and those with End-Stage Renal Disease (ESRD) also qualify."
+    },
+    {
+      "content_chunk": "The core purpose of Medicare is to provide essential health coverage. It offers peace of mind as you age or face specific health conditions. This article will help you confidently explore your options."
+    },
+    {
+      "content_chunk": "<h2>Demystifying Medicare Parts: What Each Component Covers</h2>"
+    },
+    {
+      "content_chunk": "Medicare is structured into different parts, each covering specific services. Understanding these distinctions is the first step toward choosing the right plan for your needs. We will break down each part clearly."
+    },
+    {
+      "content_chunk": "Original Medicare consists of Part A and Part B. These two parts form the foundation of the federal health insurance program. They cover a wide range of medical services."
+    },
+    {
+      "content_chunk": "Medicare Part C, known as Medicare Advantage plans, offers an alternative. These plans are provided by private companies approved by Medicare. They combine your Part A and Part B benefits into one plan."
+    },
+    {
+      "content_chunk": "Medicare Part D provides prescription drug coverage. This part is crucial for managing your medication costs. It helps ensure you can afford necessary prescriptions."
+    },
+    {
+      "content_chunk": "Finally, Medicare Supplement Insurance, or Medigap, policies can help. These plans work alongside Original Medicare. They assist with out-of-pocket costs like deductibles and coinsurance."
+    },
+    {
+      "content_chunk": "<h2>Original Medicare (Parts A & B): Your Core Coverage Explained</h2>"
+    },
+    {
+      "content_chunk": "Original Medicare is the traditional way to get your Medicare benefits. It is administered directly by the federal government. Understanding its coverage and costs is fundamental."
+    },
+    {
+      "content_chunk": "<h3>Medicare Part A: Hospital Insurance</h3>"
+    },
+    {
+      "content_chunk": "Part A primarily covers inpatient hospital stays. This includes care received when you are formally admitted to a hospital. It also covers skilled nursing facility care for a limited time after a hospital stay."
+    },
+    {
+      "content_chunk": "Hospice care is another important benefit under Part A. Additionally, some home health services are covered. These services help you recover or manage a chronic condition at home."
+    },
+    {
+      "content_chunk": "<h3>Medicare Part B: Medical Insurance</h3>"
+    },
+    {
+      "content_chunk": "Part B covers medically necessary services and preventive care. This includes doctor visits, outpatient care, and many preventive services. It also covers durable medical equipment."
+    },
+    {
+      "content_chunk": "Examples of Part B services include ambulance services, mental health care, and some home health care not covered by Part A. It helps cover the costs of seeing specialists. You can learn more about specific Part B coverage deta"
+    }
+  ],
+  "messages": [],
+  "stdout": "content_chunk\n<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>\nNavigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices.\n\nMedicare is a federal health insurance program. It primarily serves individuals aged 65 or older. Additionally, certain younger people with disabilities and those with End-Stage Renal Disease (ESRD) also qualify.\n\nThe core purpose of Medicare is to provide essential health coverage. It offers peace of mind as you age or face specific health conditions. This article will help you confidently explore your options.\n\n<h2>Demystifying Medicare Parts: What Each Component Covers</h2>\nMedicare is structured into different parts, each covering specific services. Understanding these distinctions is the first step toward choosing the right plan for your needs. We will break down each part clearly.\n\nOriginal Medicare consists of Part A and Part B. These two parts form the foundation of the federal health insurance program. They cover a wide range of medical services.\n\nMedicare Part C, known as Medicare Advantage plans, offers an alternative. These plans are provided by private companies approved by Medicare. They combine your Part A and Part B benefits into one plan.\n\nMedicare Part D provides prescription drug coverage. This part is crucial for managing your medication costs. It helps ensure you can afford necessary prescriptions.\n\nFinally, Medicare Supplement Insurance, or Medigap, policies can help. These plans work alongside Original Medicare. They assist with out-of-pocket costs like deductibles and coinsurance.\n\n<h2>Original Medicare (Parts A & B): Your Core Coverage Explained</h2>\nOriginal Medicare is the traditional way to get your Medicare benefits. It is administered directly by the federal government. Understanding its coverage and costs is fundamental.\n\n<h3>Medicare Part A: Hospital Insurance</h3>\nPart A primarily covers inpatient hospital stays. This includes care received when you are formally admitted to a hospital. It also covers skilled nursing facility care for a limited time after a hospital stay.\n\nHospice care is another important benefit under Part A. Additionally, some home health services are covered. These services help you recover or manage a chronic condition at home.\n\n<h3>Medicare Part B: Medical Insurance</h3>\nPart B covers medically necessary services and preventive care. This includes doctor visits, outpatient care, and many preventive services. It also covers durable medical equipment.\n\nExamples of Part B services include ambulance services, mental health care, and some home health care not covered by Part A. It helps cover the costs of seeing specialists. You can learn more about specific Part B coverage deta\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

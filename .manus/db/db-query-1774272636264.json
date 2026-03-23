@@ -1,0 +1,16 @@
+{
+  "query": "SELECT SUBSTRING(content, 60, 100) as around_first_newline FROM articles WHERE id = 210001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT SUBSTRING(content, 60, 100) as around_first_newline FROM articles WHERE id = 210001;",
+  "rows": [
+    {
+      "around_first_newline": "e</h2>"
+    },
+    {
+      "around_first_newline": "Navigating healthcare can feel overwhelming, especially when it involves understanding a prog"
+    }
+  ],
+  "messages": [],
+  "stdout": "around_first_newline\ne</h2>\nNavigating healthcare can feel overwhelming, especially when it involves understanding a prog\n",
+  "stderr": "",
+  "execution_time_ms": 47
+}

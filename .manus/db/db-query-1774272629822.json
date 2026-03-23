@@ -1,0 +1,15 @@
+{
+  "query": "SELECT LENGTH(content) as len, LOCATE('\\n', content) as first_newline, LOCATE('<p>', content) as first_p_tag FROM articles WHERE id = 210001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT LENGTH(content) as len, LOCATE('\\n', content) as first_newline, LOCATE('<p>', content) as first_p_tag FROM articles WHERE id = 210001;",
+  "rows": [
+    {
+      "len": "14839",
+      "first_newline": "66",
+      "first_p_tag": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "len\tfirst_newline\tfirst_p_tag\n14839\t66\t0\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

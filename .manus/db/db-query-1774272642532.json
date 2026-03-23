@@ -1,0 +1,13 @@
+{
+  "query": "SELECT HEX(SUBSTRING(content, 64, 10)) as hex_around_newline FROM articles WHERE id = 210001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT HEX(SUBSTRING(content, 64, 10)) as hex_around_newline FROM articles WHERE id = 210001;",
+  "rows": [
+    {
+      "hex_around_newline": "323E0A4E617669676174"
+    }
+  ],
+  "messages": [],
+  "stdout": "hex_around_newline\n323E0A4E617669676174\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

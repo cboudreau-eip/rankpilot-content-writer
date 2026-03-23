@@ -1,0 +1,55 @@
+{
+  "query": "SELECT id, title, createdAt FROM articles ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, title, createdAt FROM articles ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "210001",
+      "title": "Medicare 101: Your Essential Guide to Understanding Your Coverage Options",
+      "createdAt": "2026-03-20 19:45:15"
+    },
+    {
+      "id": "180001",
+      "title": "How to Reduce Your Medicare Premiums: A Clear Guide for Confident Choices",
+      "createdAt": "2026-03-20 19:21:00"
+    },
+    {
+      "id": "150002",
+      "title": "Understanding Medicare: Your Comprehensive Guide to Coverage Options and Enrollment",
+      "createdAt": "2026-03-20 16:04:27"
+    },
+    {
+      "id": "150001",
+      "title": "Understanding Medigap: Your Trusted Guide to Medicare Supplement Plans",
+      "createdAt": "2026-03-20 16:02:54"
+    },
+    {
+      "id": "120003",
+      "title": "Understanding Your Medicare Coverage for Cancer Treatment: A Clear Guide",
+      "createdAt": "2026-03-20 15:40:34"
+    },
+    {
+      "id": "120002",
+      "title": "Your Trusted Guide to Enrolling in Medicare: Clear Steps for Confident Choices",
+      "createdAt": "2026-03-20 15:30:51"
+    },
+    {
+      "id": "120001",
+      "title": "Medicare Advantage Explained: Your Clear Guide to Making Confident Choices",
+      "createdAt": "2026-03-20 15:27:46"
+    },
+    {
+      "id": "30002",
+      "title": "Medicare vs. Medicare Advantage: A Comprehensive Guide to Choosing Your Healthcare Plan",
+      "createdAt": "2026-03-18 20:17:28"
+    },
+    {
+      "id": "30001",
+      "title": "Choosing the Best Medicare Supplement Plan: Your Professional Guide to Confident Coverage",
+      "createdAt": "2026-03-18 19:50:07"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcreatedAt\n210001\tMedicare 101: Your Essential Guide to Understanding Your Coverage Options\t2026-03-20 19:45:15\n180001\tHow to Reduce Your Medicare Premiums: A Clear Guide for Confident Choices\t2026-03-20 19:21:00\n150002\tUnderstanding Medicare: Your Comprehensive Guide to Coverage Options and Enrollment\t2026-03-20 16:04:27\n150001\tUnderstanding Medigap: Your Trusted Guide to Medicare Supplement Plans\t2026-03-20 16:02:54\n120003\tUnderstanding Your Medicare Coverage for Cancer Treatment: A Clear Guide\t2026-03-20 15:40:34\n120002\tYour Trusted Guide to Enrolling in Medicare: Clear Steps for Confident Choices\t2026-03-20 15:30:51\n120001\tMedicare Advantage Explained: Your Clear Guide to Making Confident Choices\t2026-03-20 15:27:46\n30002\tMedicare vs. Medicare Advantage: A Comprehensive Guide to Choosing Your Healthcare Plan\t2026-03-18 20:17:28\n30001\tChoosing the Best Medicare Supplement Plan: Your Professional Guide to Confident Coverage\t2026-03-18 19:50:07\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

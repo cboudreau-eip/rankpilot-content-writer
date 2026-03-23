@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-// We need to test the functions directly, but they're not exported.
-// Let's test them by importing the module and using a workaround.
-// Since the functions are module-level in routers.ts but not exported,
-// we'll replicate them here for unit testing and verify the logic.
+// Replicated from routers.ts for unit testing (functions are not exported)
 
 function splitSentences(text: string): string[] {
   const abbrevPattern = /(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Inc|Ltd|Corp|vs|etc|e\.g|i\.e|U\.S|U\.K)$/i;
@@ -23,6 +20,23 @@ function splitSentences(text: string): string[] {
   }
   if (buffer.trim()) sentences.push(buffer.trim());
   return sentences.filter(s => s.length > 0);
+}
+
+function wrapBareTextInPTags(content: string): string {
+  const lines = content.split(/\n/);
+  const result: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (/^<(h[1-6]|p|ul|ol|li|table|thead|tbody|tr|td|th|div|blockquote|hr|br|figure|figcaption|section|article|nav|header|footer|pre|code|img|a\s)/i.test(trimmed)) {
+      result.push(trimmed);
+    } else if (/^<\/(h[1-6]|p|ul|ol|li|table|thead|tbody|tr|td|th|div|blockquote|pre|code|section|article|nav|header|footer|figure|figcaption)>/i.test(trimmed)) {
+      result.push(trimmed);
+    } else {
+      result.push(`<p>${trimmed}</p>`);
+    }
+  }
+  return result.join("\n");
 }
 
 function splitLongParagraphs(content: string, maxSentences: number, format: string): string {
@@ -64,6 +78,9 @@ function splitLongParagraphs(content: string, maxSentences: number, format: stri
   });
 }
 
+// ============================================================
+// splitSentences tests
+// ============================================================
 describe("splitSentences", () => {
   it("splits basic sentences", () => {
     const result = splitSentences("First sentence. Second sentence. Third sentence.");
@@ -79,9 +96,6 @@ describe("splitSentences", () => {
   });
 
   it("handles abbreviations like Dr. at end of fragment", () => {
-    // The splitter handles abbreviations at the end of a fragment before the period
-    // In practice, LLM-generated content rarely uses mid-sentence abbreviations like U.S.
-    // The key goal is splitting wall-of-text paragraphs, not perfect abbreviation handling
     const result = splitSentences("The doctor was helpful. She prescribed medication. He recovered quickly.");
     expect(result).toHaveLength(3);
   });
@@ -97,13 +111,155 @@ describe("splitSentences", () => {
   });
 });
 
+// ============================================================
+// wrapBareTextInPTags tests
+// ============================================================
+describe("wrapBareTextInPTags", () => {
+  it("wraps bare text lines in <p> tags", () => {
+    const input = "This is a bare text line.";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toBe("<p>This is a bare text line.</p>");
+  });
+
+  it("preserves existing <h2> tags", () => {
+    const input = "<h2>My Heading</h2>";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toBe("<h2>My Heading</h2>");
+  });
+
+  it("preserves existing <p> tags", () => {
+    const input = "<p>Already wrapped.</p>";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toBe("<p>Already wrapped.</p>");
+  });
+
+  it("preserves <ul> and <li> tags", () => {
+    const input = "<ul>\n<li>Item one</li>\n<li>Item two</li>\n</ul>";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toContain("<ul>");
+    expect(result).toContain("<li>Item one</li>");
+    expect(result).toContain("</ul>");
+  });
+
+  it("handles mixed content: headings + bare text", () => {
+    const input = "<h2>Title</h2>\nThis is bare text.\nAnother bare line.\n<h3>Subtitle</h3>\nMore bare text.";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toContain("<h2>Title</h2>");
+    expect(result).toContain("<p>This is bare text.</p>");
+    expect(result).toContain("<p>Another bare line.</p>");
+    expect(result).toContain("<h3>Subtitle</h3>");
+    expect(result).toContain("<p>More bare text.</p>");
+  });
+
+  it("skips empty lines", () => {
+    const input = "<h2>Title</h2>\n\nBare text.\n\n<h2>Next</h2>";
+    const result = wrapBareTextInPTags(input);
+    expect(result).not.toContain("<p></p>");
+    expect(result).toContain("<p>Bare text.</p>");
+  });
+
+  it("handles realistic LLM output with headings and bare text", () => {
+    const input = `<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>
+Navigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals find themselves seeking clear information.
+This guide is designed to simplify Medicare, helping you understand its core components.
+Medicare is a federal health insurance program. It primarily serves individuals aged 65 or older.
+<h2>Demystifying Medicare Parts</h2>
+Medicare is structured into different parts. Understanding these distinctions is the first step.`;
+    
+    const result = wrapBareTextInPTags(input);
+    
+    // Headings should be preserved
+    expect(result).toContain("<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>");
+    expect(result).toContain("<h2>Demystifying Medicare Parts</h2>");
+    
+    // Bare text should be wrapped
+    expect(result).toContain("<p>Navigating healthcare can feel overwhelming");
+    expect(result).toContain("<p>This guide is designed to simplify Medicare");
+    expect(result).toContain("<p>Medicare is a federal health insurance program.");
+    expect(result).toContain("<p>Medicare is structured into different parts.");
+    
+    // Every non-heading line should be a <p>
+    const pTags = result.match(/<p>/g) || [];
+    expect(pTags.length).toBe(4);
+  });
+
+  it("preserves <table> tags", () => {
+    const input = "<table>\n<tr><td>Cell</td></tr>\n</table>";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toContain("<table>");
+    expect(result).toContain("</table>");
+  });
+
+  it("preserves <blockquote> tags", () => {
+    const input = "<blockquote>A quote here.</blockquote>";
+    const result = wrapBareTextInPTags(input);
+    expect(result).toBe("<blockquote>A quote here.</blockquote>");
+  });
+});
+
+// ============================================================
+// Full pipeline: wrapBareTextInPTags + splitLongParagraphs
+// ============================================================
+describe("Full pipeline: wrap + split", () => {
+  it("wraps bare text then splits long paragraphs", () => {
+    // Simulate LLM output: heading + one long bare text block
+    const llmOutput = `<h2>Title</h2>
+Sentence one. Sentence two. Sentence three. Sentence four. Sentence five. Sentence six. Sentence seven. Sentence eight.`;
+    
+    const wrapped = wrapBareTextInPTags(llmOutput);
+    const result = splitLongParagraphs(wrapped, 3, "html");
+    
+    // Should have heading + multiple <p> tags
+    expect(result).toContain("<h2>Title</h2>");
+    const pTags = result.match(/<p>[\s\S]*?<\/p>/g) || [];
+    expect(pTags.length).toBeGreaterThan(1);
+    
+    // Each paragraph should have at most 3 sentences
+    for (const p of pTags) {
+      const inner = p.replace(/<\/?p>/g, "");
+      const sentences = splitSentences(inner);
+      expect(sentences.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("handles the exact scenario from the user's screenshot", () => {
+    // Realistic LLM output: headings with bare text paragraphs, no <p> tags
+    const llmOutput = `<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>
+Navigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices. Medicare is a federal health insurance program. It primarily serves individuals aged 65 or older. Additionally, certain younger people with disabilities and those with End-Stage Renal Disease (ESRD) also qualify. The core purpose of Medicare is to provide essential health coverage. It offers peace of mind as you age or face specific health conditions. This article will help you confidently explore your options.
+<h2>Demystifying Original Medicare and Cancer Treatment Costs</h2>
+Original Medicare, consisting of Part A and Part B, forms the bedrock of your cancer coverage. It provides essential benefits that are crucial for managing a diagnosis. Understanding these components is the first step in planning your care.`;
+    
+    const wrapped = wrapBareTextInPTags(llmOutput);
+    const result = splitLongParagraphs(wrapped, 5, "html");
+    
+    // Headings preserved
+    expect(result).toContain("<h2>Welcome to Medicare");
+    expect(result).toContain("<h2>Demystifying Original Medicare");
+    
+    // The long bare text block should now be multiple <p> tags
+    const pTags = result.match(/<p>[\s\S]*?<\/p>/g) || [];
+    // The first block had ~9 sentences, should be split into 2 paragraphs (5+4)
+    // The second block had 3 sentences, should stay as 1 paragraph
+    expect(pTags.length).toBeGreaterThanOrEqual(3);
+    
+    // No paragraph should exceed 5 sentences
+    for (const p of pTags) {
+      const inner = p.replace(/<\/?p>/g, "");
+      const sentences = splitSentences(inner);
+      expect(sentences.length).toBeLessThanOrEqual(5);
+    }
+  });
+});
+
+// ============================================================
+// splitLongParagraphs - HTML (existing tests)
+// ============================================================
 describe("splitLongParagraphs - HTML", () => {
   it("splits a paragraph with more sentences than the limit", () => {
     const html = "<p>Sentence one. Sentence two. Sentence three. Sentence four. Sentence five. Sentence six. Sentence seven.</p>";
     const result = splitLongParagraphs(html, 3, "html");
     const pTags = result.match(/<p>/g);
     expect(pTags!.length).toBeGreaterThan(1);
-    // Each resulting paragraph should have at most 3 sentences
     const paragraphs = result.match(/<p>([\s\S]*?)<\/p>/g) || [];
     for (const p of paragraphs) {
       const inner = p.replace(/<\/?p>/g, "");
@@ -128,10 +284,8 @@ describe("splitLongParagraphs - HTML", () => {
   it("handles multiple paragraphs, only splits long ones", () => {
     const html = "<p>Short one.</p><p>One. Two. Three. Four. Five. Six. Seven. Eight.</p><p>Also short.</p>";
     const result = splitLongParagraphs(html, 3, "html");
-    // First and last should be unchanged
     expect(result).toContain("<p>Short one.</p>");
     expect(result).toContain("<p>Also short.</p>");
-    // Middle should be split
     const allP = result.match(/<p>[\s\S]*?<\/p>/g) || [];
     expect(allP.length).toBeGreaterThan(3);
   });
@@ -143,6 +297,9 @@ describe("splitLongParagraphs - HTML", () => {
   });
 });
 
+// ============================================================
+// splitLongParagraphs - plaintext (existing tests)
+// ============================================================
 describe("splitLongParagraphs - plaintext", () => {
   it("splits a long plaintext paragraph", () => {
     const text = "Sentence one. Sentence two. Sentence three. Sentence four. Sentence five. Sentence six.";
@@ -174,12 +331,14 @@ describe("splitLongParagraphs - plaintext", () => {
     const result = splitLongParagraphs(text, 5, "plaintext");
     const paragraphs = result.split("\n\n");
     expect(paragraphs.length).toBe(2);
-    // First paragraph should have 5 sentences, second should have 5
     expect(splitSentences(paragraphs[0]).length).toBe(5);
     expect(splitSentences(paragraphs[1]).length).toBe(5);
   });
 });
 
+// ============================================================
+// Realistic wall-of-text (existing test)
+// ============================================================
 describe("splitLongParagraphs - realistic article content", () => {
   it("splits a wall-of-text paragraph like the user reported", () => {
     const wallOfText = `<p>Medicare Advantage plans are an alternative to Original Medicare, offering a different structure for your healthcare benefits. These plans are provided by private insurance companies that are approved by Medicare. They are required to cover everything that Original Medicare (Part A and Part B) covers, but they often include additional benefits. A key feature of Medicare Advantage plans is that they typically bundle your coverage. This means your Part A (hospital insurance) and Part B (medical insurance) benefits are included within the plan. Many Medicare Advantage plans also incorporate Part D (prescription drug coverage), making it a comprehensive solution for your healthcare and medication needs. This integrated approach can simplify your healthcare management. You will encounter various plan types within Medicare Advantage, with Health Maintenance Organizations (HMOs) and Preferred Provider Organizations (PPOs) being the most common. HMO plans generally require you to choose a primary care doctor within the plan's network and get referrals to see specialists. PPO plans offer more flexibility, allowing you to see out-of-network providers, though usually at a higher cost.</p>`;
@@ -187,10 +346,8 @@ describe("splitLongParagraphs - realistic article content", () => {
     const result = splitLongParagraphs(wallOfText, 5, "html");
     const paragraphs = result.match(/<p>[\s\S]*?<\/p>/g) || [];
     
-    // Should be split into multiple paragraphs
     expect(paragraphs.length).toBeGreaterThan(1);
     
-    // Each paragraph should have at most 5 sentences
     for (const p of paragraphs) {
       const inner = p.replace(/<\/?p>/g, "");
       const sentences = splitSentences(inner);

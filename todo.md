@@ -277,3 +277,4 @@
 ## Paragraph Length Post-Processing
 - [x] Add post-processing step to split long paragraphs (>5 sentences) after article generation
 - [x] Strengthen LLM prompt to more aggressively enforce short paragraphs
+- [x] Debug and fix paragraph splitter — bare text not wrapped in <p> tags, added wrapBareTextInPTags step

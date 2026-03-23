@@ -1,0 +1,32 @@
+{
+  "query": "SELECT id, title, SUBSTRING(content, 1, 500) as content_preview FROM articles ORDER BY id DESC LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, title, SUBSTRING(content, 1, 500) as content_preview FROM articles ORDER BY id DESC LIMIT 3;",
+  "rows": [
+    {
+      "id": "210001",
+      "title": "Medicare 101: Your Essential Guide to Understanding Your Coverage Options",
+      "content_preview": "<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>"
+    },
+    {
+      "id": "180001",
+      "title": "How to Reduce Your Medicare Premiums: A Clear Guide for Confident Choices",
+      "content_preview": "<h2>Navigating Medicare Costs: Your Guide to Understanding Premiums</h2>"
+    },
+    {
+      "id": "150002",
+      "title": "Understanding Medicare: Your Comprehensive Guide to Coverage Options and Enrollment",
+      "content_preview": "<h2>Navigating Medicare: A Clear Path to Understanding Your Healthcare Choices</h2>"
+    }
+  ],
+  "messages": [
+    "Navigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices.",
+    "Medicare is a federal health insurance program. It primarily serves indiv",
+    "Understanding Medicare can often feel like navigating a complex maze, especially when it comes to costs. Many people find themselves overwhelmed by the various components of their healthcare expenses. This guide is designed to simplify that process for you, providing clear and trustworthy information.",
+    "You will learn about the basic elements that make up your Medicare costs. These include premiums, deductibles, copayments, ",
+    "Welcome to your guide for understanding Medicare, designed to simplify complex information. If you are approaching age 65, already there, or simply reviewing your current coverage, you are not alone in feeling overwhelmed by the choices. This article aims to cut through the confusion, offering clear, trustworthy guidance.",
+    "Discover how Medicare works to provide essential health coverage for adults 65 and older, a"
+  ],
+  "stdout": "id\ttitle\tcontent_preview\n210001\tMedicare 101: Your Essential Guide to Understanding Your Coverage Options\t<h2>Welcome to Medicare: Your Foundation for Health Coverage</h2>\nNavigating healthcare can feel overwhelming, especially when it involves understanding a program as vital as Medicare. Many individuals, particularly those approaching 65 or already there, find themselves seeking clear and reliable information. This guide is designed to simplify Medicare, helping you understand its core components and make informed choices.\n\nMedicare is a federal health insurance program. It primarily serves indiv\n180001\tHow to Reduce Your Medicare Premiums: A Clear Guide for Confident Choices\t<h2>Navigating Medicare Costs: Your Guide to Understanding Premiums</h2>\nUnderstanding Medicare can often feel like navigating a complex maze, especially when it comes to costs. Many people find themselves overwhelmed by the various components of their healthcare expenses. This guide is designed to simplify that process for you, providing clear and trustworthy information.\n\nYou will learn about the basic elements that make up your Medicare costs. These include premiums, deductibles, copayments, \n150002\tUnderstanding Medicare: Your Comprehensive Guide to Coverage Options and Enrollment\t<h2>Navigating Medicare: A Clear Path to Understanding Your Healthcare Choices</h2>\nWelcome to your guide for understanding Medicare, designed to simplify complex information. If you are approaching age 65, already there, or simply reviewing your current coverage, you are not alone in feeling overwhelmed by the choices. This article aims to cut through the confusion, offering clear, trustworthy guidance.\n\nDiscover how Medicare works to provide essential health coverage for adults 65 and older, a\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

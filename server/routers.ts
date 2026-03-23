@@ -51,6 +51,31 @@ function splitSentences(text: string): string[] {
   return sentences.filter(s => s.length > 0);
 }
 
+/**
+ * Wraps bare text lines (not inside HTML tags) in <p> tags.
+ * The LLM often outputs HTML headings but plain text paragraphs separated by newlines.
+ * TipTap needs <p> tags to render separate paragraphs.
+ */
+function wrapBareTextInPTags(content: string): string {
+  const lines = content.split(/\n/);
+  const result: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue; // skip empty lines
+    // If the line already starts with an HTML block-level tag, leave it as-is
+    if (/^<(h[1-6]|p|ul|ol|li|table|thead|tbody|tr|td|th|div|blockquote|hr|br|figure|figcaption|section|article|nav|header|footer|pre|code|img|a\s)/i.test(trimmed)) {
+      result.push(trimmed);
+    } else if (/^<\/(h[1-6]|p|ul|ol|li|table|thead|tbody|tr|td|th|div|blockquote|pre|code|section|article|nav|header|footer|figure|figcaption)>/i.test(trimmed)) {
+      // Closing tag on its own line
+      result.push(trimmed);
+    } else {
+      // Bare text — wrap in <p> tags
+      result.push(`<p>${trimmed}</p>`);
+    }
+  }
+  return result.join("\n");
+}
+
 function splitLongParagraphs(content: string, maxSentences: number, format: string): string {
   if (format === "plaintext") {
     // Plain text: paragraphs are separated by double newlines
@@ -1302,9 +1327,10 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         if (!rawContent) throw new Error("No response from AI");
         const rawArticleContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
 
-        // Post-process: split long paragraphs to enforce sentence limits
+        // Post-process: first wrap bare text in <p> tags, then split long paragraphs
         const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
-        const articleContent = splitLongParagraphs(rawArticleContent, maxSentences, effectiveFormat);
+        const wrappedContent = effectiveFormat === "html" ? wrapBareTextInPTags(rawArticleContent) : rawArticleContent;
+        const articleContent = splitLongParagraphs(wrappedContent, maxSentences, effectiveFormat);
 
         // Count words
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;

@@ -6,6 +6,7 @@ import {
   Sparkles, FileText, GripVertical, ChevronDown, ChevronRight,
   Plus, Trash2, Loader2, ArrowRight, Settings2, Wand2, ListTree,
   MapPin, Users, Link2, Globe, MessageSquare, Target, Check,
+  ChevronUp, X, PlusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,6 +320,104 @@ export default function GenerateArticle() {
       { id: newId, heading: "New Section", type: "h2" as const, points: [], subSections: [] },
     ]);
     setExpandedSections((prev) => { const next = new Set(prev); next.add(newId); return next; });
+  };
+
+  const addSectionBelow = (sectionId: string) => {
+    const newId = `s${Date.now()}`;
+    setSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === sectionId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next.splice(idx + 1, 0, { id: newId, heading: "New Section", type: "h2" as const, points: [], subSections: [] });
+      return next;
+    });
+    setExpandedSections((prev) => { const next = new Set(prev); next.add(newId); return next; });
+  };
+
+  const moveSectionUp = (sectionId: string) => {
+    setSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === sectionId);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  };
+
+  const moveSectionDown = (sectionId: string) => {
+    setSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === sectionId);
+      if (idx === -1 || idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  };
+
+  const updatePoint = (sectionId: string, pointIndex: number, newText: string) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sectionId) {
+          const newPoints = [...(s.points || [])];
+          newPoints[pointIndex] = newText;
+          return { ...s, points: newPoints };
+        }
+        if (s.subSections) {
+          return {
+            ...s,
+            subSections: s.subSections.map((sub) => {
+              if (sub.id === sectionId) {
+                const newPoints = [...(sub.points || [])];
+                newPoints[pointIndex] = newText;
+                return { ...sub, points: newPoints };
+              }
+              return sub;
+            }),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const addPoint = (sectionId: string) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sectionId) {
+          return { ...s, points: [...(s.points || []), ""] };
+        }
+        if (s.subSections) {
+          return {
+            ...s,
+            subSections: s.subSections.map((sub) =>
+              sub.id === sectionId ? { ...sub, points: [...(sub.points || []), ""] } : sub
+            ),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const removePoint = (sectionId: string, pointIndex: number) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sectionId) {
+          return { ...s, points: (s.points || []).filter((_, i) => i !== pointIndex) };
+        }
+        if (s.subSections) {
+          return {
+            ...s,
+            subSections: s.subSections.map((sub) =>
+              sub.id === sectionId
+                ? { ...sub, points: (sub.points || []).filter((_, i) => i !== pointIndex) }
+                : sub
+            ),
+          };
+        }
+        return s;
+      })
+    );
   };
 
   if (!activeProjectId) {
@@ -856,14 +955,14 @@ export default function GenerateArticle() {
           </div>
 
           {/* Sections */}
-          <div className="bg-white rounded-xl border border-border/60 divide-y divide-border/40">
+          <div className="space-y-3">
             {sections.map((section, index) => (
-              <div key={section.id} className="group">
-                <div className="flex items-center gap-2 p-4 hover:bg-muted/30 transition-colors">
-                  <GripVertical className="w-4 h-4 text-muted-foreground/40 cursor-grab flex-shrink-0" />
+              <div key={section.id} className="bg-white rounded-xl border border-border/60 overflow-hidden">
+                {/* Section Header */}
+                <div className="flex items-center gap-2 p-4 bg-muted/20">
                   <button
                     onClick={() => toggleSection(section.id)}
-                    className="flex-shrink-0"
+                    className="flex-shrink-0 p-0.5 hover:bg-muted rounded"
                   >
                     {expandedSections.has(section.id) ? (
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -871,7 +970,7 @@ export default function GenerateArticle() {
                       <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     )}
                   </button>
-                  <span className="text-xs font-mono text-muted-foreground bg-muted rounded px-1.5 py-0.5 flex-shrink-0">
+                  <span className="text-xs font-mono font-semibold text-indigo-600 bg-indigo-50 rounded px-2 py-0.5 flex-shrink-0">
                     H2
                   </span>
                   <input
@@ -879,37 +978,87 @@ export default function GenerateArticle() {
                     onChange={(e) => updateSectionHeading(section.id, e.target.value)}
                     className="flex-1 font-semibold text-lg bg-transparent border-none outline-none focus:ring-0"
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={() => removeSection(section.id)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  {/* Reorder + Add Below + Delete */}
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ opacity: 1 }}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      onClick={() => moveSectionUp(section.id)}
+                      disabled={index === 0}
+                      title="Move up"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      onClick={() => moveSectionDown(section.id)}
+                      disabled={index === sections.length - 1}
+                      title="Move down"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-1 px-2"
+                      onClick={() => addSectionBelow(section.id)}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Below
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => removeSection(section.id)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 {expandedSections.has(section.id) && (
-                  <div className="pl-14 pr-4 pb-4 space-y-2">
-                    {/* Points */}
-                    {section.points && section.points.length > 0 && (
-                      <div className="space-y-1">
-                        {section.points.map((point, pi) => (
-                          <div key={pi} className="flex items-start gap-2 text-base text-muted-foreground">
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 flex-shrink-0" />
-                            <span>{point}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div className="px-4 pb-4 pt-2 space-y-3">
+                    {/* Editable Points */}
+                    <div className="pl-8 space-y-1.5">
+                      {(section.points || []).map((point, pi) => (
+                        <div key={pi} className="flex items-center gap-2 group/point">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                          <input
+                            value={point}
+                            onChange={(e) => updatePoint(section.id, pi, e.target.value)}
+                            placeholder="Enter a key point..."
+                            className="flex-1 text-base text-muted-foreground bg-transparent border-none outline-none focus:ring-0 placeholder:text-muted-foreground/40"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover/point:opacity-100 transition-opacity h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => removePoint(section.id, pi)}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => addPoint(section.id)}
+                        className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium mt-1 pl-0.5"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        Add point
+                      </button>
+                    </div>
 
                     {/* Sub-sections */}
                     {section.subSections && section.subSections.length > 0 && (
-                      <div className="space-y-1 mt-3">
+                      <div className="pl-6 space-y-2 mt-3 border-l-2 border-indigo-100">
                         {section.subSections.map((sub) => (
                           <div key={sub.id} className="group/sub">
                             <div className="flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-muted/30 transition-colors">
-                              <span className="text-xs font-mono text-muted-foreground bg-muted rounded px-1.5 py-0.5 flex-shrink-0">
+                              <span className="text-xs font-mono font-semibold text-purple-600 bg-purple-50 rounded px-2 py-0.5 flex-shrink-0">
                                 H3
                               </span>
                               <input
@@ -920,22 +1069,41 @@ export default function GenerateArticle() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="opacity-0 group-hover/sub:opacity-100 transition-opacity h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                className="opacity-0 group-hover/sub:opacity-100 transition-opacity h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
                                 onClick={() => removeSection(sub.id)}
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <X className="w-3.5 h-3.5" />
                               </Button>
                             </div>
-                            {sub.points && sub.points.length > 0 && (
-                              <div className="pl-10 space-y-1 pb-1">
-                                {sub.points.map((point, pi) => (
-                                  <div key={pi} className="flex items-start gap-2 text-sm text-muted-foreground">
-                                    <span className="w-1 h-1 rounded-full bg-purple-400 mt-2 flex-shrink-0" />
-                                    <span>{point}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {/* Sub-section editable points */}
+                            <div className="pl-12 space-y-1.5 pb-2">
+                              {(sub.points || []).map((point, pi) => (
+                                <div key={pi} className="flex items-center gap-2 group/subpoint">
+                                  <span className="w-1 h-1 rounded-full bg-purple-400 flex-shrink-0" />
+                                  <input
+                                    value={point}
+                                    onChange={(e) => updatePoint(sub.id, pi, e.target.value)}
+                                    placeholder="Enter a key point..."
+                                    className="flex-1 text-sm text-muted-foreground bg-transparent border-none outline-none focus:ring-0 placeholder:text-muted-foreground/40"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="opacity-0 group-hover/subpoint:opacity-100 transition-opacity h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                    onClick={() => removePoint(sub.id, pi)}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                              <button
+                                onClick={() => addPoint(sub.id)}
+                                className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 font-medium mt-1 pl-0.5"
+                              >
+                                <PlusCircle className="w-3 h-3" />
+                                Add point
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

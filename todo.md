@@ -295,3 +295,12 @@
 
 ## Fix Over-Rewriting When Applying Citations
 - [x] Fix apply-improvements so adding a citation only modifies the specific sentence, not rewriting surrounding text
+
+
+## Core Outline Editing Features
+- [x] Add reorder sections (up/down arrows) to outline editor
+- [x] Add edit key points inline per section
+- [x] Add ability to add new key points per section
+- [x] Add ability to remove key points per section
+- [x] Add delete section button (already existed)
+- [x] Add "Add Below" button to insert new sections between existing ones

@@ -291,3 +291,7 @@
 ## Citation Quality Improvements
 - [x] Fix anchor text: use natural, contextual phrases (the actual claim/fact) instead of generic "Learn more at" text
 - [x] Fix link targets: link to specific deep pages relevant to the cited info, not homepages
+
+
+## Fix Over-Rewriting When Applying Citations
+- [x] Fix apply-improvements so adding a citation only modifies the specific sentence, not rewriting surrounding text

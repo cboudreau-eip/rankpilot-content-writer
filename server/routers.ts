@@ -2070,11 +2070,14 @@ For each improvement, identify:
 2. The replacement text with the improvement applied
 
 Rules:
-- Each snippet should be the MINIMUM text needed — a single paragraph or a few sentences, NOT the whole article
+- CRITICAL: Select the SMALLEST possible text snippet — ideally a SINGLE SENTENCE. Never select a whole paragraph when only one sentence needs changing.
+- For citation additions: the "original" should be ONLY the one sentence where the link will be inserted. The "replacement" should be that SAME sentence with the <a> tag added inline. Do NOT rewrite, rephrase, or restructure the sentence — only add the link tag around the relevant words.
+- For wording improvements: the "original" should be ONLY the specific sentence(s) that need rewording. The "replacement" must keep all unchanged words identical.
 - The "original" field must be an EXACT substring of the article content (character-for-character match)
-- If an improvement requires adding NEW content (e.g., a new paragraph or citation), set "original" to the nearest existing paragraph AFTER which the new content should be inserted, and set "replacement" to that same paragraph PLUS the new content appended
+- If an improvement requires adding NEW content (e.g., a new paragraph), set "original" to the single sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
 - If an improvement mentions adding sources/citations, use the available citation sources listed above
 - When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", or the source name). Link to a specific deep page URL, NOT the homepage.
+- NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
 - Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
 - Maintain the original tone, perspective, and formatting style
 
@@ -2175,10 +2178,13 @@ For each improvement, identify:
 2. The replacement text with the improvement applied
 
 Rules:
-- Each snippet should be the MINIMUM text needed — a single paragraph or a few sentences, NOT the whole content
+- CRITICAL: Select the SMALLEST possible text snippet — ideally a SINGLE SENTENCE. Never select a whole paragraph when only one sentence needs changing.
+- For citation additions: the "original" should be ONLY the one sentence where the link will be inserted. The "replacement" should be that SAME sentence with the <a> tag added inline. Do NOT rewrite, rephrase, or restructure the sentence — only add the link tag around the relevant words.
+- For wording improvements: the "original" should be ONLY the specific sentence(s) that need rewording. The "replacement" must keep all unchanged words identical.
 - The "original" field must be an EXACT substring of the content (character-for-character match)
-- If an improvement requires adding NEW content, set "original" to the nearest existing paragraph AFTER which the new content should be inserted, and set "replacement" to that same paragraph PLUS the new content appended
+- If an improvement requires adding NEW content, set "original" to the single sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
 - When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", "Find out more", or just the source name). Link to a specific deep page URL, NOT a homepage.
+- NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
 - Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
 - Maintain the original tone, perspective, and formatting style
 

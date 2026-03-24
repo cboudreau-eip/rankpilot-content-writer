@@ -1139,7 +1139,13 @@ ${contentPrefsSection}
 Before writing, verify the topic "${outline.keyword ?? outline.title}" aligns with the ICP "${icpName}".
 If the topic doesn't directly serve this audience, adjust the angle to match their needs.
 
-**RULE 1 - INTRO:** Mention the ICP's situation or a relatable scenario in the first 2 sentences of the article.
+**RULE 1 - INTRO:** The article introduction must resonate with the ICP audience, but VARY the opening approach each time. Do NOT start with "If you are [ICP description]" or any formulaic audience-addressing pattern. Instead, rotate among these opening strategies:
+  - Lead with a surprising statistic or fact
+  - Open with a specific scenario or mini-story
+  - Start with a bold claim or common misconception
+  - Begin with a question that reflects a real pain point
+  - Open with a recent change, news, or trend relevant to the topic
+  The ICP context should emerge naturally within the first few paragraphs, not be stated as a direct address in sentence one.
 
 **RULE 2 - HEADINGS:** At least 30% of H2/H3 headings must reflect ICP pain points or intent language.
 
@@ -1324,6 +1330,7 @@ Guidelines:
 - Target approximately ${settings?.targetWordCount ?? 2000} words
 ${formatInstructions}
 - Include a compelling introduction that hooks the reader
+- CRITICAL - INTRO VARIETY: Every article must open differently. NEVER start with "If you are...", "Whether you are...", "As a...", or any direct audience-addressing formula. Rotate opening strategies: surprising facts, bold claims, mini-stories, provocative questions, or recent trends. The reader's context should emerge naturally, not be stated upfront.
 - Each section should flow naturally into the next
 - Include relevant statistics and examples where appropriate
 - End with a strong conclusion and call to action

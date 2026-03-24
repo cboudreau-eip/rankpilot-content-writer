@@ -336,3 +336,7 @@
 ## Remove Em Dashes Button
 - [x] Add "Remove Em Dashes" button to Article Editor toolbar next to Copy HTML
 - [x] Button replaces all em dashes (—) with comma-space without rewriting content
+
+## Fix Repetitive Article Openings
+- [x] Investigate article generation prompt for ICP/brand voice causing same intro every time (root cause: ICP RULE 1 forced mentioning ICP situation in first 2 sentences)
+- [x] Add variety instructions to prevent repetitive openings across articles (added rotation strategies + explicit anti-pattern blocklist)

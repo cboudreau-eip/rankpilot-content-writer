@@ -564,7 +564,7 @@ export default function GenerateArticle() {
     setExpandedSections((prev) => { const next = new Set(prev); next.add(newId); return next; });
   };
 
-  const insertTemplate = (template: typeof SECTION_TEMPLATES[0]["items"][0]) => {
+  const insertTemplate = (template: typeof SECTION_TEMPLATES[0]["items"][0], afterSectionId?: string) => {
     const newId = `s${Date.now()}`;
     const subSections = template.section.subSections?.map((sub, i) => ({
       ...sub,
@@ -578,7 +578,17 @@ export default function GenerateArticle() {
       subSections,
       aiInstructions: template.section.aiInstructions,
     };
-    setSections((prev) => [...prev, newSection]);
+    setSections((prev) => {
+      if (afterSectionId) {
+        const idx = prev.findIndex((s) => s.id === afterSectionId);
+        if (idx !== -1) {
+          const next = [...prev];
+          next.splice(idx + 1, 0, newSection);
+          return next;
+        }
+      }
+      return [...prev, newSection];
+    });
     setExpandedSections((prev) => {
       const next = new Set(prev);
       next.add(newId);
@@ -1306,6 +1316,40 @@ export default function GenerateArticle() {
                       <Plus className="w-3.5 h-3.5" />
                       Add Below
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 gap-1 px-2"
+                        >
+                          <LayoutTemplate className="w-3.5 h-3.5" />
+                          Template
+                          <ChevronDown className="w-3 h-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-72 max-h-80 overflow-y-auto">
+                        {SECTION_TEMPLATES.map((cat, ci) => (
+                          <div key={ci}>
+                            {ci > 0 && <DropdownMenuSeparator />}
+                            <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider">{cat.category}</DropdownMenuLabel>
+                            {cat.items.map((template, ti) => (
+                              <DropdownMenuItem
+                                key={ti}
+                                onClick={() => insertTemplate(template, section.id)}
+                                className="flex items-start gap-3 py-2 cursor-pointer"
+                              >
+                                <template.icon className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" />
+                                <div>
+                                  <div className="font-medium text-sm">{template.label}</div>
+                                  <div className="text-xs text-muted-foreground">{template.description}</div>
+                                </div>
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       variant="ghost"
                       size="icon"

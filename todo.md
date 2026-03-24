@@ -354,3 +354,8 @@
 - [x] Each template inserts a fully structured section with heading, points, subSections, and AI instructions
 - [x] Templates: Key Takeaways, Who This Is For / Not For, FAQ, Pros & Cons, Quick Answer Box, Comparison Table, Common Mistakes, Step-by-Step Guide, What to Look For, Expert Insights
 - [x] Write vitest tests for template structure validation (8 tests)
+
+## Insert Template Below (Per-Section)
+- [x] Add "Insert Template Below" dropdown to each H2 section's action bar (purple "Template" button with dropdown)
+- [x] Updated insertTemplate function to accept optional afterSectionId for positional insertion
+- [x] Kept bottom-level "Insert Template" button as fallback for appending to end

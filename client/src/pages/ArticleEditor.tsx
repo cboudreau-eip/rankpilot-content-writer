@@ -21,6 +21,7 @@ import {
   Eye, ChevronDown, Loader2, BarChart3, Sparkles, ShieldCheck,
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
+  FileCheck, Info, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -225,6 +226,26 @@ export default function ArticleEditor() {
   // Track a version counter to signal GradePanel to clear selections
   const [appliedVersion, setAppliedVersion] = useState(0);
   const [copied, setCopied] = useState(false);
+
+  // Cross Check state
+  const [showCrossCheck, setShowCrossCheck] = useState(false);
+  const [crossCheckResult, setCrossCheckResult] = useState<any>(null);
+
+  const crossCheckMutation = trpc.crossCheck.checkArticle.useMutation({
+    onSuccess: (data) => {
+      setCrossCheckResult(data);
+      setShowCrossCheck(true);
+      const discCount = data.results?.discrepancies?.length || 0;
+      if (discCount === 0) {
+        toast.success("Cross Check complete — no discrepancies found!");
+      } else {
+        toast.warning(`Cross Check found ${discCount} discrepanc${discCount === 1 ? "y" : "ies"}`);
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to run cross check");
+    },
+  });
   // Skip the next article→editor sync so highlights aren't wiped by refetch
   const skipNextSyncRef = useRef(false);
 
@@ -433,6 +454,24 @@ export default function ArticleEditor() {
             Grade
           </Button>
 
+          {/* Cross Check Button */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (showCrossCheck) { setShowCrossCheck(false); return; }
+              crossCheckMutation.mutate({ articleId });
+            }}
+            disabled={crossCheckMutation.isPending}
+            className={showCrossCheck ? "bg-teal-50 text-teal-700 border-teal-200" : ""}
+          >
+            {crossCheckMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <FileCheck className="w-4 h-4 mr-1.5" />
+            )}
+            Cross Check
+          </Button>
+
           {/* SEO Toggle */}
           <Button
             variant="outline"
@@ -619,6 +658,14 @@ export default function ArticleEditor() {
             }}
             isApplying={applyImprovementsMutation.isPending}
             appliedVersion={appliedVersion}
+          />
+        )}
+
+        {/* Cross Check Sidebar */}
+        {showCrossCheck && crossCheckResult && (
+          <CrossCheckPanel
+            result={crossCheckResult}
+            onClose={() => setShowCrossCheck(false)}
           />
         )}
 
@@ -990,6 +1037,178 @@ function GradePanel({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+/* ── Cross Check Panel Component ── */
+
+const severityConfig = {
+  high: { label: "High", color: "text-red-700", bgColor: "bg-red-100", borderColor: "border-red-200", icon: AlertTriangle },
+  medium: { label: "Medium", color: "text-amber-700", bgColor: "bg-amber-100", borderColor: "border-amber-200", icon: Info },
+  low: { label: "Low", color: "text-blue-700", bgColor: "bg-blue-100", borderColor: "border-blue-200", icon: Info },
+} as const;
+
+function CrossCheckPanel({
+  result,
+  onClose,
+}: {
+  result: any;
+  onClose: () => void;
+}) {
+  const { results, referenceDocName } = result || {};
+  const discrepancies = results?.discrepancies || [];
+  const alignedFacts = results?.alignedFacts || [];
+  const summary = results?.summary || "";
+
+  const highCount = discrepancies.filter((d: any) => d.severity === "high").length;
+  const mediumCount = discrepancies.filter((d: any) => d.severity === "medium").length;
+  const lowCount = discrepancies.filter((d: any) => d.severity === "low").length;
+
+  return (
+    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b bg-gradient-to-r from-teal-500/5 via-emerald-500/5 to-cyan-500/5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <FileCheck className="w-4 h-4 text-teal-600" />
+            Cross Check Results
+          </h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Reference Doc Name */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+          <FileText className="w-3.5 h-3.5" />
+          <span>Checked against: <strong className="text-foreground">{referenceDocName || "Reference Document"}</strong></span>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="flex items-center gap-3">
+          {discrepancies.length === 0 ? (
+            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 rounded-lg px-3 py-1.5 text-xs font-semibold">
+              <CheckCircle2 className="w-4 h-4" />
+              All facts aligned
+            </div>
+          ) : (
+            <>
+              {highCount > 0 && (
+                <div className="flex items-center gap-1 bg-red-100 text-red-700 rounded-md px-2 py-1 text-[11px] font-semibold">
+                  <AlertTriangle className="w-3 h-3" />
+                  {highCount} High
+                </div>
+              )}
+              {mediumCount > 0 && (
+                <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-md px-2 py-1 text-[11px] font-semibold">
+                  <Info className="w-3 h-3" />
+                  {mediumCount} Medium
+                </div>
+              )}
+              {lowCount > 0 && (
+                <div className="flex items-center gap-1 bg-blue-100 text-blue-700 rounded-md px-2 py-1 text-[11px] font-semibold">
+                  <Info className="w-3 h-3" />
+                  {lowCount} Low
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+        {/* Summary */}
+        {summary && (
+          <div className="px-4 py-3 border-b bg-muted/20">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{summary}</p>
+          </div>
+        )}
+
+        {/* Discrepancies */}
+        {discrepancies.length > 0 && (
+          <div className="px-4 py-3 border-b">
+            <p className="text-[10px] font-bold text-red-600 mb-2.5 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Discrepancies ({discrepancies.length})
+            </p>
+            <div className="space-y-3">
+              {discrepancies.map((disc: any, i: number) => {
+                const sev = severityConfig[disc.severity as keyof typeof severityConfig] || severityConfig.low;
+                const SevIcon = sev.icon;
+                return (
+                  <div key={i} className={`rounded-lg border ${sev.borderColor} overflow-hidden`}>
+                    {/* Severity Badge */}
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 ${sev.bgColor}`}>
+                      <SevIcon className={`w-3 h-3 ${sev.color}`} />
+                      <span className={`text-[10px] font-bold ${sev.color}`}>{sev.label} Severity</span>
+                    </div>
+
+                    <div className="px-3 py-2.5 space-y-2">
+                      {/* Article Text (what's wrong) */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-red-600 mb-0.5">In article:</p>
+                        <p className="text-[11px] text-foreground bg-red-50 rounded px-2 py-1.5 leading-relaxed border border-red-100">
+                          "{disc.articleText}"
+                        </p>
+                      </div>
+
+                      {/* Reference Text (what's correct) */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-emerald-600 mb-0.5">Reference says:</p>
+                        <p className="text-[11px] text-foreground bg-emerald-50 rounded px-2 py-1.5 leading-relaxed border border-emerald-100">
+                          "{disc.referenceText}"
+                        </p>
+                      </div>
+
+                      {/* Suggested Correction */}
+                      {disc.correction && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-indigo-600 mb-0.5">Suggested correction:</p>
+                          <p className="text-[11px] text-foreground bg-indigo-50 rounded px-2 py-1.5 leading-relaxed border border-indigo-100">
+                            {disc.correction}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Aligned Facts */}
+        {alignedFacts.length > 0 && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-bold text-emerald-700 mb-2 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Aligned Facts ({alignedFacts.length})
+            </p>
+            <div className="space-y-1.5">
+              {alignedFacts.map((fact: string, i: number) => (
+                <div key={i} className="flex items-start gap-2 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground">{fact}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No Reference Doc Warning */}
+        {!results && (
+          <div className="px-4 py-6 text-center">
+            <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+            <p className="text-sm font-medium text-muted-foreground">No reference document found</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Add a reference document in Project Settings &gt; Cross Check tab
+            </p>
           </div>
         )}
       </div>

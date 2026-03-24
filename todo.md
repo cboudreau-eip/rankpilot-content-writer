@@ -142,7 +142,7 @@
 - [x] Build Sitemaps tab UI in Project Settings
 - [x] Build Citations tab UI in Project Settings
 - [x] Build Cross Check tab UI in Project Settings (reference doc upload/paste)
-- [ ] Add Cross Check button/action to Article Editor
+- [x] Add Cross Check button/action to Article Editor
 - [x] Write vitest tests for new routes
 - [x] Save checkpoint
 - [x] Widen Generate Article form by ~200px
@@ -362,3 +362,11 @@
 
 ## UI Cleanup
 - [x] Remove search field from the top header bar
+
+## Cross Check Integration in Article Editor
+- [x] Add "Cross Check" button to Article Editor action area
+- [x] Call crossCheck.checkArticle mutation when button is clicked
+- [x] Display loading state while cross-check is running
+- [x] Show results panel with summary, discrepancies (with severity badges), and aligned facts
+- [x] Handle edge case: no reference document uploaded (show helpful message linking to settings)
+- [x] Write tests for cross-check integration

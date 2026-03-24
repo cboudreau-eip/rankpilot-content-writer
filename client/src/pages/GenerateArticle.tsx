@@ -6,7 +6,8 @@ import {
   Sparkles, FileText, GripVertical, ChevronDown, ChevronRight,
   Plus, Trash2, Loader2, ArrowRight, Settings2, Wand2, ListTree,
   MapPin, Users, Link2, Globe, MessageSquare, Target, Check,
-  ChevronUp, X, PlusCircle, BotMessageSquare,
+  ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
+  List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 const CONTENT_TYPES = [
@@ -42,6 +47,26 @@ const LINK_COUNT_OPTIONS = [
   { value: "7", label: "7 links" },
   { value: "10", label: "10 links" },
   { value: "15", label: "15 links" },
+];
+
+const AI_INSTRUCTION_PRESETS = [
+  { category: "Structure", items: [
+    { icon: List, label: "Use bullet points", value: "Use bullet points for key information" },
+    { icon: ListOrdered, label: "Use numbered list", value: "Use a numbered step-by-step list" },
+    { icon: Table2, label: "Add comparison table", value: "Include a comparison table" },
+    { icon: LayoutGrid, label: "Use bento/card layout", value: "Present information in a card-based or bento grid layout" },
+  ]},
+  { category: "Content", items: [
+    { icon: BarChart3, label: "Add chart/statistics", value: "Include a chart or statistics with data" },
+    { icon: Quote, label: "Include expert quotes", value: "Include expert quotes or authoritative citations" },
+    { icon: Lightbulb, label: "Add real-world examples", value: "Include real-world examples and case studies" },
+    { icon: HelpCircle, label: "Add FAQ format", value: "Format this section as FAQ with questions and answers" },
+  ]},
+  { category: "Style", items: [
+    { icon: Zap, label: "Keep it concise", value: "Keep this section brief and to the point" },
+    { icon: FileText, label: "Go in-depth", value: "Provide detailed, in-depth coverage of this topic" },
+    { icon: Target, label: "Focus on actionable tips", value: "Focus on actionable, practical tips the reader can apply immediately" },
+  ]},
 ];
 
 interface OutlineSection {
@@ -447,6 +472,32 @@ export default function GenerateArticle() {
             subSections: s.subSections.map((sub) =>
               sub.id === sectionId ? { ...sub, aiInstructions: instructions } : sub
             ),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const appendAiPreset = (sectionId: string, presetValue: string) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sectionId) {
+          const existing = (s.aiInstructions || "").trim();
+          const newVal = existing ? `${existing}. ${presetValue}` : presetValue;
+          return { ...s, aiInstructions: newVal };
+        }
+        if (s.subSections) {
+          return {
+            ...s,
+            subSections: s.subSections.map((sub) => {
+              if (sub.id === sectionId) {
+                const existing = (sub.aiInstructions || "").trim();
+                const newVal = existing ? `${existing}. ${presetValue}` : presetValue;
+                return { ...sub, aiInstructions: newVal };
+              }
+              return sub;
+            }),
           };
         }
         return s;
@@ -1092,6 +1143,33 @@ export default function GenerateArticle() {
                         <BotMessageSquare className="w-3.5 h-3.5 text-amber-500" />
                         <span className="text-xs font-semibold text-amber-700">AI Instructions</span>
                         <span className="text-xs text-muted-foreground">(optional)</span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="ml-auto flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 bg-amber-100/70 hover:bg-amber-200/70 rounded-md px-2 py-0.5 transition-colors">
+                              <Plus className="w-3 h-3" />
+                              Insert Preset
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-64">
+                            {AI_INSTRUCTION_PRESETS.map((group) => (
+                              <div key={group.category}>
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">{group.category}</DropdownMenuLabel>
+                                {group.items.map((preset) => (
+                                  <DropdownMenuItem
+                                    key={preset.label}
+                                    onClick={() => appendAiPreset(section.id, preset.value)}
+                                    className="gap-2 cursor-pointer"
+                                  >
+                                    <preset.icon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                                    <span className="text-sm">{preset.label}</span>
+                                  </DropdownMenuItem>
+                                ))}
+                                <DropdownMenuSeparator />
+                              </div>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                       <textarea
                         value={section.aiInstructions || ""}
@@ -1159,6 +1237,33 @@ export default function GenerateArticle() {
                                   <BotMessageSquare className="w-3 h-3 text-amber-500" />
                                   <span className="text-xs font-semibold text-amber-700">AI Instructions</span>
                                   <span className="text-xs text-muted-foreground">(optional)</span>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="ml-auto flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 bg-amber-100/70 hover:bg-amber-200/70 rounded-md px-1.5 py-0.5 transition-colors">
+                                        <Plus className="w-2.5 h-2.5" />
+                                        Preset
+                                        <ChevronDown className="w-2.5 h-2.5" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-64">
+                                      {AI_INSTRUCTION_PRESETS.map((group) => (
+                                        <div key={group.category}>
+                                          <DropdownMenuLabel className="text-xs text-muted-foreground">{group.category}</DropdownMenuLabel>
+                                          {group.items.map((preset) => (
+                                            <DropdownMenuItem
+                                              key={preset.label}
+                                              onClick={() => appendAiPreset(sub.id, preset.value)}
+                                              className="gap-2 cursor-pointer"
+                                            >
+                                              <preset.icon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                                              <span className="text-sm">{preset.label}</span>
+                                            </DropdownMenuItem>
+                                          ))}
+                                          <DropdownMenuSeparator />
+                                        </div>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                                 <textarea
                                   value={sub.aiInstructions || ""}

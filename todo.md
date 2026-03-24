@@ -313,3 +313,9 @@
 
 ## Bug Fixes
 - [x] Fix: Per-section AI instructions not being applied during article generation (root cause: edited sections were not saved to DB before generating)
+
+## AI Instructions Preset Dropdown
+- [x] Define preset AI instruction options (comparison table, bullet points, numbered list, FAQ, chart, etc.)
+- [x] Add dropdown button next to AI Instructions label for H2 sections
+- [x] Add dropdown button next to AI Instructions label for H3 subsections
+- [x] Clicking a preset appends it to the existing AI instructions text

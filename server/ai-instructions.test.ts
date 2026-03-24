@@ -234,4 +234,39 @@ describe("Per-section AI Instructions", () => {
       expect(result).not.toContain("  Include a chart here  ");
     });
   });
+
+  describe("appendAiPreset logic", () => {
+    // Replicated append logic from the frontend
+    function appendPreset(existing: string | undefined, presetValue: string): string {
+      const trimmed = (existing || "").trim();
+      return trimmed ? `${trimmed}. ${presetValue}` : presetValue;
+    }
+
+    it("sets preset as the value when AI instructions are empty", () => {
+      const result = appendPreset("", "Include a comparison table");
+      expect(result).toBe("Include a comparison table");
+    });
+
+    it("sets preset as the value when AI instructions are undefined", () => {
+      const result = appendPreset(undefined, "Use bullet points for key information");
+      expect(result).toBe("Use bullet points for key information");
+    });
+
+    it("appends preset to existing instructions with period separator", () => {
+      const result = appendPreset("Focus on statistics", "Include a comparison table");
+      expect(result).toBe("Focus on statistics. Include a comparison table");
+    });
+
+    it("trims existing instructions before appending", () => {
+      const result = appendPreset("  Focus on statistics  ", "Include a comparison table");
+      expect(result).toBe("Focus on statistics. Include a comparison table");
+    });
+
+    it("can chain multiple presets", () => {
+      let instructions = appendPreset("", "Use bullet points for key information");
+      instructions = appendPreset(instructions, "Include a comparison table");
+      instructions = appendPreset(instructions, "Focus on actionable, practical tips the reader can apply immediately");
+      expect(instructions).toBe("Use bullet points for key information. Include a comparison table. Focus on actionable, practical tips the reader can apply immediately");
+    });
+  });
 });

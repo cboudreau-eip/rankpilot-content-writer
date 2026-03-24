@@ -370,3 +370,12 @@
 - [x] Show results panel with summary, discrepancies (with severity badges), and aligned facts
 - [x] Handle edge case: no reference document uploaded (show helpful message linking to settings)
 - [x] Write tests for cross-check integration
+
+## Apply Cross Check Corrections
+- [x] Add selectable checkboxes to each discrepancy card in CrossCheckPanel
+- [x] Add "Apply Selected (N)" button that appears when corrections are selected
+- [x] Implement surgical find-and-replace in the TipTap editor to swap article text with corrections
+- [x] Highlight applied corrections in the editor so user can see what changed
+- [x] Show toast feedback after applying corrections
+- [x] Clear selections after successful apply
+- [x] Write/update tests for cross-check correction application

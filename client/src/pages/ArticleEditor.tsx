@@ -666,6 +666,78 @@ export default function ArticleEditor() {
           <CrossCheckPanel
             result={crossCheckResult}
             onClose={() => setShowCrossCheck(false)}
+            onApply={(corrections) => {
+              if (!editor) return;
+              const oldHtml = editor.getHTML();
+              let html = oldHtml;
+              let appliedCount = 0;
+              // Apply each correction by finding the articleText in the HTML text content
+              // and replacing it with the correction text
+              for (const corr of corrections) {
+                const { articleText, correction } = corr;
+                if (!articleText || !correction) continue;
+                // Try direct text replacement in HTML text nodes
+                // Split HTML into tag and text segments
+                const segments: { type: 'tag' | 'text'; content: string }[] = [];
+                const tagRegex = /<[^>]+>/g;
+                let lastIdx = 0;
+                let match;
+                while ((match = tagRegex.exec(html)) !== null) {
+                  if (match.index > lastIdx) {
+                    segments.push({ type: 'text', content: html.slice(lastIdx, match.index) });
+                  }
+                  segments.push({ type: 'tag', content: match[0] });
+                  lastIdx = match.index + match[0].length;
+                }
+                if (lastIdx < html.length) {
+                  segments.push({ type: 'text', content: html.slice(lastIdx) });
+                }
+                // Concatenate text to find the article text
+                const fullText = segments.filter(s => s.type === 'text').map(s => s.content).join('');
+                const phraseStart = fullText.indexOf(articleText);
+                if (phraseStart < 0) continue;
+                const phraseEnd = phraseStart + articleText.length;
+                // Rebuild HTML replacing the matched text portion with correction
+                const newSegments: string[] = [];
+                let textOffset = 0;
+                for (const seg of segments) {
+                  if (seg.type === 'tag') {
+                    newSegments.push(seg.content);
+                  } else {
+                    const segStart = textOffset;
+                    const segEnd = textOffset + seg.content.length;
+                    if (segEnd <= phraseStart || segStart >= phraseEnd) {
+                      newSegments.push(seg.content);
+                    } else {
+                      const overlapStart = Math.max(0, phraseStart - segStart);
+                      const overlapEnd = Math.min(seg.content.length, phraseEnd - segStart);
+                      let built = '';
+                      if (overlapStart > 0) built += seg.content.slice(0, overlapStart);
+                      // Only insert the full correction text on the first segment that overlaps
+                      if (segStart <= phraseStart) {
+                        built += correction;
+                      }
+                      // For subsequent overlapping segments, skip the old text portion
+                      if (overlapEnd < seg.content.length) built += seg.content.slice(overlapEnd);
+                      newSegments.push(built);
+                    }
+                    textOffset += seg.content.length;
+                  }
+                }
+                html = newSegments.join('');
+                appliedCount++;
+              }
+              if (appliedCount === 0) {
+                toast.info("Could not find the text to replace — it may have been edited since the cross-check");
+                return;
+              }
+              // Highlight the corrections using buildHighlightedHtml
+              const highlightedHtml = buildHighlightedHtml(oldHtml, html);
+              editor.commands.setContent(highlightedHtml);
+              setHasHighlights(true);
+              skipNextSyncRef.current = true;
+              toast.success(`Applied ${appliedCount} correction${appliedCount > 1 ? 's' : ''}`);
+            }}
           />
         )}
 
@@ -1056,14 +1128,36 @@ const severityConfig = {
 function CrossCheckPanel({
   result,
   onClose,
+  onApply,
 }: {
   result: any;
   onClose: () => void;
+  onApply: (corrections: { articleText: string; correction: string }[]) => void;
 }) {
   const { results, referenceDocName } = result || {};
   const discrepancies = results?.discrepancies || [];
   const alignedFacts = results?.alignedFacts || [];
   const summary = results?.summary || "";
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const toggleSelection = (index: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const handleApply = () => {
+    const corrections = Array.from(selected).map((i) => ({
+      articleText: discrepancies[i]?.articleText,
+      correction: discrepancies[i]?.correction,
+    })).filter((c) => c.articleText && c.correction);
+    if (corrections.length === 0) return;
+    onApply(corrections);
+    setSelected(new Set());
+  };
 
   const highCount = discrepancies.filter((d: any) => d.severity === "high").length;
   const mediumCount = discrepancies.filter((d: any) => d.severity === "medium").length;
@@ -1119,6 +1213,17 @@ function CrossCheckPanel({
             </>
           )}
         </div>
+
+        {/* Apply Selected Button */}
+        {selected.size > 0 && (
+          <button
+            onClick={handleApply}
+            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition-colors"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            Apply Selected ({selected.size})
+          </button>
+        )}
       </div>
 
       {/* Scrollable content */}
@@ -1142,9 +1247,26 @@ function CrossCheckPanel({
                 const sev = severityConfig[disc.severity as keyof typeof severityConfig] || severityConfig.low;
                 const SevIcon = sev.icon;
                 return (
-                  <div key={i} className={`rounded-lg border ${sev.borderColor} overflow-hidden`}>
-                    {/* Severity Badge */}
+                  <div
+                    key={i}
+                    className={`rounded-lg border ${sev.borderColor} overflow-hidden cursor-pointer transition-all ${
+                      selected.has(i) ? 'ring-2 ring-teal-400 ring-offset-1' : ''
+                    }`}
+                    onClick={() => disc.correction && toggleSelection(i)}
+                  >
+                    {/* Severity Badge + Selection */}
                     <div className={`flex items-center gap-1.5 px-3 py-1.5 ${sev.bgColor}`}>
+                      {disc.correction && (
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          selected.has(i)
+                            ? 'bg-teal-600 border-teal-600'
+                            : 'border-gray-300 bg-white'
+                        }`}>
+                          {selected.has(i) && (
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                          )}
+                        </div>
+                      )}
                       <SevIcon className={`w-3 h-3 ${sev.color}`} />
                       <span className={`text-[10px] font-bold ${sev.color}`}>{sev.label} Severity</span>
                     </div>

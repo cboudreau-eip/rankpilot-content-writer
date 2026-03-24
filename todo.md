@@ -359,3 +359,6 @@
 - [x] Add "Insert Template Below" dropdown to each H2 section's action bar (purple "Template" button with dropdown)
 - [x] Updated insertTemplate function to accept optional afterSectionId for positional insertion
 - [x] Kept bottom-level "Insert Template" button as fallback for appending to end
+
+## UI Cleanup
+- [x] Remove search field from the top header bar

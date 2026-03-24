@@ -16,7 +16,7 @@ import {
   FileText, Search, Clock, CheckCircle2, Send, FileEdit,
   Eye, ChevronDown, Loader2, BarChart3, Sparkles, ShieldCheck,
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
-  ChevronUp, Wand2, X, Copy, ClipboardCheck,
+  ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -537,6 +537,27 @@ export default function ArticleEditor() {
               >
                 {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? "Copied!" : "Copy HTML"}
+              </button>
+
+              {/* Remove Em Dashes Button */}
+              <button
+                onClick={() => {
+                  if (!editor) return;
+                  const html = editor.getHTML();
+                  // Replace em dashes with comma-space (most natural substitute)
+                  const cleaned = html.replace(/\s*—\s*/g, ", ");
+                  if (cleaned === html) {
+                    toast.info("No em dashes found");
+                    return;
+                  }
+                  editor.commands.setContent(cleaned);
+                  toast.success("Em dashes removed");
+                }}
+                title="Remove Em Dashes"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <MinusCircle className="w-3.5 h-3.5" />
+                Remove —
               </button>
 
               {hasHighlights && (

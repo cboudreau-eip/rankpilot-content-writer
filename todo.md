@@ -332,3 +332,7 @@
 - [x] Wire Claude provider into article generation procedure
 - [x] Wire Claude provider into grading and improvement procedures
 - [x] Write tests for Claude integration (9 tests, all passing)
+
+## Remove Em Dashes Button
+- [x] Add "Remove Em Dashes" button to Article Editor toolbar next to Copy HTML
+- [x] Button replaces all em dashes (—) with comma-space without rewriting content

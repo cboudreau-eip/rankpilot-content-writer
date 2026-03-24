@@ -347,3 +347,10 @@
 - [x] Made preset instruction explicit about HTML table tags (<table>, <thead>, <tbody>, <tr>, <th>, <td>)
 - [x] Added TABLE FORMAT RULES to system prompt with example HTML table format
 - [x] Added table tags to the HTML format instructions list
+
+## Insert Template Sections
+- [x] Define 10 pre-built section templates across 3 categories (Engagement, Content Blocks, Authority)
+- [x] Add "Insert Template" dropdown button to the outline editor (next to Add Section button)
+- [x] Each template inserts a fully structured section with heading, points, subSections, and AI instructions
+- [x] Templates: Key Takeaways, Who This Is For / Not For, FAQ, Pros & Cons, Quick Answer Box, Comparison Table, Common Mistakes, Step-by-Step Guide, What to Look For, Expert Insights
+- [x] Write vitest tests for template structure validation (8 tests)

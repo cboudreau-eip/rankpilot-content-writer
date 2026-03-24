@@ -269,4 +269,117 @@ describe("Per-section AI Instructions", () => {
       expect(instructions).toBe("Use bullet points for key information. Include a comparison table. Focus on actionable, practical tips the reader can apply immediately");
     });
   });
+
+  describe("Section Templates", () => {
+    // Template structure validation
+    interface TemplateItem {
+      icon: unknown;
+      label: string;
+      description: string;
+      section: {
+        heading: string;
+        type: "h2" | "h3";
+        points: string[];
+        subSections?: { heading: string; type: "h3"; points: string[]; aiInstructions?: string }[];
+        aiInstructions?: string;
+      };
+    }
+
+    const SECTION_TEMPLATES: { category: string; items: TemplateItem[] }[] = [
+      { category: "Engagement", items: [
+        { icon: null, label: "Key Takeaways", description: "Summary box of main points", section: { heading: "Key Takeaways", type: "h2", points: ["Main takeaway point 1", "Main takeaway point 2", "Main takeaway point 3"], aiInstructions: "Format as a highlighted summary box with bullet points." } },
+        { icon: null, label: "Who This Is For / Not For", description: "Clarify the target audience", section: { heading: "Who This Guide Is For", type: "h2", points: ["Ideal reader profile", "What problems they have", "Who this is NOT for"], subSections: [{ heading: "This Guide Is Perfect For You If...", type: "h3", points: ["Describe ideal reader"], aiInstructions: "Use bullet points." }, { heading: "This Might Not Be For You If...", type: "h3", points: ["Describe who should look elsewhere"], aiInstructions: "Use bullet points." }], aiInstructions: "Be direct and specific." } },
+        { icon: null, label: "FAQ Section", description: "Common questions and answers", section: { heading: "Frequently Asked Questions", type: "h2", points: ["Answer common questions"], aiInstructions: "Format as Q&A pairs." } },
+      ]},
+      { category: "Content Blocks", items: [
+        { icon: null, label: "Pros & Cons", description: "Balanced advantages and disadvantages", section: { heading: "Pros and Cons", type: "h2", points: ["List advantages", "List disadvantages"], subSections: [{ heading: "Pros", type: "h3", points: ["Key advantages"], aiInstructions: "Use bullet points." }, { heading: "Cons", type: "h3", points: ["Key disadvantages"], aiInstructions: "Use bullet points." }], aiInstructions: "Present balanced assessment." } },
+        { icon: null, label: "Quick Answer Box", description: "Direct answer for featured snippets", section: { heading: "Quick Answer", type: "h2", points: ["Provide direct answer"], aiInstructions: "Write under 50 words." } },
+      ]},
+    ];
+
+    it("every template has a non-empty label and description", () => {
+      for (const category of SECTION_TEMPLATES) {
+        for (const item of category.items) {
+          expect(item.label.length).toBeGreaterThan(0);
+          expect(item.description.length).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it("every template section has a heading and type h2", () => {
+      for (const category of SECTION_TEMPLATES) {
+        for (const item of category.items) {
+          expect(item.section.heading.length).toBeGreaterThan(0);
+          expect(item.section.type).toBe("h2");
+        }
+      }
+    });
+
+    it("every template section has at least one point", () => {
+      for (const category of SECTION_TEMPLATES) {
+        for (const item of category.items) {
+          expect(item.section.points.length).toBeGreaterThanOrEqual(1);
+        }
+      }
+    });
+
+    it("every template section has aiInstructions", () => {
+      for (const category of SECTION_TEMPLATES) {
+        for (const item of category.items) {
+          expect(item.section.aiInstructions).toBeDefined();
+          expect(item.section.aiInstructions!.length).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it("templates with subSections have valid sub-section structure", () => {
+      for (const category of SECTION_TEMPLATES) {
+        for (const item of category.items) {
+          if (item.section.subSections) {
+            for (const sub of item.section.subSections) {
+              expect(sub.heading.length).toBeGreaterThan(0);
+              expect(sub.type).toBe("h3");
+              expect(sub.points.length).toBeGreaterThanOrEqual(1);
+            }
+          }
+        }
+      }
+    });
+
+    it("template sections produce valid outline text with buildOutlineText", () => {
+      for (const category of SECTION_TEMPLATES) {
+        for (const item of category.items) {
+          const section: OutlineSection = {
+            id: "template-test",
+            ...item.section,
+            subSections: item.section.subSections?.map((sub, i) => ({
+              id: `template-test-sub${i}`,
+              ...sub,
+            })),
+          };
+          const result = buildOutlineText([section]);
+          expect(result).toContain(`## ${item.section.heading}`);
+          if (item.section.aiInstructions) {
+            expect(result).toContain("[AI INSTRUCTIONS");
+          }
+        }
+      }
+    });
+
+    it("Who This Is For template has both positive and negative sub-sections", () => {
+      const whoTemplate = SECTION_TEMPLATES[0].items[1];
+      expect(whoTemplate.label).toBe("Who This Is For / Not For");
+      expect(whoTemplate.section.subSections).toHaveLength(2);
+      expect(whoTemplate.section.subSections![0].heading).toContain("Perfect For You");
+      expect(whoTemplate.section.subSections![1].heading).toContain("Not Be For You");
+    });
+
+    it("Pros & Cons template has both pros and cons sub-sections", () => {
+      const prosConsTemplate = SECTION_TEMPLATES[1].items[0];
+      expect(prosConsTemplate.label).toBe("Pros & Cons");
+      expect(prosConsTemplate.section.subSections).toHaveLength(2);
+      expect(prosConsTemplate.section.subSections![0].heading).toBe("Pros");
+      expect(prosConsTemplate.section.subSections![1].heading).toBe("Cons");
+    });
+  });
 });

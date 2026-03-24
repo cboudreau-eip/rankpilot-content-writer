@@ -8,6 +8,7 @@ import {
   MapPin, Users, Link2, Globe, MessageSquare, Target, Check,
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
+  BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,193 @@ const AI_INSTRUCTION_PRESETS = [
     { icon: Zap, label: "Keep it concise", value: "Keep this section brief and to the point" },
     { icon: FileText, label: "Go in-depth", value: "Provide detailed, in-depth coverage of this topic" },
     { icon: Target, label: "Focus on actionable tips", value: "Focus on actionable, practical tips the reader can apply immediately" },
+  ]},
+];
+
+const SECTION_TEMPLATES = [
+  { category: "Engagement", items: [
+    {
+      icon: Star,
+      label: "Key Takeaways",
+      description: "Summary box of main points",
+      section: {
+        heading: "Key Takeaways",
+        type: "h2" as const,
+        points: [
+          "Main takeaway point 1",
+          "Main takeaway point 2",
+          "Main takeaway point 3",
+        ],
+        aiInstructions: "Format as a highlighted summary box with bullet points. Keep each takeaway to one concise sentence. This should give readers the most important points at a glance.",
+      },
+    },
+    {
+      icon: Users,
+      label: "Who This Is For / Not For",
+      description: "Clarify the target audience",
+      section: {
+        heading: "Who This Guide Is For",
+        type: "h2" as const,
+        points: [
+          "Ideal reader profile and their situation",
+          "What problems or questions they have",
+          "Who this guide is NOT for and what to read instead",
+        ],
+        subSections: [
+          {
+            heading: "This Guide Is Perfect For You If...",
+            type: "h3" as const,
+            points: ["Describe the ideal reader scenarios"],
+            aiInstructions: "Use bullet points. Be specific about situations, not vague demographics.",
+          },
+          {
+            heading: "This Might Not Be For You If...",
+            type: "h3" as const,
+            points: ["Describe who should look elsewhere and suggest alternatives"],
+            aiInstructions: "Use bullet points. Be honest and helpful — suggest what they should read instead.",
+          },
+        ],
+        aiInstructions: "Be direct and specific. Help readers quickly determine if this content is relevant to them.",
+      },
+    },
+    {
+      icon: HelpCircle,
+      label: "FAQ Section",
+      description: "Common questions and answers",
+      section: {
+        heading: "Frequently Asked Questions",
+        type: "h2" as const,
+        points: [
+          "Answer the most common questions about this topic",
+          "Include questions people actually search for",
+          "Keep answers concise but thorough",
+        ],
+        aiInstructions: "Format as Q&A pairs using <h3> for each question and a paragraph for each answer. Include 5-7 questions. Use questions that people actually search for (long-tail keywords). Keep answers to 2-3 sentences each.",
+      },
+    },
+  ]},
+  { category: "Content Blocks", items: [
+    {
+      icon: ThumbsUp,
+      label: "Pros & Cons",
+      description: "Balanced advantages and disadvantages",
+      section: {
+        heading: "Pros and Cons",
+        type: "h2" as const,
+        points: [
+          "List key advantages",
+          "List key disadvantages",
+          "Provide balanced assessment",
+        ],
+        subSections: [
+          {
+            heading: "Pros",
+            type: "h3" as const,
+            points: ["Key advantages and benefits"],
+            aiInstructions: "Use bullet points with bold lead-ins. Be specific with real benefits, not generic claims.",
+          },
+          {
+            heading: "Cons",
+            type: "h3" as const,
+            points: ["Key disadvantages and limitations"],
+            aiInstructions: "Use bullet points with bold lead-ins. Be honest about real drawbacks.",
+          },
+        ],
+        aiInstructions: "Present a balanced, honest assessment. Don't sugarcoat cons or exaggerate pros.",
+      },
+    },
+    {
+      icon: ClipboardList,
+      label: "Quick Answer Box",
+      description: "Direct answer for featured snippets",
+      section: {
+        heading: "Quick Answer",
+        type: "h2" as const,
+        points: [
+          "Provide a direct, concise answer to the main question",
+          "Include the most essential details",
+          "Keep it under 50 words for snippet optimization",
+        ],
+        aiInstructions: "Write a single, direct paragraph that answers the main question in under 50 words. Optimize for Google featured snippets. No fluff — get straight to the answer.",
+      },
+    },
+    {
+      icon: Table2,
+      label: "Comparison Table",
+      description: "Side-by-side feature comparison",
+      section: {
+        heading: "Comparison at a Glance",
+        type: "h2" as const,
+        points: [
+          "Compare key features side by side",
+          "Include pricing, coverage, and key differences",
+          "Highlight the best option for different needs",
+        ],
+        aiInstructions: "Include an HTML comparison table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags. The table must have a header row and at least 4 data rows comparing key attributes. Follow the table with a brief paragraph explaining which option is best for which situation.",
+      },
+    },
+    {
+      icon: AlertCircle,
+      label: "Common Mistakes to Avoid",
+      description: "Pitfalls and how to avoid them",
+      section: {
+        heading: "Common Mistakes to Avoid",
+        type: "h2" as const,
+        points: [
+          "List the most common mistakes people make",
+          "Explain why each mistake is problematic",
+          "Provide the correct approach for each",
+        ],
+        aiInstructions: "Use a numbered list. For each mistake, use a bold title followed by why it's a problem and what to do instead. Include 4-6 mistakes.",
+      },
+    },
+  ]},
+  { category: "Authority", items: [
+    {
+      icon: BookOpen,
+      label: "Step-by-Step Guide",
+      description: "Numbered walkthrough process",
+      section: {
+        heading: "Step-by-Step Guide",
+        type: "h2" as const,
+        points: [
+          "Break the process into clear, actionable steps",
+          "Include tips or warnings at key steps",
+          "Make each step specific and completable",
+        ],
+        aiInstructions: "Use a numbered list with <h3> for each step. Each step should have a clear action verb as the title and 2-3 sentences of explanation. Include pro tips where relevant.",
+      },
+    },
+    {
+      icon: Bookmark,
+      label: "What to Look For / Checklist",
+      description: "Evaluation criteria or checklist",
+      section: {
+        heading: "What to Look For",
+        type: "h2" as const,
+        points: [
+          "Key criteria to evaluate",
+          "Red flags to watch out for",
+          "Must-have vs nice-to-have features",
+        ],
+        aiInstructions: "Use bullet points with bold lead-ins for each criterion. Group into 'Must-Haves' and 'Nice-to-Haves' if appropriate. Be specific and actionable.",
+      },
+    },
+    {
+      icon: Quote,
+      label: "Expert Insights",
+      description: "Expert opinions and data",
+      section: {
+        heading: "What Experts Say",
+        type: "h2" as const,
+        points: [
+          "Include expert opinions or industry data",
+          "Reference authoritative sources",
+          "Provide context for the expert perspective",
+        ],
+        aiInstructions: "Include expert quotes or cite authoritative sources. Use blockquote formatting for direct quotes. Provide context before each quote explaining who the expert is and why their opinion matters.",
+      },
+    },
   ]},
 ];
 
@@ -374,6 +562,30 @@ export default function GenerateArticle() {
       return next;
     });
     setExpandedSections((prev) => { const next = new Set(prev); next.add(newId); return next; });
+  };
+
+  const insertTemplate = (template: typeof SECTION_TEMPLATES[0]["items"][0]) => {
+    const newId = `s${Date.now()}`;
+    const subSections = template.section.subSections?.map((sub, i) => ({
+      ...sub,
+      id: `${newId}-sub${i}`,
+    })) || [];
+    const newSection: OutlineSection = {
+      id: newId,
+      heading: template.section.heading,
+      type: template.section.type,
+      points: [...template.section.points],
+      subSections,
+      aiInstructions: template.section.aiInstructions,
+    };
+    setSections((prev) => [...prev, newSection]);
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      next.add(newId);
+      subSections.forEach((sub) => next.add(sub.id));
+      return next;
+    });
+    toast.success(`"${template.label}" template added`);
   };
 
   const moveSectionUp = (sectionId: string) => {
@@ -1284,12 +1496,46 @@ export default function GenerateArticle() {
             ))}
           </div>
 
-          {/* Add Section + Actions */}
+          {/* Add Section + Insert Template + Actions */}
           <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={addSection} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Section
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={addSection} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Section
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                    <LayoutTemplate className="w-4 h-4" />
+                    Insert Template
+                    <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-72">
+                  {SECTION_TEMPLATES.map((category, ci) => (
+                    <div key={ci}>
+                      {ci > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {category.category}
+                      </DropdownMenuLabel>
+                      {category.items.map((template, ti) => (
+                        <DropdownMenuItem
+                          key={ti}
+                          onClick={() => insertTemplate(template)}
+                          className="flex items-start gap-3 py-2.5 cursor-pointer"
+                        >
+                          <template.icon className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{template.label}</span>
+                            <span className="text-xs text-muted-foreground">{template.description}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" onClick={() => setStep("settings")}>
                 Back to Settings

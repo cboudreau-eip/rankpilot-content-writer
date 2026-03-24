@@ -379,3 +379,9 @@
 - [x] Show toast feedback after applying corrections
 - [x] Clear selections after successful apply
 - [x] Write/update tests for cross-check correction application
+
+## Fix Repeated Phrases in Article Generation
+- [x] Investigate source of "More than 33 million Americans" phrase appearing in every article
+- [x] Fix article generation prompt to prevent repeated boilerplate phrases
+- [x] Add instructions to LLM prompt to ensure unique, non-repetitive content
+- [x] Write/update tests for the fix

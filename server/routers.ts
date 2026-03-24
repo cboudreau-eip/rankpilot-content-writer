@@ -435,6 +435,7 @@ Guidelines:
 - Content type: ${input.contentType ?? "blog post"}
 - Tone: ${input.tone ?? "professional and informative"}
 - Target word count: ${input.targetWordCount ?? 2000} words
+- UNIQUENESS: Plan section points that are specific and fresh — avoid generic talking points that appear in every article on this topic. Each outline should feel like a unique angle, not a template.
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
 ${input.targetLocation ? `- Target location: ${input.targetLocation} — tailor the outline to be relevant for this geographic area` : ""}
 ${input.targetAudience ? `- Target audience: ${input.targetAudience} — structure the outline to address this audience's needs` : ""}
@@ -1257,8 +1258,9 @@ Writing Style Example (learn the STYLE, not the content):
 ${brandVoice.writingStyleSample}
 """
 CRITICAL - DO NOT COPY from the example above:
-- Do NOT reuse any specific phrases, sentences, or openings from this sample
+- Do NOT reuse any specific phrases, sentences, statistics, or openings from this sample
 - Do NOT start your article with the same hook or premise as this sample
+- Do NOT repeat any statistics, numbers, or data points from this sample — find different ones
 - The sample demonstrates TONE and STYLE patterns only — extract the rhythm, word choice tendencies, and structural approach
 - Create a FRESH opening and unique phrasing relevant to your assigned topic` : ''}
 
@@ -1332,7 +1334,12 @@ ${formatInstructions}
 - Include a compelling introduction that hooks the reader
 - CRITICAL - INTRO VARIETY: Every article must open differently. NEVER start with "If you are...", "Whether you are...", "As a...", or any direct audience-addressing formula. Rotate opening strategies: surprising facts, bold claims, mini-stories, provocative questions, or recent trends. The reader's context should emerge naturally, not be stated upfront.
 - Each section should flow naturally into the next
-- Include relevant statistics and examples where appropriate
+- Include relevant statistics and examples where appropriate — but NEVER reuse generic or overused statistics. Each article must cite DIFFERENT data points. Specifically:
+  * Do NOT use the phrase "More than 33 million Americans" or any variation of it
+  * Do NOT recycle the same statistics across articles — if a stat feels like a "go-to" default, find a more specific or recent one instead
+  * Prefer specific, niche statistics over broad national figures that appear in every article on this topic
+  * When citing numbers, vary the framing (percentages vs. absolute numbers vs. comparisons vs. ratios)
+- CONTENT UNIQUENESS: Every article must feel distinct. Avoid formulaic phrases, recycled openings, and boilerplate sentences that could appear in any article on this topic. Write as if the reader has already read 10 other articles on this subject — give them something they haven't seen before.
 - End with a strong conclusion and call to action
 - Optimize for the target keyword: "${outline.keyword ?? outline.title}"
 - Make the content comprehensive, authoritative, and reader-friendly

@@ -310,3 +310,6 @@
 - [x] Store AI instructions in the outline data structure
 - [x] Pass AI instructions to article generation backend
 - [x] Include per-section AI instructions in LLM prompt for article generation
+
+## Bug Fixes
+- [x] Fix: Per-section AI instructions not being applied during article generation (root cause: edited sections were not saved to DB before generating)

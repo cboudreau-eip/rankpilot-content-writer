@@ -219,6 +219,8 @@ export default function GenerateArticle() {
     onError: (err: any) => toast.error(err.message || "Failed to generate outline"),
   });
 
+  const updateOutlineMutation = trpc.outlines.update.useMutation();
+
   const generateArticleMutation = trpc.articles.generate.useMutation({
     onSuccess: (data: any) => {
       if (data) {
@@ -258,9 +260,23 @@ export default function GenerateArticle() {
     });
   };
 
-  const handleGenerateArticle = () => {
+  const handleGenerateArticle = async () => {
     if (!outlineId || !activeProjectId) return;
     setStep("generating-article");
+
+    // Save the latest sections (including AI instructions edits) to the database before generating
+    try {
+      await updateOutlineMutation.mutateAsync({
+        id: outlineId,
+        title: outlineTitle,
+        sections,
+      });
+    } catch (err: any) {
+      toast.error("Failed to save outline changes: " + (err.message || "Unknown error"));
+      setStep("outline");
+      return;
+    }
+
     generateArticleMutation.mutate({
       outlineId,
       projectId: activeProjectId,

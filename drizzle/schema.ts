@@ -46,6 +46,10 @@ export const projects = mysqlTable("projects", {
   referenceDoc: mediumtext("referenceDoc"),
   /** Original filename of the reference document for display */
   referenceDocName: varchar("referenceDocName", { length: 512 }),
+  /** LLM provider: 'builtin' (default Gemini via Forge) or 'claude' (Anthropic Claude) */
+  llmProvider: varchar("llmProvider", { length: 32 }).default("builtin").notNull(),
+  /** Claude model to use when llmProvider is 'claude' */
+  llmModel: varchar("llmModel", { length: 128 }),
   userId: int("userId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

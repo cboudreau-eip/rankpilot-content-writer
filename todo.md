@@ -319,3 +319,16 @@
 - [x] Add dropdown button next to AI Instructions label for H2 sections
 - [x] Add dropdown button next to AI Instructions label for H3 subsections
 - [x] Clicking a preset appends it to the existing AI instructions text
+
+## Claude (Anthropic) LLM Integration
+- [x] Add ANTHROPIC_API_KEY secret via webdev_request_secrets
+- [x] Install @anthropic-ai/sdk package
+- [x] Create Claude LLM provider module on the backend (server/claude.ts)
+- [x] Add llmProvider/llmModel columns to projects table
+- [x] Create unified callLLM helper that routes to Claude or built-in based on project settings
+- [x] Replace all invokeLLM calls with callLLM in routers.ts
+- [x] Add AI Model settings tab in Project Settings UI
+- [x] Wire Claude provider into outline generation procedure
+- [x] Wire Claude provider into article generation procedure
+- [x] Wire Claude provider into grading and improvement procedures
+- [x] Write tests for Claude integration (9 tests, all passing)

@@ -16,11 +16,30 @@ import {
   updateProjectReferenceDoc,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
+import type { InvokeParams, InvokeResult } from "./_core/llm";
+import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
 import { articles, projects, brandVoices, citationSources } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
+
+/**
+ * Unified LLM caller — routes to built-in (Forge/Gemini) or Claude based on project settings.
+ * Falls back to built-in if no project context or provider is "builtin".
+ */
+async function callLLM(
+  params: InvokeParams,
+  projectId?: number | null
+): Promise<InvokeResult> {
+  if (projectId) {
+    const project = await getProjectById(projectId);
+    if (project && project.llmProvider === "claude") {
+      return invokeClaudeLLM(params, project.llmModel || undefined);
+    }
+  }
+  return invokeLLM(params);
+}
 
 /**
  * Post-processing: split paragraphs that exceed the sentence limit.
@@ -171,6 +190,8 @@ export const appRouter = router({
         icpObjections: z.array(z.string()).max(5).optional(),
         icpDecisionTriggers: z.array(z.string()).max(5).optional(),
         icpTrustSignals: z.array(z.string()).max(5).optional(),
+        llmProvider: z.enum(["builtin", "claude"]).optional(),
+        llmModel: z.string().max(128).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
@@ -424,7 +445,7 @@ ${brandVoiceSection}
 
 Return ONLY valid JSON, no markdown code blocks.`;
 
-        const response = await invokeLLM({
+        const response = await callLLM({
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Generate a detailed article outline for the keyword: "${input.keyword}"` },
@@ -898,12 +919,12 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
 
         const userPrompt = `REFERENCE DOCUMENT ("${referenceDocName}"):\n---\n${referenceDoc}\n---\n\nARTICLE TO CROSS-CHECK:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${article.content}`;
 
-        const response = await invokeLLM({
+        const response = await callLLM({
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-        });
+        }, article.projectId);
 
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
@@ -1327,12 +1348,12 @@ ${linkingInstructions}
 
 Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} content of the article body${effectiveFormat === "html" ? " (no <html>, <head>, or <body> tags)" : ""}. Start with the first ${effectiveFormat === "plaintext" ? "## heading" : "<h2> section"}.`;
 
-        const response = await invokeLLM({
+        const response = await callLLM({
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Write the full article based on this outline:\n\nTitle: ${outline.title}\n\n${outlineText}` },
           ],
-        });
+        }, input.projectId);
 
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
@@ -1347,7 +1368,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
 
         // Generate meta title and description
-        const metaResponse = await invokeLLM({
+        const metaResponse = await callLLM({
           messages: [
             { role: "system", content: "Generate an SEO meta title (max 60 chars) and meta description (max 155 chars) for the given article. Return JSON with 'metaTitle' and 'metaDescription' fields only." },
             { role: "user", content: `Article title: ${outline.title}\nKeyword: ${outline.keyword ?? outline.title}\nFirst 500 chars: ${articleContent.substring(0, 500)}` },
@@ -1739,7 +1760,7 @@ Respond in this exact JSON format:
   "prioritizedActions": ["<action 1>", "<action 2>", "<action 3>"]
 }`;
 
-        const response = await invokeLLM({
+        const response = await callLLM({
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Grade this content:\n\n${input.content}` },
@@ -1970,15 +1991,15 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
 
         const userPrompt = `Grade this article:\n\nTitle: ${article.title}\nKeyword: ${article.keyword || "Not specified"}\n\nContent:\n${article.content}`;
 
-        const response = await invokeLLM({
+        const response = await callLLM({
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-        });
+        }, article.projectId);
 
-        const rawContent = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+        const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("Failed to parse grading response");
         const raw = JSON.parse(jsonMatch[0]);
 
@@ -2101,16 +2122,14 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
 
         const userPrompt = `Apply these ${input.categoryLabel} improvements to the article:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===FULL ARTICLE (for context only — do NOT rewrite the whole thing)===\n${article.content}\n===END ARTICLE===`;
 
-        const llmResponse = await invokeLLM({
+        const llmResponse = await callLLM({
           messages: [
             { role: "system", content: planPrompt },
             { role: "user", content: userPrompt },
           ],
         });
 
-        const rawResponse = ((llmResponse.choices?.[0]?.message?.content || "") as string).trim();
-
-        // Parse the surgical edits
+        const rawResponse = (llmResponse.choices?.[0]?.message?.content || "") as string;
         let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
         try {
           const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
@@ -2208,7 +2227,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
 
         const userPrompt = `Apply these ${input.categoryLabel} improvements to the content:\n\n===IMPROVEMENTS TO APPLY===\n${improvementsList}\n===END IMPROVEMENTS===\n\n===FULL CONTENT (for context only — do NOT rewrite the whole thing)===\n${input.content}\n===END CONTENT===`;
 
-        const llmResponse = await invokeLLM({
+        const llmResponse = await callLLM({
           messages: [
             { role: "system", content: planPrompt },
             { role: "user", content: userPrompt },

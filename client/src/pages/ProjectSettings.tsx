@@ -7,7 +7,7 @@ import {
   Goal, ShieldAlert, BookOpen, Search, Star, X, Check, Loader2,
   Globe, Link2, FileCheck, RefreshCw, ExternalLink, Upload, FileText,
   CheckCircle2, XCircle, AlertTriangle, Info, Save, Zap, Shield, TrendingUp,
-  Crown, Sparkles, MessageSquareText
+  Crown, Sparkles, MessageSquareText, Bot, BrainCircuit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
-type Tab = "icp" | "voice" | "cta" | "sitemaps" | "citations" | "crosscheck";
+type Tab = "icp" | "voice" | "cta" | "sitemaps" | "citations" | "crosscheck" | "llm";
 
 // ---- Tag Input Component ----
 function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
@@ -1207,6 +1207,153 @@ function CrossCheckTab({ projectId }: { projectId: number }) {
   );
 }
 
+// ---- LLM / AI Model Settings Tab ----
+const CLAUDE_MODELS = [
+  { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Latest)" },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (Fast)" },
+];
+
+function LLMSettingsTab({ projectId }: { projectId: number }) {
+  const utils = trpc.useUtils();
+  const { data: project, isLoading } = trpc.projects.getById.useQuery({ id: projectId });
+  const updateMut = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      utils.projects.getById.invalidate({ id: projectId });
+      toast.success("AI model settings saved");
+    },
+    onError: () => toast.error("Failed to save AI model settings"),
+  });
+
+  const [provider, setProvider] = useState<"builtin" | "claude">("builtin");
+  const [model, setModel] = useState("claude-sonnet-4-20250514");
+  const [initialized, setInitialized] = useState(false);
+
+  if (project && !initialized) {
+    setProvider((project.llmProvider as "builtin" | "claude") || "builtin");
+    setModel(project.llmModel || "claude-sonnet-4-20250514");
+    setInitialized(true);
+  }
+
+  const handleSave = () => {
+    updateMut.mutate({
+      id: projectId,
+      llmProvider: provider,
+      llmModel: provider === "claude" ? model : undefined,
+    });
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold">AI Model Configuration</h2>
+        <p className="text-muted-foreground text-sm mt-0.5">Choose which AI model powers your content generation.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Built-in Option */}
+        <Card
+          className={`cursor-pointer transition-all ${
+            provider === "builtin"
+              ? "ring-2 ring-indigo-500 border-indigo-300 shadow-md"
+              : "hover:border-border/80 hover:shadow-sm"
+          }`}
+          onClick={() => setProvider("builtin")}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-indigo-500" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Built-in AI</CardTitle>
+                <CardDescription className="text-sm">Default model (Gemini)</CardDescription>
+              </div>
+              {provider === "builtin" && (
+                <Badge className="ml-auto bg-indigo-100 text-indigo-700 border-0">Active</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Uses the platform's built-in AI model. No additional API key required. Good balance of speed and quality.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Claude Option */}
+        <Card
+          className={`cursor-pointer transition-all ${
+            provider === "claude"
+              ? "ring-2 ring-cyan-500 border-cyan-300 shadow-md"
+              : "hover:border-border/80 hover:shadow-sm"
+          }`}
+          onClick={() => setProvider("claude")}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-cyan-50 flex items-center justify-center">
+                <Bot className="w-5 h-5 text-cyan-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Claude (Anthropic)</CardTitle>
+                <CardDescription className="text-sm">Advanced reasoning model</CardDescription>
+              </div>
+              {provider === "claude" && (
+                <Badge className="ml-auto bg-cyan-100 text-cyan-700 border-0">Active</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Anthropic's Claude models. Excellent for nuanced writing, detailed analysis, and following complex instructions.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Claude Model Selector */}
+      {provider === "claude" && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Claude Model</CardTitle>
+            <CardDescription>Select which Claude model to use for content generation.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLAUDE_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-2">
+              Sonnet 4 is recommended for the best balance of quality and speed. Haiku is faster but less detailed. Opus provides the highest quality but is slower.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={updateMut.isPending} className="gap-2">
+          {updateMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+          <Save className="w-4 h-4" />
+          Save AI Model Settings
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ---- Main Settings Page ----
 export default function ProjectSettings() {
   const { activeProject } = useActiveProject();
@@ -1257,6 +1404,7 @@ export default function ProjectSettings() {
     { id: "sitemaps" as Tab, label: "Sitemaps", icon: Globe, count: sitemapList.length, color: "text-blue-500", bg: "bg-blue-50" },
     { id: "citations" as Tab, label: "Citations", icon: Link2, count: citationList.length, color: "text-rose-500", bg: "bg-rose-50" },
     { id: "crosscheck" as Tab, label: "Cross Check", icon: FileCheck, count: 0, color: "text-violet-500", bg: "bg-violet-50" },
+    { id: "llm" as Tab, label: "AI Model", icon: BrainCircuit, count: 0, color: "text-cyan-500", bg: "bg-cyan-50" },
   ];
 
   const openCreate = () => { setEditItem(null); setDialogOpen(true); };
@@ -1547,6 +1695,9 @@ export default function ProjectSettings() {
 
       {/* Cross Check Tab */}
       {activeTab === "crosscheck" && <CrossCheckTab projectId={activeProjectId} />}
+
+      {/* AI Model Tab */}
+      {activeTab === "llm" && <LLMSettingsTab projectId={activeProjectId} />}
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

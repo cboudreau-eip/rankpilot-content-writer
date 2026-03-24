@@ -340,3 +340,10 @@
 ## Fix Repetitive Article Openings
 - [x] Investigate article generation prompt for ICP/brand voice causing same intro every time (root cause: ICP RULE 1 forced mentioning ICP situation in first 2 sentences)
 - [x] Add variety instructions to prevent repetitive openings across articles (added rotation strategies + explicit anti-pattern blocklist)
+
+## Fix Insert Preset - Table Support
+- [x] Investigate why "Insert comparison table" preset doesn't produce tables (root cause: TipTap had no Table extension, stripped all table HTML)
+- [x] Installed @tiptap/extension-table, table-row, table-cell, table-header and added to editor config
+- [x] Made preset instruction explicit about HTML table tags (<table>, <thead>, <tbody>, <tr>, <th>, <td>)
+- [x] Added TABLE FORMAT RULES to system prompt with example HTML table format
+- [x] Added table tags to the HTML format instructions list

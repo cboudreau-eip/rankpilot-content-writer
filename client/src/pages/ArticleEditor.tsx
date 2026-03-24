@@ -8,6 +8,10 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import Highlight from "@tiptap/extension-highlight";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, Heading2, Heading3, Quote, Code,
@@ -261,6 +265,15 @@ export default function ArticleEditor() {
       Placeholder.configure({ placeholder: "Start writing your article..." }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
+      Table.configure({
+        resizable: false,
+        HTMLAttributes: {
+          class: "article-table",
+        },
+      }),
+      TableRow,
+      TableCell,
+      TableHeader,
     ],
     content: "",
     editorProps: {

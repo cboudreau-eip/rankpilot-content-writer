@@ -53,7 +53,7 @@ const AI_INSTRUCTION_PRESETS = [
   { category: "Structure", items: [
     { icon: List, label: "Use bullet points", value: "Use bullet points for key information" },
     { icon: ListOrdered, label: "Use numbered list", value: "Use a numbered step-by-step list" },
-    { icon: Table2, label: "Add comparison table", value: "Include a comparison table" },
+    { icon: Table2, label: "Add comparison table", value: "Include an HTML comparison table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags. The table must have a header row and at least 3 data rows comparing key attributes." },
     { icon: LayoutGrid, label: "Use bento/card layout", value: "Present information in a card-based or bento grid layout" },
   ]},
   { category: "Content", items: [

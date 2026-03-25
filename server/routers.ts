@@ -944,6 +944,94 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
       }),
   }),
 
+  // ---- Redundancy Checker ----
+  redundancy: router({
+    /** Analyze article content for redundancies: repeated phrases, redundant ideas, recycled stats, filler patterns */
+    check: protectedProcedure
+      .input(z.object({ articleId: z.number() }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new Error("Article not found");
+        if (!article.content || article.content.trim().length < 50) {
+          throw new Error("Article content is too short to check for redundancies.");
+        }
+
+        const systemPrompt = `You are an expert content editor specializing in identifying redundancy and repetition in written content. Your job is to find ALL instances of redundancy in the article.
+
+Scan for these 4 types of redundancy:
+
+1. REPEATED PHRASES: The same phrase, sentence, or near-identical wording appearing more than once in different sections. Even slight variations count (e.g., "Medicare covers preventive services" and "preventive services are covered by Medicare").
+
+2. REDUNDANT IDEAS: Two or more sections making the same point with different words. The information is duplicated even though the phrasing differs.
+
+3. RECYCLED STATISTICS: The same data point, number, percentage, or statistic cited more than once in the article.
+
+4. FILLER PATTERNS: Generic AI-generated padding that adds no value. Common examples:
+   - "It's important to note that..."
+   - "When it comes to..."
+   - "In today's world..."
+   - "As mentioned earlier..."
+   - "It goes without saying..."
+   - "At the end of the day..."
+   - "It's worth mentioning that..."
+   - "In order to..."
+   - "The fact of the matter is..."
+   - "Needless to say..."
+   - Excessive use of "Furthermore," "Moreover," "Additionally," as paragraph starters
+   - Any sentence that could be deleted without losing information
+
+IMPORTANT RULES:
+1. Be thorough — scan the ENTIRE article, not just the first few paragraphs.
+2. For each redundancy, quote the EXACT text from the article (verbatim, character-for-character match).
+3. Provide a specific, actionable fix: either remove the redundant text, merge the two instances, or rewrite to add new information.
+4. The "suggestedFix" must be a drop-in replacement for the "originalText" — same format, ready to swap.
+5. For FILLER PATTERNS, the suggestedFix should be the sentence rewritten without the filler phrase, or removed entirely if the sentence adds nothing.
+6. Do NOT flag things that are intentionally repeated for emphasis or structure (like a keyword in headings).
+7. Assign severity based on impact: "high" for full duplicate paragraphs or ideas, "medium" for repeated phrases or stats, "low" for filler patterns.
+
+Respond in this exact JSON format:
+{
+  "summary": "A 1-2 sentence assessment of the article's redundancy level",
+  "redundancyScore": <number 1-10, where 1 = very redundant and 10 = no redundancy>,
+  "redundancies": [
+    {
+      "type": "repeated_phrase" | "redundant_idea" | "recycled_stat" | "filler_pattern",
+      "severity": "high" | "medium" | "low",
+      "description": "Brief explanation of the redundancy",
+      "originalText": "The exact text from the article to find and replace (verbatim)",
+      "secondInstance": "The other instance of the repeated content (for context, if applicable)",
+      "suggestedFix": "The replacement text, or empty string if the text should be removed entirely"
+    }
+  ],
+  "cleanSections": [
+    "Brief description of sections that are well-written with no redundancy"
+  ]
+}
+
+Respond with ONLY the JSON object. No markdown, no explanation.`;
+
+        const userPrompt = `ARTICLE TO CHECK FOR REDUNDANCIES:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${article.content}`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }, article.projectId);
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const contentStr = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+
+        const jsonMatch = contentStr.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse redundancy check response");
+
+        const results = JSON.parse(jsonMatch[0]);
+
+        return { results };
+      }),
+  }),
+
   articles: router({
     list: protectedProcedure
       .input(z.object({ projectId: z.number(), status: z.string().optional() }))

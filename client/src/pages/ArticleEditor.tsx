@@ -21,7 +21,7 @@ import {
   Eye, ChevronDown, Loader2, BarChart3, Sparkles, ShieldCheck,
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
-  FileCheck, Info, ExternalLink,
+  FileCheck, Info, ExternalLink, Repeat2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,6 +230,26 @@ export default function ArticleEditor() {
   // Cross Check state
   const [showCrossCheck, setShowCrossCheck] = useState(false);
   const [crossCheckResult, setCrossCheckResult] = useState<any>(null);
+
+  // Redundancy Checker state
+  const [showRedundancy, setShowRedundancy] = useState(false);
+  const [redundancyResult, setRedundancyResult] = useState<any>(null);
+
+  const redundancyMutation = trpc.redundancy.check.useMutation({
+    onSuccess: (data) => {
+      setRedundancyResult(data);
+      setShowRedundancy(true);
+      const count = data.results?.redundancies?.length || 0;
+      if (count === 0) {
+        toast.success("No redundancies found — content is clean!");
+      } else {
+        toast.warning(`Found ${count} redundanc${count === 1 ? "y" : "ies"} to review`);
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to check for redundancies");
+    },
+  });
 
   const crossCheckMutation = trpc.crossCheck.checkArticle.useMutation({
     onSuccess: (data) => {
@@ -470,6 +490,24 @@ export default function ArticleEditor() {
               <FileCheck className="w-4 h-4 mr-1.5" />
             )}
             Cross Check
+          </Button>
+
+          {/* Redundancy Check Button */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (showRedundancy) { setShowRedundancy(false); return; }
+              redundancyMutation.mutate({ articleId });
+            }}
+            disabled={redundancyMutation.isPending}
+            className={showRedundancy ? "bg-orange-50 text-orange-700 border-orange-200" : ""}
+          >
+            {redundancyMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Repeat2 className="w-4 h-4 mr-1.5" />
+            )}
+            Redundancy
           </Button>
 
           {/* SEO Toggle */}
@@ -737,6 +775,78 @@ export default function ArticleEditor() {
               setHasHighlights(true);
               skipNextSyncRef.current = true;
               toast.success(`Applied ${appliedCount} correction${appliedCount > 1 ? 's' : ''}`);
+            }}
+          />
+        )}
+
+        {/* Redundancy Check Sidebar */}
+        {showRedundancy && redundancyResult && (
+          <RedundancyPanel
+            result={redundancyResult}
+            onClose={() => setShowRedundancy(false)}
+            onApply={(fixes: { originalText: string; suggestedFix: string }[]) => {
+              if (!editor) return;
+              const oldHtml = editor.getHTML();
+              let html = oldHtml;
+              let appliedCount = 0;
+              for (const fix of fixes) {
+                const { originalText, suggestedFix } = fix;
+                if (!originalText) continue;
+                // Split HTML into tag and text segments
+                const segments: { type: 'tag' | 'text'; content: string }[] = [];
+                const tagRegex = /<[^>]+>/g;
+                let lastIdx = 0;
+                let match;
+                while ((match = tagRegex.exec(html)) !== null) {
+                  if (match.index > lastIdx) {
+                    segments.push({ type: 'text', content: html.slice(lastIdx, match.index) });
+                  }
+                  segments.push({ type: 'tag', content: match[0] });
+                  lastIdx = match.index + match[0].length;
+                }
+                if (lastIdx < html.length) {
+                  segments.push({ type: 'text', content: html.slice(lastIdx) });
+                }
+                const fullText = segments.filter(s => s.type === 'text').map(s => s.content).join('');
+                const phraseStart = fullText.indexOf(originalText);
+                if (phraseStart < 0) continue;
+                const phraseEnd = phraseStart + originalText.length;
+                const newSegments: string[] = [];
+                let textOffset = 0;
+                for (const seg of segments) {
+                  if (seg.type === 'tag') {
+                    newSegments.push(seg.content);
+                  } else {
+                    const segStart = textOffset;
+                    const segEnd = textOffset + seg.content.length;
+                    if (segEnd <= phraseStart || segStart >= phraseEnd) {
+                      newSegments.push(seg.content);
+                    } else {
+                      const overlapStart = Math.max(0, phraseStart - segStart);
+                      const overlapEnd = Math.min(seg.content.length, phraseEnd - segStart);
+                      let built = '';
+                      if (overlapStart > 0) built += seg.content.slice(0, overlapStart);
+                      if (segStart <= phraseStart) {
+                        built += suggestedFix; // Replace with fix (or empty string to remove)
+                      }
+                      if (overlapEnd < seg.content.length) built += seg.content.slice(overlapEnd);
+                      newSegments.push(built);
+                    }
+                    textOffset += seg.content.length;
+                  }
+                }
+                html = newSegments.join('');
+                appliedCount++;
+              }
+              if (appliedCount === 0) {
+                toast.info("Could not find the text to replace \u2014 it may have been edited since the check");
+                return;
+              }
+              const highlightedHtml = buildHighlightedHtml(oldHtml, html);
+              editor.commands.setContent(highlightedHtml);
+              setHasHighlights(true);
+              skipNextSyncRef.current = true;
+              toast.success(`Fixed ${appliedCount} redundanc${appliedCount > 1 ? 'ies' : 'y'}`);
             }}
           />
         )}
@@ -1331,6 +1441,235 @@ function CrossCheckPanel({
             <p className="text-xs text-muted-foreground mt-1">
               Add a reference document in Project Settings &gt; Cross Check tab
             </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Redundancy Panel Component ── */
+
+const redundancyTypeConfig = {
+  repeated_phrase: { label: "Repeated Phrase", color: "text-red-700", bgColor: "bg-red-50", icon: Repeat2 },
+  redundant_idea: { label: "Redundant Idea", color: "text-amber-700", bgColor: "bg-amber-50", icon: Copy },
+  recycled_stat: { label: "Recycled Stat", color: "text-purple-700", bgColor: "bg-purple-50", icon: BarChart3 },
+  filler_pattern: { label: "Filler Pattern", color: "text-blue-700", bgColor: "bg-blue-50", icon: MinusCircle },
+} as const;
+
+const redundancySeverityConfig = {
+  high: { label: "High", color: "text-red-700", bgColor: "bg-red-100", borderColor: "border-red-200" },
+  medium: { label: "Medium", color: "text-amber-700", bgColor: "bg-amber-100", borderColor: "border-amber-200" },
+  low: { label: "Low", color: "text-blue-700", bgColor: "bg-blue-100", borderColor: "border-blue-200" },
+} as const;
+
+function RedundancyPanel({
+  result,
+  onClose,
+  onApply,
+}: {
+  result: any;
+  onClose: () => void;
+  onApply: (fixes: { originalText: string; suggestedFix: string }[]) => void;
+}) {
+  const { results } = result || {};
+  const redundancies = results?.redundancies || [];
+  const cleanSections = results?.cleanSections || [];
+  const summary = results?.summary || "";
+  const redundancyScore = results?.redundancyScore || 0;
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const toggleSelection = (index: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const handleApply = () => {
+    const fixes = Array.from(selected).map((i) => ({
+      originalText: redundancies[i]?.originalText,
+      suggestedFix: redundancies[i]?.suggestedFix ?? "",
+    })).filter((f) => f.originalText);
+    if (fixes.length === 0) return;
+    onApply(fixes);
+    setSelected(new Set());
+  };
+
+  const highCount = redundancies.filter((r: any) => r.severity === "high").length;
+  const mediumCount = redundancies.filter((r: any) => r.severity === "medium").length;
+  const lowCount = redundancies.filter((r: any) => r.severity === "low").length;
+
+  // Score color
+  const scoreColor = redundancyScore >= 8 ? "text-emerald-600" : redundancyScore >= 5 ? "text-amber-600" : "text-red-600";
+  const scoreBg = redundancyScore >= 8 ? "bg-emerald-50" : redundancyScore >= 5 ? "bg-amber-50" : "bg-red-50";
+
+  return (
+    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b bg-gradient-to-r from-orange-500/5 via-amber-500/5 to-yellow-500/5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Repeat2 className="w-4 h-4 text-orange-600" />
+            Redundancy Check
+          </h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Score + Stats Row */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`flex items-center gap-1.5 ${scoreBg} rounded-lg px-3 py-1.5`}>
+            <span className={`text-lg font-bold ${scoreColor}`}>{redundancyScore}</span>
+            <span className="text-[10px] text-muted-foreground">/10</span>
+          </div>
+          {redundancies.length === 0 ? (
+            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 rounded-lg px-3 py-1.5 text-xs font-semibold">
+              <CheckCircle2 className="w-4 h-4" />
+              No redundancies found
+            </div>
+          ) : (
+            <>
+              {highCount > 0 && (
+                <div className="flex items-center gap-1 bg-red-100 text-red-700 rounded-md px-2 py-1 text-[11px] font-semibold">
+                  {highCount} High
+                </div>
+              )}
+              {mediumCount > 0 && (
+                <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-md px-2 py-1 text-[11px] font-semibold">
+                  {mediumCount} Medium
+                </div>
+              )}
+              {lowCount > 0 && (
+                <div className="flex items-center gap-1 bg-blue-100 text-blue-700 rounded-md px-2 py-1 text-[11px] font-semibold">
+                  {lowCount} Low
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Apply Selected Button */}
+        {selected.size > 0 && (
+          <button
+            onClick={handleApply}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-orange-600 text-white text-xs font-semibold hover:bg-orange-700 transition-colors"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            Apply Selected ({selected.size})
+          </button>
+        )}
+      </div>
+
+      {/* Scrollable content */}
+      <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+        {/* Summary */}
+        {summary && (
+          <div className="px-4 py-3 border-b bg-muted/20">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{summary}</p>
+          </div>
+        )}
+
+        {/* Redundancies */}
+        {redundancies.length > 0 && (
+          <div className="px-4 py-3 border-b">
+            <p className="text-[10px] font-bold text-orange-600 mb-2.5 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Redundancies ({redundancies.length})
+            </p>
+            <div className="space-y-3">
+              {redundancies.map((item: any, i: number) => {
+                const typeConf = redundancyTypeConfig[item.type as keyof typeof redundancyTypeConfig] || redundancyTypeConfig.filler_pattern;
+                const sevConf = redundancySeverityConfig[item.severity as keyof typeof redundancySeverityConfig] || redundancySeverityConfig.low;
+                const TypeIcon = typeConf.icon;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-lg border ${sevConf.borderColor} overflow-hidden cursor-pointer transition-all ${
+                      selected.has(i) ? 'ring-2 ring-orange-400 ring-offset-1' : ''
+                    }`}
+                    onClick={() => toggleSelection(i)}
+                  >
+                    {/* Type + Severity Header */}
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 ${sevConf.bgColor}`}>
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        selected.has(i)
+                          ? 'bg-orange-600 border-orange-600'
+                          : 'border-gray-300 bg-white'
+                      }`}>
+                        {selected.has(i) && (
+                          <CheckCircle2 className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      <TypeIcon className={`w-3 h-3 ${typeConf.color}`} />
+                      <span className={`text-[10px] font-bold ${typeConf.color}`}>{typeConf.label}</span>
+                      <span className="text-[10px] text-muted-foreground">·</span>
+                      <span className={`text-[10px] font-semibold ${sevConf.color}`}>{sevConf.label}</span>
+                    </div>
+
+                    <div className="px-3 py-2.5 space-y-2">
+                      {/* Description */}
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">{item.description}</p>
+
+                      {/* Original Text */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-red-600 mb-0.5">Found in article:</p>
+                        <p className="text-[11px] text-foreground bg-red-50 rounded px-2 py-1.5 leading-relaxed border border-red-100">
+                          "{item.originalText}"
+                        </p>
+                      </div>
+
+                      {/* Second Instance (if applicable) */}
+                      {item.secondInstance && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-amber-600 mb-0.5">Also appears as:</p>
+                          <p className="text-[11px] text-foreground bg-amber-50 rounded px-2 py-1.5 leading-relaxed border border-amber-100">
+                            "{item.secondInstance}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Suggested Fix */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-emerald-600 mb-0.5">
+                          {item.suggestedFix ? "Suggested fix:" : "Suggestion: Remove this text"}
+                        </p>
+                        {item.suggestedFix ? (
+                          <p className="text-[11px] text-foreground bg-emerald-50 rounded px-2 py-1.5 leading-relaxed border border-emerald-100">
+                            {item.suggestedFix}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground italic">
+                            This text can be removed without losing information.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Clean Sections */}
+        {cleanSections.length > 0 && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-bold text-emerald-700 mb-2 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Clean Sections ({cleanSections.length})
+            </p>
+            <div className="space-y-1.5">
+              {cleanSections.map((section: string, i: number) => (
+                <div key={i} className="flex items-start gap-2 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground">{section}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

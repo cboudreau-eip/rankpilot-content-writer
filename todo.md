@@ -385,3 +385,13 @@
 - [x] Fix article generation prompt to prevent repeated boilerplate phrases
 - [x] Add instructions to LLM prompt to ensure unique, non-repetitive content
 - [x] Write/update tests for the fix
+
+## Redundancy Checker Feature
+- [x] Create backend `redundancy.check` tRPC mutation that analyzes article content for redundancies
+- [x] Define redundancy types: repeated phrases, redundant ideas, recycled statistics, filler patterns
+- [x] Return structured results with location, type, severity, original text, and suggested fix
+- [x] Add "Check Redundancy" button to Article Editor toolbar
+- [x] Build RedundancyPanel sidebar component with selectable redundancy cards
+- [x] Implement "Apply Selected" corrections flow (same pattern as Cross Check)
+- [x] Show toast feedback and highlight applied changes in the editor
+- [x] Write tests for redundancy checker backend and prompt validation

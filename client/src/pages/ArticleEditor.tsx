@@ -38,6 +38,201 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 /**
+ * Robust find-and-replace in HTML content.
+ * Strips HTML tags to build plain text, finds the search phrase (with normalized
+ * whitespace fallback), then surgically replaces the matched text in the original
+ * HTML while preserving all surrounding tags.
+ */
+function findAndReplaceInHtml(
+  html: string,
+  searchText: string,
+  replacement: string
+): { html: string; applied: boolean } {
+  if (!searchText) return { html, applied: false };
+
+  // Split HTML into tag and text segments
+  const segments: { type: 'tag' | 'text'; content: string }[] = [];
+  const tagRegex = /<[^>]+>/g;
+  let lastIdx = 0;
+  let match;
+  while ((match = tagRegex.exec(html)) !== null) {
+    if (match.index > lastIdx) {
+      segments.push({ type: 'text', content: html.slice(lastIdx, match.index) });
+    }
+    segments.push({ type: 'tag', content: match[0] });
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < html.length) {
+    segments.push({ type: 'text', content: html.slice(lastIdx) });
+  }
+
+  // Concatenate all text content (no separators — this is the raw text)
+  const fullText = segments.filter(s => s.type === 'text').map(s => s.content).join('');
+
+  const normalize = (t: string) => t.replace(/\s+/g, ' ').trim();
+  const normalizedSearch = normalize(searchText);
+
+  // Try exact match first
+  let phraseStart = fullText.indexOf(searchText);
+  let phraseEnd = phraseStart >= 0 ? phraseStart + searchText.length : -1;
+
+  // If exact match fails, try normalized whitespace matching on the raw fullText
+  if (phraseStart < 0) {
+    const normalizedFull = normalize(fullText);
+    const normIdx = normalizedFull.indexOf(normalizedSearch);
+    if (normIdx >= 0) {
+      // Map normalized position back to original text position
+      let startOrigIdx = -1;
+      let endOrigIdx = -1;
+      let nPos = 0;
+      for (let i = 0; i < fullText.length; i++) {
+        const ch = fullText[i];
+        if (/\s/.test(ch)) {
+          if (i === 0 || !/\s/.test(fullText[i - 1])) {
+            if (nPos === normIdx) startOrigIdx = i;
+            if (nPos === normIdx + normalizedSearch.length) { endOrigIdx = i; break; }
+            nPos++;
+          }
+        } else {
+          if (nPos === normIdx) startOrigIdx = i;
+          nPos++;
+          if (nPos === normIdx + normalizedSearch.length) { endOrigIdx = i + 1; break; }
+        }
+      }
+      if (startOrigIdx >= 0) {
+        if (endOrigIdx < 0) endOrigIdx = fullText.length;
+        phraseStart = startOrigIdx;
+        phraseEnd = endOrigIdx;
+      }
+    }
+  }
+
+  // If still not found, try with virtual spaces at tag boundaries.
+  // When HTML tags separate text (e.g. "</p><p>"), the concatenated text has no space
+  // but the LLM sees them as separate words with a space between.
+  if (phraseStart < 0) {
+    // Build a virtual text that inserts a space at each tag boundary
+    const textSegments = segments.filter(s => s.type === 'text');
+    const virtualParts: string[] = [];
+    // Track mapping: for each char in virtual text, which segment and offset
+    const charMap: { segIdx: number; offset: number }[] = [];
+    let segCounter = 0;
+    for (let si = 0; si < segments.length; si++) {
+      if (segments[si].type === 'text') {
+        // Insert a virtual space at tag boundary if needed
+        if (virtualParts.length > 0) {
+          const lastChar = virtualParts[virtualParts.length - 1];
+          const prevChar = lastChar[lastChar.length - 1];
+          const nextChar = segments[si].content[0];
+          if (prevChar && !/\s/.test(prevChar) && nextChar && !/\s/.test(nextChar)) {
+            virtualParts.push(' ');
+            charMap.push({ segIdx: -1, offset: -1 }); // virtual space
+          }
+        }
+        virtualParts.push(segments[si].content);
+        for (let ci = 0; ci < segments[si].content.length; ci++) {
+          charMap.push({ segIdx: segCounter, offset: ci });
+        }
+        segCounter++;
+      }
+    }
+    const virtualText = virtualParts.join('');
+    const normalizedVirtual = normalize(virtualText);
+    const normIdx = normalizedVirtual.indexOf(normalizedSearch);
+
+    if (normIdx >= 0) {
+      // Map normalized position back to virtual text, then to segments
+      let vStartIdx = -1;
+      let vEndIdx = -1;
+      let nPos = 0;
+      for (let i = 0; i < virtualText.length; i++) {
+        const ch = virtualText[i];
+        if (/\s/.test(ch)) {
+          if (i === 0 || !/\s/.test(virtualText[i - 1])) {
+            if (nPos === normIdx) vStartIdx = i;
+            if (nPos === normIdx + normalizedSearch.length) { vEndIdx = i; break; }
+            nPos++;
+          }
+        } else {
+          if (nPos === normIdx) vStartIdx = i;
+          nPos++;
+          if (nPos === normIdx + normalizedSearch.length) { vEndIdx = i + 1; break; }
+        }
+      }
+      if (vStartIdx < 0) return { html, applied: false };
+      if (vEndIdx < 0) vEndIdx = virtualText.length;
+
+      // Find the real segment boundaries from charMap
+      // Get the first real char at or after vStartIdx
+      let realStart = -1;
+      for (let i = vStartIdx; i < charMap.length; i++) {
+        if (charMap[i].segIdx >= 0) {
+          realStart = i;
+          break;
+        }
+      }
+      // Get the last real char before vEndIdx
+      let realEnd = -1;
+      for (let i = Math.min(vEndIdx, charMap.length) - 1; i >= 0; i--) {
+        if (charMap[i].segIdx >= 0) {
+          realEnd = i + 1;
+          break;
+        }
+      }
+      if (realStart < 0 || realEnd < 0) return { html, applied: false };
+
+      // Map back to fullText offsets
+      // Count real chars before realStart to get phraseStart in fullText
+      let ftStart = 0;
+      for (let i = 0; i < realStart; i++) {
+        if (charMap[i].segIdx >= 0) ftStart++;
+      }
+      let ftEnd = 0;
+      for (let i = 0; i < realEnd; i++) {
+        if (charMap[i].segIdx >= 0) ftEnd++;
+      }
+
+      phraseStart = ftStart;
+      phraseEnd = ftEnd;
+    }
+  }
+
+  if (phraseStart < 0) return { html, applied: false };
+
+  // Rebuild HTML replacing the matched text portion
+  const newSegments: string[] = [];
+  let textOffset = 0;
+  for (const seg of segments) {
+    if (seg.type === 'tag') {
+      // Keep tags that are outside the match, or skip tags inside the match
+      if (textOffset <= phraseStart || textOffset >= phraseEnd) {
+        newSegments.push(seg.content);
+      }
+      // Tags inside the matched range are dropped (replaced by the replacement text)
+    } else {
+      const segStart = textOffset;
+      const segEnd = textOffset + seg.content.length;
+      if (segEnd <= phraseStart || segStart >= phraseEnd) {
+        newSegments.push(seg.content);
+      } else {
+        const overlapStart = Math.max(0, phraseStart - segStart);
+        const overlapEnd = Math.min(seg.content.length, phraseEnd - segStart);
+        let built = '';
+        if (overlapStart > 0) built += seg.content.slice(0, overlapStart);
+        if (segStart <= phraseStart) {
+          built += replacement;
+        }
+        if (overlapEnd < seg.content.length) built += seg.content.slice(overlapEnd);
+        newSegments.push(built);
+      }
+      textOffset += seg.content.length;
+    }
+  }
+
+  return { html: newSegments.join(''), applied: true };
+}
+
+/**
  * Build highlighted HTML by diffing old and new content at the sentence level.
  * Returns HTML with <mark> tags wrapping changed/added sentences.
  */
@@ -709,67 +904,19 @@ export default function ArticleEditor() {
               const oldHtml = editor.getHTML();
               let html = oldHtml;
               let appliedCount = 0;
-              // Apply each correction by finding the articleText in the HTML text content
-              // and replacing it with the correction text
               for (const corr of corrections) {
                 const { articleText, correction } = corr;
                 if (!articleText || !correction) continue;
-                // Try direct text replacement in HTML text nodes
-                // Split HTML into tag and text segments
-                const segments: { type: 'tag' | 'text'; content: string }[] = [];
-                const tagRegex = /<[^>]+>/g;
-                let lastIdx = 0;
-                let match;
-                while ((match = tagRegex.exec(html)) !== null) {
-                  if (match.index > lastIdx) {
-                    segments.push({ type: 'text', content: html.slice(lastIdx, match.index) });
-                  }
-                  segments.push({ type: 'tag', content: match[0] });
-                  lastIdx = match.index + match[0].length;
+                const result = findAndReplaceInHtml(html, articleText, correction);
+                if (result.applied) {
+                  html = result.html;
+                  appliedCount++;
                 }
-                if (lastIdx < html.length) {
-                  segments.push({ type: 'text', content: html.slice(lastIdx) });
-                }
-                // Concatenate text to find the article text
-                const fullText = segments.filter(s => s.type === 'text').map(s => s.content).join('');
-                const phraseStart = fullText.indexOf(articleText);
-                if (phraseStart < 0) continue;
-                const phraseEnd = phraseStart + articleText.length;
-                // Rebuild HTML replacing the matched text portion with correction
-                const newSegments: string[] = [];
-                let textOffset = 0;
-                for (const seg of segments) {
-                  if (seg.type === 'tag') {
-                    newSegments.push(seg.content);
-                  } else {
-                    const segStart = textOffset;
-                    const segEnd = textOffset + seg.content.length;
-                    if (segEnd <= phraseStart || segStart >= phraseEnd) {
-                      newSegments.push(seg.content);
-                    } else {
-                      const overlapStart = Math.max(0, phraseStart - segStart);
-                      const overlapEnd = Math.min(seg.content.length, phraseEnd - segStart);
-                      let built = '';
-                      if (overlapStart > 0) built += seg.content.slice(0, overlapStart);
-                      // Only insert the full correction text on the first segment that overlaps
-                      if (segStart <= phraseStart) {
-                        built += correction;
-                      }
-                      // For subsequent overlapping segments, skip the old text portion
-                      if (overlapEnd < seg.content.length) built += seg.content.slice(overlapEnd);
-                      newSegments.push(built);
-                    }
-                    textOffset += seg.content.length;
-                  }
-                }
-                html = newSegments.join('');
-                appliedCount++;
               }
               if (appliedCount === 0) {
-                toast.info("Could not find the text to replace — it may have been edited since the cross-check");
+                toast.info("Could not find the text to replace \u2014 it may have been edited since the cross-check");
                 return;
               }
-              // Highlight the corrections using buildHighlightedHtml
               const highlightedHtml = buildHighlightedHtml(oldHtml, html);
               editor.commands.setContent(highlightedHtml);
               setHasHighlights(true);
@@ -792,51 +939,11 @@ export default function ArticleEditor() {
               for (const fix of fixes) {
                 const { originalText, suggestedFix } = fix;
                 if (!originalText) continue;
-                // Split HTML into tag and text segments
-                const segments: { type: 'tag' | 'text'; content: string }[] = [];
-                const tagRegex = /<[^>]+>/g;
-                let lastIdx = 0;
-                let match;
-                while ((match = tagRegex.exec(html)) !== null) {
-                  if (match.index > lastIdx) {
-                    segments.push({ type: 'text', content: html.slice(lastIdx, match.index) });
-                  }
-                  segments.push({ type: 'tag', content: match[0] });
-                  lastIdx = match.index + match[0].length;
+                const result = findAndReplaceInHtml(html, originalText, suggestedFix);
+                if (result.applied) {
+                  html = result.html;
+                  appliedCount++;
                 }
-                if (lastIdx < html.length) {
-                  segments.push({ type: 'text', content: html.slice(lastIdx) });
-                }
-                const fullText = segments.filter(s => s.type === 'text').map(s => s.content).join('');
-                const phraseStart = fullText.indexOf(originalText);
-                if (phraseStart < 0) continue;
-                const phraseEnd = phraseStart + originalText.length;
-                const newSegments: string[] = [];
-                let textOffset = 0;
-                for (const seg of segments) {
-                  if (seg.type === 'tag') {
-                    newSegments.push(seg.content);
-                  } else {
-                    const segStart = textOffset;
-                    const segEnd = textOffset + seg.content.length;
-                    if (segEnd <= phraseStart || segStart >= phraseEnd) {
-                      newSegments.push(seg.content);
-                    } else {
-                      const overlapStart = Math.max(0, phraseStart - segStart);
-                      const overlapEnd = Math.min(seg.content.length, phraseEnd - segStart);
-                      let built = '';
-                      if (overlapStart > 0) built += seg.content.slice(0, overlapStart);
-                      if (segStart <= phraseStart) {
-                        built += suggestedFix; // Replace with fix (or empty string to remove)
-                      }
-                      if (overlapEnd < seg.content.length) built += seg.content.slice(overlapEnd);
-                      newSegments.push(built);
-                    }
-                    textOffset += seg.content.length;
-                  }
-                }
-                html = newSegments.join('');
-                appliedCount++;
               }
               if (appliedCount === 0) {
                 toast.info("Could not find the text to replace \u2014 it may have been edited since the check");

@@ -168,14 +168,16 @@ describe("Cross Check", () => {
 
   describe("Correction application logic", () => {
     /**
-     * Simulates the surgical text replacement logic used in the frontend.
-     * This mirrors the onApply callback in ArticleEditor.
+     * Mirrors the findAndReplaceInHtml utility in ArticleEditor.tsx.
+     * Three-tier matching: exact -> normalized whitespace -> virtual tag-boundary spaces.
      */
     function applyCorrectionToHtml(
       html: string,
       articleText: string,
       correction: string
     ): { html: string; applied: boolean } {
+      if (!articleText) return { html, applied: false };
+
       const segments: { type: "tag" | "text"; content: string }[] = [];
       const tagRegex = /<[^>]+>/g;
       let lastIdx = 0;
@@ -195,15 +197,125 @@ describe("Cross Check", () => {
         .filter((s) => s.type === "text")
         .map((s) => s.content)
         .join("");
-      const phraseStart = fullText.indexOf(articleText);
+
+      const normalize = (t: string) => t.replace(/\s+/g, " ").trim();
+      const normalizedSearch = normalize(articleText);
+
+      // Tier 1: exact match
+      let phraseStart = fullText.indexOf(articleText);
+      let phraseEnd = phraseStart >= 0 ? phraseStart + articleText.length : -1;
+
+      // Tier 2: normalized whitespace on raw fullText
+      if (phraseStart < 0) {
+        const normalizedFull = normalize(fullText);
+        const normIdx = normalizedFull.indexOf(normalizedSearch);
+        if (normIdx >= 0) {
+          let startOrigIdx = -1;
+          let endOrigIdx = -1;
+          let nPos = 0;
+          for (let i = 0; i < fullText.length; i++) {
+            const ch = fullText[i];
+            if (/\s/.test(ch)) {
+              if (i === 0 || !/\s/.test(fullText[i - 1])) {
+                if (nPos === normIdx) startOrigIdx = i;
+                if (nPos === normIdx + normalizedSearch.length) { endOrigIdx = i; break; }
+                nPos++;
+              }
+            } else {
+              if (nPos === normIdx) startOrigIdx = i;
+              nPos++;
+              if (nPos === normIdx + normalizedSearch.length) { endOrigIdx = i + 1; break; }
+            }
+          }
+          if (startOrigIdx >= 0) {
+            if (endOrigIdx < 0) endOrigIdx = fullText.length;
+            phraseStart = startOrigIdx;
+            phraseEnd = endOrigIdx;
+          }
+        }
+      }
+
+      // Tier 3: virtual spaces at tag boundaries
+      if (phraseStart < 0) {
+        const virtualParts: string[] = [];
+        const charMap: { segIdx: number; offset: number }[] = [];
+        let segCounter = 0;
+        for (let si = 0; si < segments.length; si++) {
+          if (segments[si].type === "text") {
+            if (virtualParts.length > 0) {
+              const lastPart = virtualParts[virtualParts.length - 1];
+              const prevChar = lastPart[lastPart.length - 1];
+              const nextChar = segments[si].content[0];
+              if (prevChar && !/\s/.test(prevChar) && nextChar && !/\s/.test(nextChar)) {
+                virtualParts.push(" ");
+                charMap.push({ segIdx: -1, offset: -1 });
+              }
+            }
+            virtualParts.push(segments[si].content);
+            for (let ci = 0; ci < segments[si].content.length; ci++) {
+              charMap.push({ segIdx: segCounter, offset: ci });
+            }
+            segCounter++;
+          }
+        }
+        const virtualText = virtualParts.join("");
+        const normalizedVirtual = normalize(virtualText);
+        const normIdx = normalizedVirtual.indexOf(normalizedSearch);
+
+        if (normIdx >= 0) {
+          let vStartIdx = -1;
+          let vEndIdx = -1;
+          let nPos = 0;
+          for (let i = 0; i < virtualText.length; i++) {
+            const ch = virtualText[i];
+            if (/\s/.test(ch)) {
+              if (i === 0 || !/\s/.test(virtualText[i - 1])) {
+                if (nPos === normIdx) vStartIdx = i;
+                if (nPos === normIdx + normalizedSearch.length) { vEndIdx = i; break; }
+                nPos++;
+              }
+            } else {
+              if (nPos === normIdx) vStartIdx = i;
+              nPos++;
+              if (nPos === normIdx + normalizedSearch.length) { vEndIdx = i + 1; break; }
+            }
+          }
+          if (vStartIdx < 0) return { html, applied: false };
+          if (vEndIdx < 0) vEndIdx = virtualText.length;
+
+          let realStart = -1;
+          for (let i = vStartIdx; i < charMap.length; i++) {
+            if (charMap[i].segIdx >= 0) { realStart = i; break; }
+          }
+          let realEnd = -1;
+          for (let i = Math.min(vEndIdx, charMap.length) - 1; i >= 0; i--) {
+            if (charMap[i].segIdx >= 0) { realEnd = i + 1; break; }
+          }
+          if (realStart < 0 || realEnd < 0) return { html, applied: false };
+
+          let ftStart = 0;
+          for (let i = 0; i < realStart; i++) {
+            if (charMap[i].segIdx >= 0) ftStart++;
+          }
+          let ftEnd = 0;
+          for (let i = 0; i < realEnd; i++) {
+            if (charMap[i].segIdx >= 0) ftEnd++;
+          }
+
+          phraseStart = ftStart;
+          phraseEnd = ftEnd;
+        }
+      }
+
       if (phraseStart < 0) return { html, applied: false };
-      const phraseEnd = phraseStart + articleText.length;
 
       const newSegments: string[] = [];
       let textOffset = 0;
       for (const seg of segments) {
         if (seg.type === "tag") {
-          newSegments.push(seg.content);
+          if (textOffset <= phraseStart || textOffset >= phraseEnd) {
+            newSegments.push(seg.content);
+          }
         } else {
           const segStart = textOffset;
           const segEnd = textOffset + seg.content.length;

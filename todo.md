@@ -395,3 +395,10 @@
 - [x] Implement "Apply Selected" corrections flow (same pattern as Cross Check)
 - [x] Show toast feedback and highlight applied changes in the editor
 - [x] Write tests for redundancy checker backend and prompt validation
+
+## Fix Redundancy Checker "Could not find text" Error
+- [x] Investigate why Apply Selected fails with "Could not find the text to replace" when article hasn't been edited
+- [x] Root cause: LLM returns plain text but article content has HTML tags breaking exact string match
+- [x] Fix the onApply text matching logic to strip HTML before matching, then surgically replace in the original HTML
+- [x] Apply same fix to Cross Check apply logic (same root cause)
+- [x] Update tests to cover HTML-rich content matching scenarios

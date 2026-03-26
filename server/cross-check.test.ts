@@ -178,6 +178,25 @@ describe("Cross Check", () => {
     ): { html: string; applied: boolean } {
       if (!articleText) return { html, applied: false };
 
+      // Pre-process: if articleText contains ellipsis, expand to full text
+      let effectiveSearchText = articleText;
+      if (articleText.includes('...') || articleText.includes('\u2026')) {
+        const plainText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const fragments = articleText.split(/\.{3}|\u2026/).map(f => f.trim()).filter(Boolean);
+        if (fragments.length >= 2) {
+          const firstFrag = fragments[0].replace(/\s+/g, ' ').trim();
+          const lastFrag = fragments[fragments.length - 1].replace(/\s+/g, ' ').trim();
+          const normalizedPlain = plainText.replace(/\s+/g, ' ');
+          const startIdx = normalizedPlain.indexOf(firstFrag);
+          if (startIdx >= 0) {
+            const endIdx = normalizedPlain.indexOf(lastFrag, startIdx + firstFrag.length);
+            if (endIdx >= 0) {
+              effectiveSearchText = normalizedPlain.slice(startIdx, endIdx + lastFrag.length);
+            }
+          }
+        }
+      }
+
       const segments: { type: "tag" | "text"; content: string }[] = [];
       const tagRegex = /<[^>]+>/g;
       let lastIdx = 0;
@@ -199,11 +218,11 @@ describe("Cross Check", () => {
         .join("");
 
       const normalize = (t: string) => t.replace(/\s+/g, " ").trim();
-      const normalizedSearch = normalize(articleText);
+      const normalizedSearch = normalize(effectiveSearchText);
 
       // Tier 1: exact match
-      let phraseStart = fullText.indexOf(articleText);
-      let phraseEnd = phraseStart >= 0 ? phraseStart + articleText.length : -1;
+      let phraseStart = fullText.indexOf(effectiveSearchText);
+      let phraseEnd = phraseStart >= 0 ? phraseStart + effectiveSearchText.length : -1;
 
       // Tier 2: normalized whitespace on raw fullText
       if (phraseStart < 0) {
@@ -415,6 +434,51 @@ describe("Cross Check", () => {
       const result = applyCorrectionToHtml(html, "Some text here", "");
       expect(result.applied).toBe(true);
       expect(result.html).toBe("<p>.</p>");
+    });
+
+    it("should handle LLM ellipsis truncation in articleText", () => {
+      const html = "<p>Monthly Premium (2024) for Medicare Part B is $174.70 (standard) for Part B coverage.</p>";
+      const result = applyCorrectionToHtml(
+        html,
+        "Monthly Premium (2024) ... $174.70 (standard) for Part B",
+        "Monthly Premium (2026) for Medicare Part B is $202.90 (standard) for Part B"
+      );
+      expect(result.applied).toBe(true);
+      expect(result.html).toContain("$202.90");
+      expect(result.html).not.toContain("$174.70");
+    });
+
+    it("should handle unicode ellipsis character", () => {
+      const html = "<p>The deductible is $226 per year for all beneficiaries enrolled in Part B.</p>";
+      const result = applyCorrectionToHtml(
+        html,
+        "The deductible is $226\u2026enrolled in Part B",
+        "The deductible is $257 per year for all beneficiaries enrolled in Part B"
+      );
+      expect(result.applied).toBe(true);
+      expect(result.html).toContain("$257");
+    });
+
+    it("should handle ellipsis with text spanning HTML tags", () => {
+      const html = "<p>The <strong>standard premium</strong> is $174.70 per month for <em>Part B</em> coverage.</p>";
+      const result = applyCorrectionToHtml(
+        html,
+        "standard premium ... Part B coverage",
+        "standard premium is $202.90 per month for Part B coverage"
+      );
+      expect(result.applied).toBe(true);
+      expect(result.html).toContain("$202.90");
+    });
+
+    it("should fall back gracefully when ellipsis fragments don't match", () => {
+      const html = "<p>Some completely different text here.</p>";
+      const result = applyCorrectionToHtml(
+        html,
+        "nonexistent start ... nonexistent end",
+        "replacement"
+      );
+      expect(result.applied).toBe(false);
+      expect(result.html).toBe(html);
     });
   });
 

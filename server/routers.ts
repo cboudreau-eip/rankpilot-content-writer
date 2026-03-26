@@ -895,14 +895,22 @@ IMPORTANT RULES:
 6. Do NOT invent issues. Only flag genuine factual conflicts between the two documents.
 7. For each discrepancy, provide a corrected version of the article text that aligns with the reference document.
 
+CRITICAL TEXT QUOTING RULES:
+- "articleText" MUST be the EXACT, VERBATIM text copied from the article. Do NOT paraphrase, truncate, summarize, or use ellipsis (...).
+- Copy the COMPLETE sentence or phrase — never abbreviate with "..." or "[...]".
+- If the inaccurate text spans multiple sentences, include ALL of them in full.
+- "correction" MUST be the EXACT replacement text that should replace "articleText" word-for-word. It must be ready to directly substitute into the article.
+- "correction" must NOT be a description of what to change (e.g., "Change X to Y"). It must be the actual corrected text itself.
+- The "correction" should be the same length and structure as "articleText" — only the inaccurate parts should differ.
+
 Respond in this exact JSON format:
 {
   "summary": "A 1-2 sentence overall assessment of factual alignment",
   "discrepancies": [
     {
-      "articleText": "The exact text from the article that contains the inaccuracy",
+      "articleText": "The exact verbatim text from the article (complete, no ellipsis, no truncation)",
       "referenceText": "The exact fact from the reference document that contradicts it",
-      "correction": "The corrected version of the article text that aligns with the reference document",
+      "correction": "The exact replacement text ready to substitute into the article (not a description)",
       "severity": "high" | "medium" | "low"
     }
   ],
@@ -918,7 +926,10 @@ Severity guide:
 
 Respond with ONLY the JSON object. No markdown, no explanation.`;
 
-        const userPrompt = `REFERENCE DOCUMENT ("${referenceDocName}"):\n---\n${referenceDoc}\n---\n\nARTICLE TO CROSS-CHECK:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${article.content}`;
+        // Strip HTML tags so the LLM sees plain text and can quote it verbatim
+        const plainContent = (article.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const userPrompt = `REFERENCE DOCUMENT ("${referenceDocName}"):\n---\n${referenceDoc}\n---\n\nARTICLE TO CROSS-CHECK:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${plainContent}`;
 
         const response = await callLLM({
           messages: [
@@ -989,6 +1000,12 @@ IMPORTANT RULES:
 6. Do NOT flag things that are intentionally repeated for emphasis or structure (like a keyword in headings).
 7. Assign severity based on impact: "high" for full duplicate paragraphs or ideas, "medium" for repeated phrases or stats, "low" for filler patterns.
 
+CRITICAL TEXT QUOTING RULES:
+- "originalText" MUST be the EXACT, VERBATIM text copied from the article. Do NOT paraphrase, truncate, summarize, or use ellipsis (...).
+- Copy the COMPLETE sentence or phrase — never abbreviate with "..." or "[...]".
+- "suggestedFix" MUST be the EXACT replacement text ready to directly substitute into the article.
+- "suggestedFix" must NOT be a description of what to change. It must be the actual corrected text itself.
+
 Respond in this exact JSON format:
 {
   "summary": "A 1-2 sentence assessment of the article's redundancy level",
@@ -1010,7 +1027,10 @@ Respond in this exact JSON format:
 
 Respond with ONLY the JSON object. No markdown, no explanation.`;
 
-        const userPrompt = `ARTICLE TO CHECK FOR REDUNDANCIES:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${article.content}`;
+        // Strip HTML tags so the LLM sees plain text and can quote it verbatim
+        const plainContent = (article.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const userPrompt = `ARTICLE TO CHECK FOR REDUNDANCIES:\nTitle: ${article.title}\nKeyword: ${article.keyword ?? ""}\n\nContent:\n${plainContent}`;
 
         const response = await callLLM({
           messages: [

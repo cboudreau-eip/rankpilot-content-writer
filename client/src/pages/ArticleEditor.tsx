@@ -50,6 +50,27 @@ function findAndReplaceInHtml(
 ): { html: string; applied: boolean } {
   if (!searchText) return { html, applied: false };
 
+  // Pre-process: if searchText contains ellipsis ("..."), the LLM truncated the quote.
+  // Try to find the full text by matching the fragments before and after the ellipsis.
+  let effectiveSearchText = searchText;
+  if (searchText.includes('...') || searchText.includes('\u2026')) {
+    const fullText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    // Split on ellipsis patterns
+    const fragments = searchText.split(/\.{3}|\u2026/).map(f => f.trim()).filter(Boolean);
+    if (fragments.length >= 2) {
+      const firstFrag = fragments[0].replace(/\s+/g, ' ').trim();
+      const lastFrag = fragments[fragments.length - 1].replace(/\s+/g, ' ').trim();
+      const normalizedFull = fullText.replace(/\s+/g, ' ');
+      const startIdx = normalizedFull.indexOf(firstFrag);
+      if (startIdx >= 0) {
+        const endIdx = normalizedFull.indexOf(lastFrag, startIdx + firstFrag.length);
+        if (endIdx >= 0) {
+          effectiveSearchText = normalizedFull.slice(startIdx, endIdx + lastFrag.length);
+        }
+      }
+    }
+  }
+
   // Split HTML into tag and text segments
   const segments: { type: 'tag' | 'text'; content: string }[] = [];
   const tagRegex = /<[^>]+>/g;
@@ -70,11 +91,11 @@ function findAndReplaceInHtml(
   const fullText = segments.filter(s => s.type === 'text').map(s => s.content).join('');
 
   const normalize = (t: string) => t.replace(/\s+/g, ' ').trim();
-  const normalizedSearch = normalize(searchText);
+  const normalizedSearch = normalize(effectiveSearchText);
 
   // Try exact match first
-  let phraseStart = fullText.indexOf(searchText);
-  let phraseEnd = phraseStart >= 0 ? phraseStart + searchText.length : -1;
+  let phraseStart = fullText.indexOf(effectiveSearchText);
+  let phraseEnd = phraseStart >= 0 ? phraseStart + effectiveSearchText.length : -1;
 
   // If exact match fails, try normalized whitespace matching on the raw fullText
   if (phraseStart < 0) {

@@ -405,3 +405,10 @@
 
 ## Sidebar Width Reduction
 - [x] Reduce sidebar width by 65px
+
+## Fix Cross Check Apply Failing on Second Run
+- [x] Investigate why applying corrections fails after running cross-check a second time
+- [x] Root cause: LLM quotes article text with ellipsis, truncation, or slight paraphrasing vs actual HTML content
+- [x] Improve matching to handle LLM text quoting discrepancies (ellipsis, partial quotes, fuzzy matching)
+- [x] Ensure the fix also applies to the Redundancy Checker apply flow
+- [x] Update tests to cover this scenario

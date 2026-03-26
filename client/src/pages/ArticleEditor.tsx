@@ -12,6 +12,7 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
+import { StyledBox } from "@/extensions/StyledBox";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, Heading2, Heading3, Quote, Code,
@@ -531,6 +532,7 @@ export default function ArticleEditor() {
       TableRow,
       TableCell,
       TableHeader,
+      StyledBox,
     ],
     content: "",
     editorProps: {

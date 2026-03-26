@@ -439,3 +439,10 @@
 - [x] Color persists when saving/reloading the outline (stored in JSON sections column)
 - [x] Preview swatch with hex code shown in the outline builder when a color is selected
 - [x] All 225 tests pass
+
+## Fix Background Color Not Rendering in Generated Articles
+- [x] Investigate how backgroundColor is passed to the article generation prompt (root cause: TipTap strips div tags with inline styles)
+- [x] Fix: Added server-side post-processing (applyBackgroundColors) that reliably wraps sections using outline data
+- [x] Fix: Created custom TipTap StyledBox extension that preserves div elements with background-color styles
+- [x] Styled div wraps entire section content (heading + body) with padding, rounded corners, and chosen background color
+- [x] 11 new tests for applyBackgroundColors, all 236 tests pass

@@ -16,6 +16,7 @@ import {
   updateProjectReferenceDocMeta,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
+import { applyBackgroundColors } from "./applyBackgroundColors";
 import { invokeLLM } from "./_core/llm";
 import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
@@ -1533,10 +1534,14 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         if (!rawContent) throw new Error("No response from AI");
         const rawArticleContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
 
-        // Post-process: first wrap bare text in <p> tags, then split long paragraphs
+        // Post-process: first wrap bare text in <p> tags, then split long paragraphs, then apply background colors
         const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
         const wrappedContent = effectiveFormat === "html" ? wrapBareTextInPTags(rawArticleContent) : rawArticleContent;
-        const articleContent = splitLongParagraphs(wrappedContent, maxSentences, effectiveFormat);
+        const splitContent = splitLongParagraphs(wrappedContent, maxSentences, effectiveFormat);
+        // Apply background colors from outline sections as a reliable post-processing step
+        const articleContent = effectiveFormat === "html"
+          ? applyBackgroundColors(splitContent, outline.sections as OutlineSection[])
+          : splitContent;
 
         // Count words
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;

@@ -402,3 +402,6 @@
 - [x] Fix the onApply text matching logic to strip HTML before matching, then surgically replace in the original HTML
 - [x] Apply same fix to Cross Check apply logic (same root cause)
 - [x] Update tests to cover HTML-rich content matching scenarios
+
+## Sidebar Width Reduction
+- [x] Reduce sidebar width by 65px

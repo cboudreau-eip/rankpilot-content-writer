@@ -33,7 +33,7 @@ const menuItems = [
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 280;
+const DEFAULT_WIDTH = 215;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 

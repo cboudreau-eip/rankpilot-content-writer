@@ -168,7 +168,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen bg-background">
         {/* SIDEBAR */}
         <aside
-          className={`fixed top-0 left-0 bottom-0 z-50 bg-card border-r border-sidebar-border flex flex-col transition-all duration-200 ${sidebarCollapsed ? "w-[68px]" : "w-[270px]"}`}
+          className={`fixed top-0 left-0 bottom-0 z-50 bg-card border-r border-sidebar-border flex flex-col transition-all duration-200 ${sidebarCollapsed ? "w-[68px]" : "w-[205px]"}`}
         >
           {/* Logo */}
           <div className={`flex items-center gap-3 px-5 py-6 ${sidebarCollapsed ? "justify-center px-0" : ""}`}>
@@ -235,7 +235,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* MAIN CONTENT */}
-        <div className={`flex-1 transition-all duration-200 ${sidebarCollapsed ? "ml-[68px]" : "ml-[270px]"}`}>
+        <div className={`flex-1 transition-all duration-200 ${sidebarCollapsed ? "ml-[68px]" : "ml-[205px]"}`}>
           {/* TOP BAR */}
           <header className="sticky top-0 z-40 flex items-center justify-between px-8 py-4 bg-card/80 backdrop-blur-md border-b border-border">
             <div className="flex items-center gap-4">

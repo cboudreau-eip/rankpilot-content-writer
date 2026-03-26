@@ -89,6 +89,7 @@ export interface OutlineSection {
   points?: string[];
   subSections?: OutlineSection[];
   aiInstructions?: string;
+  backgroundColor?: string;
 }
 
 export interface OutlineSettings {

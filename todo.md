@@ -430,3 +430,12 @@
 - [x] Ensure links wrap only key phrases, not entire sentences
 - [x] Added rules to article generation, manual links, auto links, and grading improvement prompts
 - [x] All 225 tests pass
+
+## Key Takeaways Background Color Picker
+- [x] Add background color picker to ALL sections in the outline builder (not just Key Takeaways)
+- [x] Create 13-color preset palette (None + 12 soft colors: grays, blues, greens, yellows, reds, purples)
+- [x] Store the selected background color in the OutlineSection data structure (schema + client)
+- [x] Pass the color to the article generation prompt so sections render as styled boxes with border-radius, padding
+- [x] Color persists when saving/reloading the outline (stored in JSON sections column)
+- [x] Preview swatch with hex code shown in the outline builder when a color is selected
+- [x] All 225 tests pass

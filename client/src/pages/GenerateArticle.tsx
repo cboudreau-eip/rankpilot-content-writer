@@ -8,7 +8,7 @@ import {
   MapPin, Users, Link2, Globe, MessageSquare, Target, Check,
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
-  BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate,
+  BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate, Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -264,7 +264,24 @@ interface OutlineSection {
   points?: string[];
   subSections?: OutlineSection[];
   aiInstructions?: string;
+  backgroundColor?: string;
 }
+
+const SECTION_BG_COLORS = [
+  { name: "None", value: "", swatch: "bg-white border border-gray-200" },
+  { name: "Light Gray", value: "#F3F4F6", swatch: "bg-[#F3F4F6]" },
+  { name: "Warm Gray", value: "#F5F5F4", swatch: "bg-[#F5F5F4]" },
+  { name: "Slate", value: "#F1F5F9", swatch: "bg-[#F1F5F9]" },
+  { name: "Light Blue", value: "#EFF6FF", swatch: "bg-[#EFF6FF]" },
+  { name: "Sky", value: "#E0F2FE", swatch: "bg-[#E0F2FE]" },
+  { name: "Indigo", value: "#EEF2FF", swatch: "bg-[#EEF2FF]" },
+  { name: "Lavender", value: "#F5F3FF", swatch: "bg-[#F5F3FF]" },
+  { name: "Mint", value: "#ECFDF5", swatch: "bg-[#ECFDF5]" },
+  { name: "Emerald", value: "#D1FAE5", swatch: "bg-[#D1FAE5]" },
+  { name: "Cream", value: "#FFFBEB", swatch: "bg-[#FFFBEB]" },
+  { name: "Peach", value: "#FFF7ED", swatch: "bg-[#FFF7ED]" },
+  { name: "Rose", value: "#FFF1F2", swatch: "bg-[#FFF1F2]" },
+];
 
 interface ManualLink {
   url: string;
@@ -693,6 +710,23 @@ export default function GenerateArticle() {
             ...s,
             subSections: s.subSections.map((sub) =>
               sub.id === sectionId ? { ...sub, aiInstructions: instructions } : sub
+            ),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const updateSectionBgColor = (sectionId: string, color: string) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sectionId) return { ...s, backgroundColor: color || undefined };
+        if (s.subSections) {
+          return {
+            ...s,
+            subSections: s.subSections.map((sub) =>
+              sub.id === sectionId ? { ...sub, backgroundColor: color || undefined } : sub
             ),
           };
         }
@@ -1434,6 +1468,45 @@ export default function GenerateArticle() {
                         className="w-full text-sm text-muted-foreground bg-amber-50/50 border border-amber-200/60 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-amber-300 focus:border-amber-300 placeholder:text-amber-400/60 resize-none"
                         rows={2}
                       />
+                    </div>
+
+                    {/* Background Color Picker */}
+                    <div className="pl-8 mt-2">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Palette className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="text-xs font-semibold text-indigo-700">Background Color</span>
+                        <span className="text-xs text-muted-foreground">(optional)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {SECTION_BG_COLORS.map((color) => (
+                          <button
+                            key={color.name}
+                            title={color.name}
+                            onClick={() => updateSectionBgColor(section.id, color.value)}
+                            className={`w-7 h-7 rounded-md transition-all flex items-center justify-center ${
+                              color.swatch
+                            } ${
+                              (section.backgroundColor || "") === color.value
+                                ? "ring-2 ring-indigo-500 ring-offset-1 scale-110"
+                                : "hover:scale-105 hover:ring-1 hover:ring-gray-300"
+                            }`}
+                            style={color.value ? { backgroundColor: color.value } : undefined}
+                          >
+                            {(section.backgroundColor || "") === color.value && (
+                              <Check className={`w-3.5 h-3.5 ${color.value ? "text-gray-600" : "text-gray-400"}`} />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      {section.backgroundColor && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div
+                            className="h-6 flex-1 rounded-md border border-gray-200"
+                            style={{ backgroundColor: section.backgroundColor }}
+                          />
+                          <span className="text-xs text-muted-foreground font-mono">{section.backgroundColor}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Sub-sections */}

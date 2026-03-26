@@ -278,7 +278,7 @@ export const appRouter = router({
         targetAudience: z.string().optional(),
         outputFormat: z.enum(["html", "plaintext"]).optional(),
         manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
-        sitemapUrl: z.string().optional(),
+        sitemapUrls: z.array(z.string()).optional(),
         autoLinkCount: z.number().optional(),
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
@@ -443,7 +443,7 @@ ${input.additionalInstructions ? `- Additional instructions: ${input.additionalI
 ${input.targetLocation ? `- Target location: ${input.targetLocation} — tailor the outline to be relevant for this geographic area` : ""}
 ${input.targetAudience ? `- Target audience: ${input.targetAudience} — structure the outline to address this audience's needs` : ""}
 ${input.manualLinks?.length ? `- The final article will include these internal links — plan sections where they fit naturally:\n${input.manualLinks.map(l => `  • ${l.url}${l.anchorText ? ` (anchor: "${l.anchorText}")` : ""}`).join("\n")}` : ""}
-${input.sitemapUrl ? `- The article will also include ${input.autoLinkCount ?? 5} automatic internal links from the sitemap at ${input.sitemapUrl}` : ""}
+${input.sitemapUrls?.length ? `- The article will also include ${input.autoLinkCount ?? 5} automatic internal links from the following sitemaps:\n${input.sitemapUrls.map(u => `  • ${u}`).join("\n")}` : ""}
 ${icpSection}
 ${brandVoiceSection}
 
@@ -521,7 +521,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
             targetAudience: input.targetAudience,
             outputFormat: input.outputFormat,
             manualLinks: input.manualLinks,
-            sitemapUrl: input.sitemapUrl,
+            sitemapUrls: input.sitemapUrls,
             autoLinkCount: input.autoLinkCount,
           },
           projectId: input.projectId,
@@ -1180,7 +1180,7 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         targetAudience: z.string().optional(),
         outputFormat: z.enum(["html", "plaintext"]).optional(),
         manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
-        sitemapUrl: z.string().optional(),
+        sitemapUrls: z.array(z.string()).optional(),
         autoLinkCount: z.number().optional(),
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
@@ -1470,7 +1470,7 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         const effectiveAudience = input.targetAudience || settings?.targetAudience || "";
         const effectiveFormat = input.outputFormat || settings?.outputFormat || "html";
         const effectiveManualLinks = input.manualLinks || settings?.manualLinks || [];
-        const effectiveSitemapUrl = input.sitemapUrl || settings?.sitemapUrl || "";
+        const effectiveSitemapUrls: string[] = input.sitemapUrls || (settings?.sitemapUrls as string[] | undefined) || (settings?.sitemapUrl ? [settings.sitemapUrl] : []);
         const effectiveAutoLinkCount = input.autoLinkCount || settings?.autoLinkCount || 5;
 
         // Build internal linking instructions
@@ -1478,8 +1478,8 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         if (effectiveManualLinks.length > 0) {
           linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all of these):\n${effectiveManualLinks.map((l, i) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : " with contextually appropriate anchor text"}`).join("\n")}\nWeave these links naturally into the article body. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
         }
-        if (effectiveSitemapUrl) {
-          linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links to relevant pages from the site's sitemap (${effectiveSitemapUrl}). Choose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
+        if (effectiveSitemapUrls.length > 0) {
+          linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links to relevant pages from the following sitemaps:\n${effectiveSitemapUrls.map(u => `  - ${u}`).join("\n")}\nChoose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
         }
 
         // Output format instructions

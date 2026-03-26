@@ -472,3 +472,12 @@
 - [x] Add default backgroundColor to Expert Insights (#EEF2FF Indigo)
 - [x] Leave FAQ, Pros & Cons, Comparison Table, Step-by-Step Guide without defaults
 - [x] All 249 tests pass
+
+## Multi-Sitemap Selection for Article Generation
+- [x] Replace single sitemap URL input with multi-select checkboxes for project sitemaps
+- [x] Add "Add custom URL" option for ad-hoc sitemap URLs
+- [x] Update backend to accept array of sitemap URLs and merge URL pools
+- [x] Combined URL pool feeds into the AI for link selection
+- [x] Number of links dropdown still controls total count across all sitemaps
+- [x] Backward compatible with old sitemapUrl settings (falls back to array)
+- [x] All 249 tests pass

@@ -106,6 +106,7 @@ export interface OutlineSettings {
   outputFormat?: "html" | "plaintext";
   manualLinks?: { url: string; anchorText: string }[];
   sitemapUrl?: string;
+  sitemapUrls?: string[];
   autoLinkCount?: number;
 }
 

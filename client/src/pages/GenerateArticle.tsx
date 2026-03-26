@@ -22,6 +22,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 const CONTENT_TYPES = [
@@ -349,7 +350,10 @@ export default function GenerateArticle() {
   const [manualLinks, setManualLinks] = useState<ManualLink[]>([]);
   const [newLinkUrl, setNewLinkUrl] = useState("");
   const [newLinkAnchor, setNewLinkAnchor] = useState("");
-  const [sitemapUrl, setSitemapUrl] = useState("");
+  const [selectedSitemapIds, setSelectedSitemapIds] = useState<Set<number>>(new Set());
+  const [customSitemapUrls, setCustomSitemapUrls] = useState<string[]>([]);
+  const [newCustomSitemapUrl, setNewCustomSitemapUrl] = useState("");
+  const [showCustomSitemapInput, setShowCustomSitemapInput] = useState(false);
   const [autoLinkCount, setAutoLinkCount] = useState("5");
 
   // Outline state
@@ -446,12 +450,50 @@ export default function GenerateArticle() {
     return "";
   }, [targetAudienceSource, targetAudience, icpAudienceString, defaultIcpProfile]);
 
-  // Auto-populate sitemap URL from project sitemaps
+  // Auto-select all project sitemaps when they load
   useMemo(() => {
-    if (projectSitemaps.length > 0 && !sitemapUrl) {
-      setSitemapUrl(projectSitemaps[0].url);
+    if (projectSitemaps.length > 0 && selectedSitemapIds.size === 0) {
+      setSelectedSitemapIds(new Set(projectSitemaps.map((s: any) => s.id)));
     }
   }, [projectSitemaps]);
+
+  // Compute the combined list of sitemap URLs from selected project sitemaps + custom URLs
+  const allSitemapUrls = useMemo(() => {
+    const urls: string[] = [];
+    projectSitemaps.forEach((s: any) => {
+      if (selectedSitemapIds.has(s.id)) urls.push(s.url);
+    });
+    customSitemapUrls.forEach((u) => urls.push(u));
+    return urls;
+  }, [projectSitemaps, selectedSitemapIds, customSitemapUrls]);
+
+  const toggleSitemapId = (id: number) => {
+    setSelectedSitemapIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const addCustomSitemapUrl = () => {
+    const url = newCustomSitemapUrl.trim();
+    if (!url) {
+      toast.error("Please enter a sitemap URL");
+      return;
+    }
+    if (customSitemapUrls.includes(url)) {
+      toast.error("This URL is already added");
+      return;
+    }
+    setCustomSitemapUrls((prev) => [...prev, url]);
+    setNewCustomSitemapUrl("");
+    setShowCustomSitemapInput(false);
+  };
+
+  const removeCustomSitemapUrl = (index: number) => {
+    setCustomSitemapUrls((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const addManualLink = () => {
     if (!newLinkUrl.trim()) {
@@ -521,8 +563,8 @@ export default function GenerateArticle() {
       targetAudience: effectiveAudience || undefined,
       outputFormat,
       manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
-      sitemapUrl: sitemapUrl.trim() || undefined,
-      autoLinkCount: sitemapUrl.trim() ? parseInt(autoLinkCount) : undefined,
+      sitemapUrls: allSitemapUrls.length > 0 ? allSitemapUrls : undefined,
+      autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
       brandVoiceId: selectedBrandVoice?.id ?? undefined,
       icpProfileId: selectedIcpProfile?.id ?? undefined,
     });
@@ -552,8 +594,8 @@ export default function GenerateArticle() {
       targetAudience: effectiveAudience || undefined,
       outputFormat,
       manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
-      sitemapUrl: sitemapUrl.trim() || undefined,
-      autoLinkCount: sitemapUrl.trim() ? parseInt(autoLinkCount) : undefined,
+      sitemapUrls: allSitemapUrls.length > 0 ? allSitemapUrls : undefined,
+      autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
       brandVoiceId: selectedBrandVoice?.id ?? undefined,
       icpProfileId: selectedIcpProfile?.id ?? undefined,
     });
@@ -1258,43 +1300,101 @@ export default function GenerateArticle() {
                   <span className="text-xs text-muted-foreground font-normal ml-1.5">(Optional)</span>
                 </Label>
                 <p className="text-xs text-muted-foreground -mt-1">
-                  Provide a sitemap URL to automatically insert hyperlinks into your article. The AI will parse it and insert relevant hyperlinks into the article content.
+                  Select one or more sitemaps to automatically insert relevant hyperlinks into your article.
                 </p>
 
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Sitemap URL</Label>
-                  <Input
-                    placeholder="https://example.com/sitemap.xml"
-                    value={sitemapUrl}
-                    onChange={(e) => setSitemapUrl(e.target.value)}
-                    className="mt-1"
-                  />
-                  {projectSitemaps.length > 0 && sitemapUrl !== projectSitemaps[0]?.url && (
-                    <button
-                      onClick={() => setSitemapUrl(projectSitemaps[0].url)}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 mt-1"
-                    >
-                      Use project sitemap: {projectSitemaps[0].url}
-                    </button>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Number of Links to Insert</Label>
-                  <Select value={autoLinkCount} onValueChange={setAutoLinkCount}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LINK_COUNT_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                {/* Project Sitemaps */}
+                {projectSitemaps.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground">Project Sitemaps</Label>
+                    <div className="space-y-2">
+                      {projectSitemaps.map((sitemap: any) => (
+                        <label
+                          key={sitemap.id}
+                          className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedSitemapIds.has(sitemap.id)}
+                            onCheckedChange={() => toggleSitemapId(sitemap.id)}
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{sitemap.url}</p>
+                            <p className="text-xs text-muted-foreground">{sitemap.urlCount} URLs</p>
+                          </div>
+                        </label>
                       ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Choose how many hyperlinks from the sitemap should be automatically inserted into the article content.
-                  </p>
-                </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Sitemap URLs */}
+                {customSitemapUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground">Custom Sitemaps</Label>
+                    <div className="space-y-2">
+                      {customSitemapUrls.map((url, index) => (
+                        <div key={index} className="flex items-center gap-2 p-3 rounded-lg border border-border bg-accent/30">
+                          <Globe className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <p className="text-sm truncate flex-1">{url}</p>
+                          <button
+                            onClick={() => removeCustomSitemapUrl(index)}
+                            className="text-muted-foreground hover:text-destructive shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Custom Sitemap URL */}
+                {showCustomSitemapInput ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="https://example.com/sitemap.xml"
+                      value={newCustomSitemapUrl}
+                      onChange={(e) => setNewCustomSitemapUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addCustomSitemapUrl()}
+                      className="flex-1"
+                    />
+                    <Button size="sm" variant="outline" onClick={addCustomSitemapUrl}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowCustomSitemapInput(false); setNewCustomSitemapUrl(""); }}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCustomSitemapInput(true)}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    Add custom sitemap URL
+                  </button>
+                )}
+
+                {/* Number of Links */}
+                {allSitemapUrls.length > 0 && (
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Number of Links to Insert</Label>
+                    <Select value={autoLinkCount} onValueChange={setAutoLinkCount}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LINK_COUNT_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total hyperlinks to insert across all selected sitemaps.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

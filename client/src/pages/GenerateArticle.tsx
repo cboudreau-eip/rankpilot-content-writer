@@ -9,6 +9,7 @@ import {
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
   BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate, Palette,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,36 @@ const AI_INSTRUCTION_PRESETS = [
 
 const SECTION_TEMPLATES = [
   { category: "Engagement", items: [
+    {
+      icon: CheckCircle2,
+      label: "Pro Tip",
+      description: "Highlighted tip with checkmark icon",
+      section: {
+        heading: "Pro Tip",
+        type: "h2" as const,
+        points: [
+          "One actionable, expert-level tip the reader can apply immediately",
+        ],
+        aiInstructions: "Write a single, focused pro tip in 2-3 sentences. Be specific and actionable — give the reader something they can do right now. Do NOT use bullet points. Write it as a concise paragraph.",
+        backgroundColor: "#ECFDF5",
+        templateType: "pro-tip" as const,
+      },
+    },
+    {
+      icon: FileText,
+      label: "Summary",
+      description: "Section summary with key points",
+      section: {
+        heading: "Summary",
+        type: "h2" as const,
+        points: [
+          "Concise recap of the most important points covered",
+          "Key action items or next steps for the reader",
+        ],
+        aiInstructions: "Write a concise summary of the article or section in 2-3 short paragraphs. Recap the most important points and end with a clear next step or call to action. Include a link to an authoritative resource if relevant.",
+        templateType: "summary" as const,
+      },
+    },
     {
       icon: Star,
       label: "Key Takeaways",
@@ -265,6 +296,7 @@ interface OutlineSection {
   subSections?: OutlineSection[];
   aiInstructions?: string;
   backgroundColor?: string;
+  templateType?: "pro-tip" | "summary";
 }
 
 const SECTION_BG_COLORS = [
@@ -594,6 +626,8 @@ export default function GenerateArticle() {
       points: [...template.section.points],
       subSections,
       aiInstructions: template.section.aiInstructions,
+      ...(template.section.backgroundColor ? { backgroundColor: template.section.backgroundColor } : {}),
+      ...((template.section as any).templateType ? { templateType: (template.section as any).templateType } : {}),
     };
     setSections((prev) => {
       if (afterSectionId) {

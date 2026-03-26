@@ -2,7 +2,10 @@ import { Node, mergeAttributes } from "@tiptap/react";
 
 /**
  * Custom TipTap node that preserves <div> elements with inline styles.
- * This is used for background-colored section boxes in generated articles.
+ * This is used for:
+ * 1. Background-colored section boxes in generated articles
+ * 2. Pro Tip template sections (with SVG icon, green border)
+ * 3. Summary template sections (with gray border)
  * Without this extension, TipTap's StarterKit strips <div> tags and their styles.
  */
 export const StyledBox = Node.create({
@@ -29,11 +32,23 @@ export const StyledBox = Node.create({
           return { class: attributes.class };
         },
       },
+      "data-template": {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-template"),
+        renderHTML: (attributes) => {
+          if (!attributes["data-template"]) return {};
+          return { "data-template": attributes["data-template"] };
+        },
+      },
     };
   },
 
   parseHTML() {
     return [
+      {
+        // Match template-styled divs (Pro Tip, Summary)
+        tag: "div[data-template]",
+      },
       {
         tag: "div[style]",
         // Only match divs that have background-color in their style

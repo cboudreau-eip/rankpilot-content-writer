@@ -446,3 +446,19 @@
 - [x] Fix: Created custom TipTap StyledBox extension that preserves div elements with background-color styles
 - [x] Styled div wraps entire section content (heading + body) with padding, rounded corners, and chosen background color
 - [x] 11 new tests for applyBackgroundColors, all 236 tests pass
+
+## Fix Cross Reference Data Loss During Deployments (CRITICAL - Recurring)
+- [ ] Investigate what exactly happens to the projects table during deployment (db:push / drizzle migrate)
+- [ ] Determine if drizzle migrations are dropping and recreating the projects table
+- [ ] Implement a permanent fix so referenceDocS3Key, referenceDocName, referenceDocLength survive all deployments
+- [ ] Test the fix thoroughly
+- [ ] Run full test suite
+
+## New Insertion Templates: Pro Tip & Summary
+- [x] Add Pro Tip insertion template with inline SVG checkmark icon, green left border, light green background
+- [x] Add Summary insertion template with left border accent and bold heading
+- [x] Update outline builder to include new template options (Engagement category)
+- [x] Update article generation prompt to handle new template types
+- [x] Ensure TipTap editor preserves the new template HTML (StyledBox extension updated with data-template support)
+- [x] Server-side post-processor (applyTemplateStyles) reliably wraps Pro Tip and Summary sections
+- [x] 13 new tests for applyTemplateStyles, all 249 tests pass

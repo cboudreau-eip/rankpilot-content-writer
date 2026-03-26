@@ -17,6 +17,7 @@ import {
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
+import { applyTemplateStyles } from "./applyTemplateStyles";
 import { invokeLLM } from "./_core/llm";
 import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
@@ -1432,8 +1433,13 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           if (section.aiInstructions?.trim()) {
             text += `[AI INSTRUCTIONS FOR THIS SECTION: ${section.aiInstructions.trim()}]\n`;
           }
-          if (section.backgroundColor) {
-            text += `[BACKGROUND COLOR: Wrap this entire section (heading + content) in a <div> with style="background-color: ${section.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]\n`;
+          if (section.templateType) {
+            text += `[TEMPLATE TYPE: ${section.templateType}] — Do NOT output the heading for this section. Only write the body content (paragraph text). The heading and styled wrapper will be added automatically in post-processing.
+`;
+          }
+          if (section.backgroundColor && !section.templateType) {
+            text += `[BACKGROUND COLOR: Wrap this entire section (heading + content) in a <div> with style="background-color: ${section.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]
+`;
           }
           if (section.subSections) {
             for (const sub of section.subSections) {
@@ -1444,8 +1450,13 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
               if (sub.aiInstructions?.trim()) {
                 text += `[AI INSTRUCTIONS FOR THIS SUB-SECTION: ${sub.aiInstructions.trim()}]\n`;
               }
-              if (sub.backgroundColor) {
-                text += `[BACKGROUND COLOR: Wrap this entire sub-section (heading + content) in a <div> with style="background-color: ${sub.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]\n`;
+              if (sub.templateType) {
+                text += `[TEMPLATE TYPE: ${sub.templateType}] — Do NOT output the heading for this sub-section. Only write the body content (paragraph text). The heading and styled wrapper will be added automatically in post-processing.
+`;
+              }
+              if (sub.backgroundColor && !sub.templateType) {
+                text += `[BACKGROUND COLOR: Wrap this entire sub-section (heading + content) in a <div> with style="background-color: ${sub.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]
+`;
               }
             }
           }
@@ -1497,6 +1508,7 @@ ${formatInstructions}
 - Include bullet points and numbered lists where appropriate
 - CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly. Do NOT write wall-of-text paragraphs.
 - PER-SECTION AI INSTRUCTIONS: Some sections in the outline may include [AI INSTRUCTIONS FOR THIS SECTION: ...] or [AI INSTRUCTIONS FOR THIS SUB-SECTION: ...] directives. You MUST follow these instructions precisely when writing that specific section. These may request specific content formats (tables, charts, bullet lists), specific focus areas, examples, statistics, or other structural requirements. Treat them as mandatory requirements for that section.
+- TEMPLATE SECTIONS: Some sections may include a [TEMPLATE TYPE: pro-tip] or [TEMPLATE TYPE: summary] directive. For these sections, you MUST still output the <h2> heading as normal, but write ONLY the body content (1-3 concise paragraphs). Do NOT add any special formatting, icons, or wrapper divs — the styled container will be added automatically in post-processing. Just write clean paragraph content for these sections.
 - BACKGROUND COLOR SECTIONS: Some sections may include a [BACKGROUND COLOR: ...] directive. When present, you MUST wrap the entire section content (including the heading) inside a <div> with the exact inline style specified. The heading should be INSIDE the div. This creates a visually highlighted box for that section. Example: <div style="background-color: #EFF6FF; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"><h2>Key Takeaways</h2><ul><li>Point 1</li><li>Point 2</li></ul></div>
 - TABLE FORMAT RULES: When AI instructions request a table or comparison table, you MUST output a proper HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags. NEVER use markdown table syntax (pipes |). The table must have a <thead> with <th> header cells and a <tbody> with <td> data cells. Always include at least 3 data rows. Example format:
   <table><thead><tr><th>Feature</th><th>Option A</th><th>Option B</th></tr></thead><tbody><tr><td>Price</td><td>$10</td><td>$20</td></tr></tbody></table>
@@ -1539,9 +1551,13 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         const wrappedContent = effectiveFormat === "html" ? wrapBareTextInPTags(rawArticleContent) : rawArticleContent;
         const splitContent = splitLongParagraphs(wrappedContent, maxSentences, effectiveFormat);
         // Apply background colors from outline sections as a reliable post-processing step
-        const articleContent = effectiveFormat === "html"
+        const bgColoredContent = effectiveFormat === "html"
           ? applyBackgroundColors(splitContent, outline.sections as OutlineSection[])
           : splitContent;
+        // Apply template-specific styles (Pro Tip, Summary) with icons and borders
+        const articleContent = effectiveFormat === "html"
+          ? applyTemplateStyles(bgColoredContent, outline.sections as OutlineSection[])
+          : bgColoredContent;
 
         // Count words
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;

@@ -1118,7 +1118,7 @@ function CrossCheckTab({ projectId }: { projectId: number }) {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">{refDoc.referenceDocName || "Reference Document"}</h3>
-                  <p className="text-sm text-muted-foreground">{refDoc.referenceDoc.length.toLocaleString()} characters</p>
+                  <p className="text-sm text-muted-foreground">{(refDoc.referenceDocLength ?? refDoc.referenceDoc?.length ?? 0).toLocaleString()} characters</p>
                 </div>
               </div>
               <div className="flex gap-2">

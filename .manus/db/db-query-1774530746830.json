@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, name, referenceDoc, referenceDocName FROM projects;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, referenceDoc, referenceDocName FROM projects;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Medicare FAQ",
+      "referenceDoc": "NULL",
+      "referenceDocName": "NULL"
+    },
+    {
+      "id": "30001",
+      "name": "Testing",
+      "referenceDoc": "NULL",
+      "referenceDocName": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\treferenceDoc\treferenceDocName\n1\tMedicare FAQ\tNULL\tNULL\n30001\tTesting\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

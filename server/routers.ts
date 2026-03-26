@@ -13,8 +13,9 @@ import {
   getCTAsByProject, getCTAById, createCTA, updateCTA, deleteCTA,
   getSitemapsByProject, getSitemapById, createSitemap, updateSitemap, deleteSitemap,
   getCitationsByProject, getCitationById, createCitation, updateCitation, deleteCitation,
-  updateProjectReferenceDoc,
+  updateProjectReferenceDocMeta,
 } from "./db";
+import { storagePut, storageGet } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
@@ -844,19 +845,32 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   crossCheck: router({
-    /** Get the reference document for a project */
+    /** Get the reference document metadata for a project */
     getReferenceDoc: protectedProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         const project = await getProjectById(input.projectId);
         if (!project) throw new Error("Project not found");
+
+        let referenceDoc: string | null = null;
+        if (project.referenceDocS3Key) {
+          try {
+            const { url } = await storageGet(project.referenceDocS3Key);
+            const resp = await fetch(url);
+            if (resp.ok) referenceDoc = await resp.text();
+          } catch (e) {
+            console.warn("Failed to fetch reference doc from S3:", e);
+          }
+        }
+
         return {
-          referenceDoc: project.referenceDoc,
+          referenceDoc,
           referenceDocName: project.referenceDocName,
+          referenceDocLength: project.referenceDocLength,
         };
       }),
 
-    /** Update the reference document for a project */
+    /** Update the reference document for a project (uploads to S3) */
     updateReferenceDoc: protectedProcedure
       .input(z.object({
         projectId: z.number(),
@@ -864,7 +878,20 @@ Return ONLY valid JSON, no markdown code blocks.`;
         referenceDocName: z.string().nullable(),
       }))
       .mutation(async ({ input }) => {
-        return updateProjectReferenceDoc(input.projectId, input.referenceDoc, input.referenceDocName);
+        if (input.referenceDoc) {
+          // Upload to S3
+          const s3Key = `reference-docs/project-${input.projectId}-${Date.now()}.txt`;
+          await storagePut(s3Key, input.referenceDoc, "text/plain");
+          return updateProjectReferenceDocMeta(
+            input.projectId,
+            s3Key,
+            input.referenceDocName,
+            input.referenceDoc.length
+          );
+        } else {
+          // Clear reference doc
+          return updateProjectReferenceDocMeta(input.projectId, null, null, null);
+        }
       }),
 
     /** Run cross-check on an article against the project's reference document */
@@ -877,11 +904,20 @@ Return ONLY valid JSON, no markdown code blocks.`;
         const project = await getProjectById(article.projectId);
         if (!project) throw new Error("Project not found");
 
-        if (!project.referenceDoc) {
+        if (!project.referenceDocS3Key) {
           throw new Error("No reference document found for this project. Add one in Project Settings > Cross Check tab.");
         }
 
-        const referenceDoc = project.referenceDoc;
+        // Fetch reference doc content from S3
+        let referenceDoc: string;
+        try {
+          const { url } = await storageGet(project.referenceDocS3Key);
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`S3 fetch failed: ${resp.status}`);
+          referenceDoc = await resp.text();
+        } catch (e) {
+          throw new Error("Failed to retrieve reference document. Please re-upload it in Project Settings > Cross Check tab.");
+        }
         const referenceDocName = project.referenceDocName || "Reference Document";
 
         const systemPrompt = `You are a meticulous fact-checker. Your ONLY job is to compare an article against a reference document and identify factual discrepancies.

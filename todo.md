@@ -412,3 +412,14 @@
 - [x] Improve matching to handle LLM text quoting discrepancies (ellipsis, partial quotes, fuzzy matching)
 - [x] Ensure the fix also applies to the Redundancy Checker apply flow
 - [x] Update tests to cover this scenario
+
+## Fix Cross Reference Data Lost During Code Changes
+- [x] Investigate how cross-reference document data is stored (database vs localStorage vs file)
+- [x] Identify why data is lost during code changes/deployments
+- [x] Root cause: db:push during deployment can drop/recreate tables, wiping referenceDoc data
+- [x] Move reference document content from database (mediumtext column) to S3 storage
+- [x] Keep only metadata (S3 key, filename, char count) in the database
+- [x] Update backend helpers to read/write reference doc from S3
+- [x] Update cross-check mutation to fetch doc from S3
+- [x] Update frontend CrossCheckTab to work with new S3-backed storage
+- [x] Write/update tests to verify S3-based persistence

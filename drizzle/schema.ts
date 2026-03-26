@@ -1,4 +1,4 @@
-import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar, mediumtext } from "drizzle-orm/mysql-core";
+import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -42,10 +42,12 @@ export const projects = mysqlTable("projects", {
   icpDecisionTriggers: json("icpDecisionTriggers").$type<string[]>(),
   /** ICP: Trust signals (max 5 bullet items) */
   icpTrustSignals: json("icpTrustSignals").$type<string[]>(),
-  /** Reference document for Cross Check feature (plain text or markdown) */
-  referenceDoc: mediumtext("referenceDoc"),
+  /** S3 key for the reference document used by Cross Check feature */
+  referenceDocS3Key: varchar("referenceDocS3Key", { length: 1024 }),
   /** Original filename of the reference document for display */
   referenceDocName: varchar("referenceDocName", { length: 512 }),
+  /** Character count of the reference document (for display without fetching from S3) */
+  referenceDocLength: int("referenceDocLength"),
   /** LLM provider: 'builtin' (default Gemini via Forge) or 'claude' (Anthropic Claude) */
   llmProvider: varchar("llmProvider", { length: 32 }).default("builtin").notNull(),
   /** Claude model to use when llmProvider is 'claude' */

@@ -48,6 +48,8 @@ export const projects = mysqlTable("projects", {
   referenceDocName: varchar("referenceDocName", { length: 512 }),
   /** Character count of the reference document (for display without fetching from S3) */
   referenceDocLength: int("referenceDocLength"),
+  /** Banned phrases that should never appear in generated content (JSON array of strings) */
+  bannedPhrases: json("bannedPhrases").$type<string[]>(),
   /** LLM provider: 'builtin' (default Gemini via Forge) or 'claude' (Anthropic Claude) */
   llmProvider: varchar("llmProvider", { length: 32 }).default("builtin").notNull(),
   /** Claude model to use when llmProvider is 'claude' */

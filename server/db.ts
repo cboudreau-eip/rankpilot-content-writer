@@ -114,7 +114,7 @@ export async function createProject(data: InsertProject) {
   return getProjectById(insertId);
 }
 
-export async function updateProject(projectId: number, data: Partial<Pick<InsertProject, "name" | "color" | "domain" | "description" | "icpPrimaryName" | "icpWhoTheyAre" | "icpPains" | "icpGoals" | "icpObjections" | "icpDecisionTriggers" | "icpTrustSignals">>) {
+export async function updateProject(projectId: number, data: Partial<Pick<InsertProject, "name" | "color" | "domain" | "description" | "icpPrimaryName" | "icpWhoTheyAre" | "icpPains" | "icpGoals" | "icpObjections" | "icpDecisionTriggers" | "icpTrustSignals" | "bannedPhrases">>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(projects).set(data).where(eq(projects.id, projectId));

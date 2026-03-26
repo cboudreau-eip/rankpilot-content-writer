@@ -481,3 +481,13 @@
 - [x] Number of links dropdown still controls total count across all sitemaps
 - [x] Backward compatible with old sitemapUrl settings (falls back to array)
 - [x] All 249 tests pass
+
+## Banned Phrases Feature
+- [x] Add bannedPhrases JSON column to projects table in schema
+- [x] Run db:push to migrate (migration 0009)
+- [x] Add bannedPhrases to updateProject db helper type signature
+- [x] Add bannedPhrases to project update tRPC input schema
+- [x] Add BannedPhrasesSection UI in Brand Voice tab (tag display, edit mode with textarea, one phrase per line)
+- [x] Inject banned phrases into article generation prompt as ABSOLUTE HARD CONSTRAINT section
+- [x] Add post-generation scan that removes any banned phrases that slipped through (case-insensitive, regex-safe)
+- [x] 11 new tests for banned phrase removal, all 260 tests pass

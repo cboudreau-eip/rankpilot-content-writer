@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveProject } from "@/components/AppLayout";
 import {
@@ -1354,6 +1354,117 @@ function LLMSettingsTab({ projectId }: { projectId: number }) {
   );
 }
 
+// ---- Banned Phrases Section ----
+function BannedPhrasesSection({ projectId }: { projectId: number }) {
+  const { data: project } = trpc.projects.getById.useQuery({ id: projectId });
+  const utils = trpc.useUtils();
+  const updateMut = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      utils.projects.getById.invalidate({ id: projectId });
+      toast.success("Banned phrases saved");
+    },
+  });
+
+  const [text, setText] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (project?.bannedPhrases) {
+      setText(project.bannedPhrases.filter(Boolean).join("\n"));
+    } else {
+      setText("");
+    }
+  }, [project?.bannedPhrases]);
+
+  const phraseCount = text.split("\n").filter(l => l.trim()).length;
+
+  const handleSave = () => {
+    const phrases = text
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean);
+    updateMut.mutate({ id: projectId, bannedPhrases: phrases });
+    setIsEditing(false);
+  };
+
+  return (
+    <Card className="mt-6">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-red-500" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Banned Phrases</CardTitle>
+              <CardDescription>Phrases that should never appear in generated content</CardDescription>
+            </div>
+          </div>
+          {phraseCount > 0 && (
+            <Badge variant="secondary" className="bg-red-50 text-red-600">
+              {phraseCount} phrase{phraseCount !== 1 ? "s" : ""}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!isEditing && !text.trim() ? (
+          <div className="text-center py-6">
+            <p className="text-muted-foreground text-sm mb-3">
+              No banned phrases yet. Add phrases the AI should never use in your content.
+            </p>
+            <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2">
+              <Plus className="w-4 h-4" /> Add Banned Phrases
+            </Button>
+          </div>
+        ) : !isEditing ? (
+          <div>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {text.split("\n").filter(l => l.trim()).map((phrase, idx) => (
+                <span key={idx} className="inline-flex items-center px-2.5 py-1 rounded-lg text-sm bg-red-50 text-red-700 border border-red-100">
+                  <XCircle className="w-3.5 h-3.5 mr-1.5 text-red-400" />
+                  {phrase.trim()}
+                </span>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+              <Pencil className="w-3.5 h-3.5" /> Edit
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm text-muted-foreground mb-1.5 block">
+                Enter one phrase per line
+              </Label>
+              <Textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={"learn more at\nit's important to note\nnavigate the complexities\nin today's world"}
+                rows={6}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleSave} disabled={updateMut.isPending} className="gap-2">
+                {updateMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                <Save className="w-4 h-4" /> Save
+              </Button>
+              <Button variant="ghost" onClick={() => {
+                setText(project?.bannedPhrases?.filter(Boolean).join("\n") || "");
+                setIsEditing(false);
+              }}>Cancel</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              These phrases will be blocked during article generation. The AI will be instructed to never use them, and a post-generation scan will flag any that slip through.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---- Main Settings Page ----
 export default function ProjectSettings() {
   const { activeProject } = useActiveProject();
@@ -1585,6 +1696,9 @@ export default function ProjectSettings() {
               );
             })
           )}
+
+          {/* Banned Phrases Section */}
+          <BannedPhrasesSection projectId={activeProjectId!} />
         </div>
       )}
 

@@ -195,6 +195,7 @@ export const appRouter = router({
         icpTrustSignals: z.array(z.string()).max(5).optional(),
         llmProvider: z.enum(["builtin", "claude"]).optional(),
         llmModel: z.string().max(128).optional(),
+        bannedPhrases: z.array(z.string()).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
@@ -1526,6 +1527,12 @@ ${formatInstructions}
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
+${project?.bannedPhrases?.length ? `
+=== BANNED PHRASES (ABSOLUTE HARD CONSTRAINT) ===
+The following phrases MUST NEVER appear in the generated content under any circumstances. Do not use them, rephrase them, or include close variations:
+${(project.bannedPhrases as string[]).map(p => `- "${p}"`).join("\n")}
+If you find yourself about to write any of these phrases, stop and rephrase using completely different wording.
+=== END BANNED PHRASES ===` : ''}
 
 ${brandVoiceSection}
 
@@ -1555,9 +1562,22 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           ? applyBackgroundColors(splitContent, outline.sections as OutlineSection[])
           : splitContent;
         // Apply template-specific styles (Pro Tip, Summary) with icons and borders
-        const articleContent = effectiveFormat === "html"
+        let articleContent = effectiveFormat === "html"
           ? applyTemplateStyles(bgColoredContent, outline.sections as OutlineSection[])
           : bgColoredContent;
+
+        // Post-generation scan: remove any banned phrases that slipped through
+        if (project?.bannedPhrases?.length) {
+          for (const phrase of project.bannedPhrases as string[]) {
+            if (phrase.trim()) {
+              const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(escapedPhrase, 'gi');
+              articleContent = articleContent.replace(regex, '');
+            }
+          }
+          // Clean up any empty tags left behind after removal
+          articleContent = articleContent.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
+        }
 
         // Count words
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;

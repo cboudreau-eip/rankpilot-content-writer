@@ -462,3 +462,13 @@
 - [x] Ensure TipTap editor preserves the new template HTML (StyledBox extension updated with data-template support)
 - [x] Server-side post-processor (applyTemplateStyles) reliably wraps Pro Tip and Summary sections
 - [x] 13 new tests for applyTemplateStyles, all 249 tests pass
+
+## Default Background Colors for Insertion Templates
+- [x] Add default backgroundColor to Key Takeaways (#EFF6FF Light Blue)
+- [x] Add default backgroundColor to Who This Is For (#F5F3FF Lavender)
+- [x] Add default backgroundColor to Quick Answer Box (#FFFBEB Cream)
+- [x] Add default backgroundColor to Common Mistakes (#FFF1F2 Rose)
+- [x] Add default backgroundColor to Checklist (#F1F5F9 Slate)
+- [x] Add default backgroundColor to Expert Insights (#EEF2FF Indigo)
+- [x] Leave FAQ, Pros & Cons, Comparison Table, Step-by-Step Guide without defaults
+- [x] All 249 tests pass

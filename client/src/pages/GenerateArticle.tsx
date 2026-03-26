@@ -116,6 +116,7 @@ const SECTION_TEMPLATES = [
           "Main takeaway point 3",
         ],
         aiInstructions: "Format as a highlighted summary box with bullet points. Keep each takeaway to one concise sentence. This should give readers the most important points at a glance.",
+        backgroundColor: "#EFF6FF",
       },
     },
     {
@@ -145,6 +146,7 @@ const SECTION_TEMPLATES = [
           },
         ],
         aiInstructions: "Be direct and specific. Help readers quickly determine if this content is relevant to them.",
+        backgroundColor: "#F5F3FF",
       },
     },
     {
@@ -206,6 +208,7 @@ const SECTION_TEMPLATES = [
           "Keep it under 50 words for snippet optimization",
         ],
         aiInstructions: "Write a single, direct paragraph that answers the main question in under 50 words. Optimize for Google featured snippets. No fluff — get straight to the answer.",
+        backgroundColor: "#FFFBEB",
       },
     },
     {
@@ -236,6 +239,7 @@ const SECTION_TEMPLATES = [
           "Provide the correct approach for each",
         ],
         aiInstructions: "Use a numbered list. For each mistake, use a bold title followed by why it's a problem and what to do instead. Include 4-6 mistakes.",
+        backgroundColor: "#FFF1F2",
       },
     },
   ]},
@@ -268,6 +272,7 @@ const SECTION_TEMPLATES = [
           "Must-have vs nice-to-have features",
         ],
         aiInstructions: "Use bullet points with bold lead-ins for each criterion. Group into 'Must-Haves' and 'Nice-to-Haves' if appropriate. Be specific and actionable.",
+        backgroundColor: "#F1F5F9",
       },
     },
     {
@@ -283,6 +288,7 @@ const SECTION_TEMPLATES = [
           "Provide context for the expert perspective",
         ],
         aiInstructions: "Include expert quotes or cite authoritative sources. Use blockquote formatting for direct quotes. Provide context before each quote explaining who the expert is and why their opinion matters.",
+        backgroundColor: "#EEF2FF",
       },
     },
   ]},

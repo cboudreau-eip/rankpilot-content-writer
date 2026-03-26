@@ -1458,10 +1458,10 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         // Build internal linking instructions
         let linkingInstructions = "";
         if (effectiveManualLinks.length > 0) {
-          linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all of these):\n${effectiveManualLinks.map((l, i) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : " with contextually appropriate anchor text"}`).join("\n")}\nWeave these links naturally into the article body. Use <a href="URL">anchor text</a> format.`;
+          linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all of these):\n${effectiveManualLinks.map((l, i) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : " with contextually appropriate anchor text"}`).join("\n")}\nWeave these links naturally into the article body. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
         }
         if (effectiveSitemapUrl) {
-          linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links to relevant pages from the site's sitemap (${effectiveSitemapUrl}). Choose URLs that are contextually relevant to the article topic and link them naturally within the content using descriptive anchor text. Use <a href="URL">anchor text</a> format.`;
+          linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links to relevant pages from the site's sitemap (${effectiveSitemapUrl}). Choose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
         }
 
         // Output format instructions
@@ -1492,9 +1492,16 @@ ${formatInstructions}
 - PER-SECTION AI INSTRUCTIONS: Some sections in the outline may include [AI INSTRUCTIONS FOR THIS SECTION: ...] or [AI INSTRUCTIONS FOR THIS SUB-SECTION: ...] directives. You MUST follow these instructions precisely when writing that specific section. These may request specific content formats (tables, charts, bullet lists), specific focus areas, examples, statistics, or other structural requirements. Treat them as mandatory requirements for that section.
 - TABLE FORMAT RULES: When AI instructions request a table or comparison table, you MUST output a proper HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags. NEVER use markdown table syntax (pipes |). The table must have a <thead> with <th> header cells and a <tbody> with <td> data cells. Always include at least 3 data rows. Example format:
   <table><thead><tr><th>Feature</th><th>Option A</th><th>Option B</th></tr></thead><tbody><tr><td>Price</td><td>$10</td><td>$20</td></tr></tbody></table>
+- ANCHOR TEXT LENGTH RULES (applies to ALL links — internal and external):
+  * Anchor text MUST be 2-7 words. NEVER wrap an entire sentence or clause as a link.
+  * BAD (too long): <a href="...">Medigap policies are sold by private insurers to help cover the out-of-pocket costs that Original Medicare leaves behind</a>
+  * GOOD (concise): Medigap policies are sold by private insurers to help cover <a href="...">out-of-pocket costs</a> that Original Medicare leaves behind
+  * BAD (too long): <a href="...">Breaking the comparison into steps makes it manageable</a>
+  * GOOD (concise): Breaking the comparison into <a href="...">manageable steps</a> helps simplify the process
+  * The linked phrase should be a natural keyword or key concept, NOT a full sentence
 - CITATION LINK RULES: When inserting any external links or citations:
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
-  * The anchor text MUST be the actual claim or fact being cited (e.g., <a href="...">covers outpatient services including doctor visits</a>)
+  * The anchor text MUST be the actual claim or fact being cited, kept to 2-7 words (e.g., <a href="...">covers outpatient services</a>)
   * NEVER link to a homepage URL — always use the most specific deep page URL relevant to the claim
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
@@ -2265,6 +2272,7 @@ Rules:
 - If an improvement requires adding NEW content (e.g., a new paragraph), set "original" to the single sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
 - If an improvement mentions adding sources/citations, use the available citation sources listed above
 - When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", or the source name). Link to a specific deep page URL, NOT the homepage.
+- ANCHOR TEXT LENGTH: All link anchor text must be 2-7 words. NEVER wrap an entire sentence as a link. Link only the key phrase or concept.
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
 - Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
 - Maintain the original tone, perspective, and formatting style
@@ -2370,6 +2378,7 @@ Rules:
 - The "original" field must be an EXACT substring of the content (character-for-character match)
 - If an improvement requires adding NEW content, set "original" to the single sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
 - When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", "Find out more", or just the source name). Link to a specific deep page URL, NOT a homepage.
+- ANCHOR TEXT LENGTH: All link anchor text must be 2-7 words. NEVER wrap an entire sentence as a link. Link only the key phrase or concept.
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
 - Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
 - Maintain the original tone, perspective, and formatting style

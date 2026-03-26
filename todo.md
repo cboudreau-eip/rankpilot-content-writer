@@ -423,3 +423,10 @@
 - [x] Update cross-check mutation to fetch doc from S3
 - [x] Update frontend CrossCheckTab to work with new S3-backed storage
 - [x] Write/update tests to verify S3-based persistence
+
+## Fix Long Anchor Text in Generated Articles
+- [x] Find the article generation prompt where internal links are created
+- [x] Add instructions to enforce short, natural anchor text (2-7 words max)
+- [x] Ensure links wrap only key phrases, not entire sentences
+- [x] Added rules to article generation, manual links, auto links, and grading improvement prompts
+- [x] All 225 tests pass

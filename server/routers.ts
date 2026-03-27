@@ -1435,7 +1435,7 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
             text += `[AI INSTRUCTIONS FOR THIS SECTION: ${section.aiInstructions.trim()}]\n`;
           }
           if (section.templateType) {
-            text += `[TEMPLATE TYPE: ${section.templateType}] — Do NOT output the heading for this section. Only write the body content (paragraph text). The heading and styled wrapper will be added automatically in post-processing.
+            text += `[TEMPLATE TYPE: ${section.templateType}] — You MUST output the <h2> heading for this section as normal (e.g., <h2>${section.heading}</h2>), then write ONLY clean body content (1-3 concise paragraphs). Do NOT add any special formatting, icons, borders, or wrapper divs. The styled container will be added automatically in post-processing.
 `;
           }
           if (section.backgroundColor && !section.templateType) {
@@ -1452,7 +1452,7 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
                 text += `[AI INSTRUCTIONS FOR THIS SUB-SECTION: ${sub.aiInstructions.trim()}]\n`;
               }
               if (sub.templateType) {
-                text += `[TEMPLATE TYPE: ${sub.templateType}] — Do NOT output the heading for this sub-section. Only write the body content (paragraph text). The heading and styled wrapper will be added automatically in post-processing.
+                text += `[TEMPLATE TYPE: ${sub.templateType}] — You MUST output the <h3> heading for this sub-section as normal (e.g., <h3>${sub.heading}</h3>), then write ONLY clean body content (1-3 concise paragraphs). Do NOT add any special formatting, icons, borders, or wrapper divs. The styled container will be added automatically in post-processing.
 `;
               }
               if (sub.backgroundColor && !sub.templateType) {

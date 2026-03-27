@@ -497,3 +497,9 @@
 - [x] Fix top alignment between Brand Voice card and Banned Phrases card in two-column grid (items-start)
 - [x] Move New Brand Voice button from header to below brand voice cards to fix column alignment
 - [x] Fix Brand Voice tab: heading/subtitle inside left column pushes card down, causing misalignment with Banned Phrases card
+
+## Fix Pro Tip Template Not Appearing in Generated Articles
+- [x] Fix conflicting LLM prompt: per-section says "Do NOT output heading" but system prompt says "MUST output heading" — LLM omits heading, post-processor can't find it
+- [x] Unify prompt instructions so LLM always outputs the heading for template sections
+- [x] Verify applyTemplateStyles correctly wraps the section after fix
+- [x] Run tests — all 260 tests pass

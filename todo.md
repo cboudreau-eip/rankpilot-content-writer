@@ -503,3 +503,8 @@
 - [x] Unify prompt instructions so LLM always outputs the heading for template sections
 - [x] Verify applyTemplateStyles correctly wraps the section after fix
 - [x] Run tests — all 260 tests pass
+
+## Fix Summary Template Not Appearing in Generated Articles
+- [x] Investigate why Summary template fails while Pro Tip now works
+- [x] Implement fix: two-pass heading matching (exact first, then alias fallback) with synonym lists for summary/pro-tip
+- [x] Run tests — all 267 tests pass (7 new alias-matching tests added)

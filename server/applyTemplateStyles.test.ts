@@ -186,4 +186,102 @@ describe("applyTemplateStyles", () => {
     expect(result).toContain("Sub tip.");
     expect(result).toContain("<h3>More Details</h3>");
   });
+
+  // --- Alias/fuzzy matching tests ---
+
+  it("matches 'Conclusion' as an alias for a summary template section", () => {
+    const html = "<h2>Intro</h2><p>Welcome.</p><h2>Conclusion</h2><p>This wraps up everything we covered.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Intro", type: "h2", points: [] },
+      { id: "2", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("background-color: #F9FAFB");
+    expect(result).toContain("border-left: 4px solid #6B7280");
+    expect(result).toContain("Summary</strong>");
+    expect(result).toContain("This wraps up everything we covered.");
+    expect(result).not.toContain("<h2>Conclusion</h2>");
+  });
+
+  it("matches 'Final Thoughts' as an alias for a summary template section", () => {
+    const html = "<h2>Final Thoughts</h2><p>Here are the key points to remember.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("Summary</strong>");
+    expect(result).toContain("key points to remember");
+    expect(result).not.toContain("<h2>Final Thoughts</h2>");
+  });
+
+  it("matches 'Wrapping Up' as an alias for a summary template section", () => {
+    const html = "<h2>Wrapping Up</h2><p>To summarize the main takeaways.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("To summarize the main takeaways.");
+  });
+
+  it("matches 'Expert Tip' as an alias for a pro-tip template section", () => {
+    const html = "<h2>Expert Tip</h2><p>Always compare at least three quotes.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="pro-tip"');
+    expect(result).toContain("Pro Tip</strong>");
+    expect(result).toContain("Always compare at least three quotes.");
+    expect(result).not.toContain("<h2>Expert Tip</h2>");
+  });
+
+  it("matches 'Quick Tip' as an alias for a pro-tip template section", () => {
+    const html = "<h2>Quick Tip</h2><p>Check your eligibility first.</p><h2>Next</h2><p>More.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
+      { id: "2", heading: "Next", type: "h2", points: [] },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="pro-tip"');
+    expect(result).toContain("Check your eligibility first.");
+    expect(result).toContain("<h2>Next</h2>");
+  });
+
+  it("still prefers exact match over alias when both exist", () => {
+    const html = "<h2>Conclusion</h2><p>Wrong section.</p><h2>Summary</h2><p>Correct section.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Conclusion", type: "h2", points: [] },
+      { id: "2", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("Correct section.");
+    // The Conclusion heading should remain untouched (it's a different section)
+    expect(result).toContain("<h2>Conclusion</h2>");
+  });
+
+  it("handles both alias-matched summary and exact-matched pro-tip in same article", () => {
+    const html = "<h2>Pro Tip</h2><p>Start early.</p><h2>Details</h2><p>Info.</p><h2>Conclusion</h2><p>Final words.</p>";
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
+      { id: "2", heading: "Details", type: "h2", points: [] },
+      { id: "3", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="pro-tip"');
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("<h2>Details</h2>");
+    expect(result).not.toContain("<h2>Pro Tip</h2>");
+    expect(result).not.toContain("<h2>Conclusion</h2>");
+  });
 });

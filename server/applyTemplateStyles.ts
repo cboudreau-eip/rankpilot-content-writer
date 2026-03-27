@@ -56,6 +56,15 @@ function normalizeHeading(text: string): string {
     .toLowerCase();
 }
 
+/**
+ * Known synonyms/alternatives the LLM might use instead of the exact heading.
+ * Maps templateType to arrays of alternative heading texts the LLM commonly substitutes.
+ */
+const HEADING_ALIASES: Record<string, string[]> = {
+  "summary": ["summary", "conclusion", "final thoughts", "in summary", "wrapping up", "key takeaways summary", "to sum up", "article summary"],
+  "pro-tip": ["pro tip", "expert tip", "quick tip", "insider tip", "bonus tip", "helpful tip"],
+};
+
 interface TemplateSectionInfo {
   heading: string;
   level: "h2" | "h3";
@@ -91,6 +100,23 @@ function collectTemplateSections(sections: OutlineSection[]): TemplateSectionInf
 }
 
 /**
+ * Check if a heading text matches any known alias for the template type.
+ * This is used as a fallback when the exact heading match fails (e.g., LLM renamed "Summary" to "Conclusion").
+ */
+function headingMatchesAlias(matchedText: string, templateType: string): boolean {
+  const normalizedMatched = normalizeHeading(matchedText);
+
+  const aliases = HEADING_ALIASES[templateType];
+  if (aliases) {
+    for (const alias of aliases) {
+      if (normalizedMatched === alias) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Apply template-specific styles to article HTML based on outline section data.
  * This wraps Pro Tip and Summary sections with their styled containers,
  * replacing any existing background-color div wrapper if present.
@@ -102,10 +128,9 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
   let result = html;
 
   for (const section of templateSections) {
-    const normalizedTarget = normalizeHeading(section.heading);
     const tag = section.level;
 
-    // Find the heading in the HTML
+    // Find the heading in the HTML — two-pass: exact match first, then alias fallback
     const headingRegex = new RegExp(
       `(<${tag}[^>]*>)(.*?)(<\\/${tag}>)`,
       "gi"
@@ -115,12 +140,25 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
     let headingStart = -1;
     let headingEnd = -1;
 
+    // Pass 1: exact match only
+    const normalizedTarget = normalizeHeading(section.heading);
     while ((headingMatch = headingRegex.exec(result)) !== null) {
-      const matchedText = normalizeHeading(headingMatch[2]);
-      if (matchedText === normalizedTarget) {
+      if (normalizeHeading(headingMatch[2]) === normalizedTarget) {
         headingStart = headingMatch.index;
         headingEnd = headingMatch.index + headingMatch[0].length;
         break;
+      }
+    }
+
+    // Pass 2: alias fallback (only if exact match failed)
+    if (headingStart === -1) {
+      headingRegex.lastIndex = 0; // reset regex
+      while ((headingMatch = headingRegex.exec(result)) !== null) {
+        if (headingMatchesAlias(headingMatch[2], section.templateType)) {
+          headingStart = headingMatch.index;
+          headingEnd = headingMatch.index + headingMatch[0].length;
+          break;
+        }
       }
     }
 

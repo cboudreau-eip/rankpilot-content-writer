@@ -517,3 +517,8 @@
 - [x] Update LLM prompt instructions in routers.ts for use-cases template type
 - [x] Write tests for Use Cases post-processing (exact match, alias match, card splitting)
 - [x] Run all tests and verify — all 277 tests pass (10 new Use Cases tests)
+
+## Fix Use Cases Template Styling Not Applied
+- [x] Investigate why card-splitting failed on real LLM output — LLM renamed "Use Cases" to contextual heading not in alias list
+- [x] Fix: rewrote applyTemplateStyles with two-phase approach (match all headings first on original HTML, then apply replacements in reverse order) and added 3-pass matching (exact → alias → positional)
+- [x] Run tests and verify — all 282 tests pass (5 new positional matching tests)

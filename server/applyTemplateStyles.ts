@@ -8,6 +8,13 @@
  * Pro Tip: Green left border, light green background, inline SVG checkmark icon
  * Summary: Gray left border, light gray background, clean box layout
  * Use Cases: Stacked cards with slate left border, light background per card
+ *
+ * Heading matching uses a 3-pass approach (all done on the ORIGINAL html before any replacements):
+ *   Pass 1: Exact heading text match (normalized)
+ *   Pass 2: Alias/synonym match (e.g., "Conclusion" → summary)
+ *   Pass 3: Positional match (Nth heading in HTML matches Nth section in outline)
+ *
+ * After matching, replacements are applied in reverse document order so positions don't shift.
  */
 
 import type { OutlineSection } from "../drizzle/schema";
@@ -46,7 +53,6 @@ ${innerContent}
  * Returns an array of { title, body } objects, plus any intro text before the first card.
  */
 function splitUseCaseCards(bodyContent: string): { intro: string; cards: { title: string; body: string }[] } {
-  // Find all <p> tags that contain a <strong> as the primary content (use case titles)
   const strongParagraphRegex = /<p[^>]*>\s*<strong[^>]*>(.*?)<\/strong>\s*<\/p>/gi;
   const matches: { index: number; fullMatch: string; title: string }[] = [];
 
@@ -60,11 +66,9 @@ function splitUseCaseCards(bodyContent: string): { intro: string; cards: { title
   }
 
   if (matches.length === 0) {
-    // No card structure found — return everything as intro
     return { intro: bodyContent, cards: [] };
   }
 
-  // Everything before the first strong paragraph is the intro
   const intro = bodyContent.substring(0, matches[0].index).trim();
 
   const cards: { title: string; body: string }[] = [];
@@ -87,7 +91,6 @@ function wrapUseCases(innerContent: string): string {
   const { intro, cards } = splitUseCaseCards(innerContent);
 
   if (cards.length === 0) {
-    // Fallback: if no card structure detected, wrap the whole thing in a single card
     return `<div data-template="use-cases">
 ${intro || innerContent}
 </div>`;
@@ -129,7 +132,6 @@ function normalizeHeading(text: string): string {
 
 /**
  * Known synonyms/alternatives the LLM might use instead of the exact heading.
- * Maps templateType to arrays of alternative heading texts the LLM commonly substitutes.
  */
 const HEADING_ALIASES: Record<string, string[]> = {
   "summary": ["summary", "conclusion", "final thoughts", "in summary", "wrapping up", "key takeaways summary", "to sum up", "article summary"],
@@ -141,31 +143,61 @@ interface TemplateSectionInfo {
   heading: string;
   level: "h2" | "h3";
   templateType: "pro-tip" | "summary" | "use-cases";
+  /** The 0-based index of this section among all same-level sections in the outline */
+  outlineIndex: number;
+}
+
+interface HeadingInfo {
+  start: number;
+  end: number;
+  text: string;
+  index: number; // 0-based position among all same-level headings
 }
 
 /**
- * Collect sections that have a templateType set.
+ * A matched replacement to apply: the region to replace and the new content.
+ */
+interface ReplacementPlan {
+  /** Start position in the original HTML */
+  actualStart: number;
+  /** End position in the original HTML */
+  actualEnd: number;
+  /** The replacement HTML */
+  replacement: string;
+}
+
+/**
+ * Collect sections that have a templateType set, including their positional index.
  */
 function collectTemplateSections(sections: OutlineSection[]): TemplateSectionInfo[] {
   const result: TemplateSectionInfo[] = [];
+  let h2Index = 0;
+
   for (const section of sections) {
     if (section.templateType) {
       result.push({
         heading: section.heading,
         level: section.type === "h3" ? "h3" : "h2",
         templateType: section.templateType,
+        outlineIndex: section.type === "h3" ? 0 : h2Index,
       });
     }
     if (section.subSections) {
+      let h3Index = 0;
       for (const sub of section.subSections) {
         if (sub.templateType) {
           result.push({
             heading: sub.heading,
             level: "h3",
             templateType: sub.templateType,
+            outlineIndex: h3Index,
           });
         }
+        h3Index++;
       }
+    }
+    if (section.type !== "h3") {
+      h2Index++;
     }
   }
   return result;
@@ -173,77 +205,120 @@ function collectTemplateSections(sections: OutlineSection[]): TemplateSectionInf
 
 /**
  * Check if a heading text matches any known alias for the template type.
- * This is used as a fallback when the exact heading match fails (e.g., LLM renamed "Summary" to "Conclusion").
  */
 function headingMatchesAlias(matchedText: string, templateType: string): boolean {
   const normalizedMatched = normalizeHeading(matchedText);
-
   const aliases = HEADING_ALIASES[templateType];
   if (aliases) {
     for (const alias of aliases) {
       if (normalizedMatched === alias) return true;
     }
   }
-
   return false;
 }
 
 /**
+ * Find all headings of a given level in the HTML, returning their positions, text, and index.
+ */
+function findAllHeadings(html: string, tag: string): HeadingInfo[] {
+  const regex = new RegExp(`(<${tag}[^>]*>)(.*?)(<\\/${tag}>)`, "gi");
+  const headings: HeadingInfo[] = [];
+  let match: RegExpExecArray | null;
+  let idx = 0;
+  while ((match = regex.exec(html)) !== null) {
+    headings.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      text: match[2],
+      index: idx,
+    });
+    idx++;
+  }
+  return headings;
+}
+
+/**
  * Apply template-specific styles to article HTML based on outline section data.
- * This wraps Pro Tip, Summary, and Use Cases sections with their styled containers,
- * replacing any existing background-color div wrapper if present.
+ *
+ * Phase 1: Match all template sections to headings in the ORIGINAL html (no mutations).
+ * Phase 2: Apply all replacements in reverse document order so positions don't shift.
  */
 export function applyTemplateStyles(html: string, sections: OutlineSection[]): string {
   const templateSections = collectTemplateSections(sections);
   if (templateSections.length === 0) return html;
 
-  let result = html;
+  // ===== PHASE 1: Match all template sections to headings =====
+
+  // Pre-compute all headings by level from the original HTML
+  const headingsByLevel: Record<string, HeadingInfo[]> = {};
+  for (const section of templateSections) {
+    if (!headingsByLevel[section.level]) {
+      headingsByLevel[section.level] = findAllHeadings(html, section.level);
+    }
+  }
+
+  // Track which heading indices have been claimed (to avoid double-matching)
+  const claimedIndices: Record<string, Set<number>> = {};
+
+  // Collect all planned replacements
+  const replacements: ReplacementPlan[] = [];
 
   for (const section of templateSections) {
     const tag = section.level;
+    const allHeadings = headingsByLevel[tag] || [];
+    if (!claimedIndices[tag]) claimedIndices[tag] = new Set<number>();
+    const claimed = claimedIndices[tag];
 
-    // Find the heading in the HTML — two-pass: exact match first, then alias fallback
-    const headingRegex = new RegExp(
-      `(<${tag}[^>]*>)(.*?)(<\\/${tag}>)`,
-      "gi"
-    );
+    let matchedHeading: HeadingInfo | null = null;
 
-    let headingMatch: RegExpExecArray | null;
-    let headingStart = -1;
-    let headingEnd = -1;
-
-    // Pass 1: exact match only
+    // Pass 1: exact match
     const normalizedTarget = normalizeHeading(section.heading);
-    while ((headingMatch = headingRegex.exec(result)) !== null) {
-      if (normalizeHeading(headingMatch[2]) === normalizedTarget) {
-        headingStart = headingMatch.index;
-        headingEnd = headingMatch.index + headingMatch[0].length;
+    for (const h of allHeadings) {
+      if (claimed.has(h.index)) continue;
+      if (normalizeHeading(h.text) === normalizedTarget) {
+        matchedHeading = h;
         break;
       }
     }
 
-    // Pass 2: alias fallback (only if exact match failed)
-    if (headingStart === -1) {
-      headingRegex.lastIndex = 0; // reset regex
-      while ((headingMatch = headingRegex.exec(result)) !== null) {
-        if (headingMatchesAlias(headingMatch[2], section.templateType)) {
-          headingStart = headingMatch.index;
-          headingEnd = headingMatch.index + headingMatch[0].length;
+    // Pass 2: alias fallback
+    if (!matchedHeading) {
+      for (const h of allHeadings) {
+        if (claimed.has(h.index)) continue;
+        if (headingMatchesAlias(h.text, section.templateType)) {
+          matchedHeading = h;
           break;
         }
       }
     }
 
-    if (headingStart === -1) continue;
+    // Pass 3: positional fallback
+    if (!matchedHeading) {
+      const targetIndex = section.outlineIndex;
+      if (targetIndex < allHeadings.length) {
+        const target = allHeadings[targetIndex];
+        if (target && !claimed.has(target.index)) {
+          matchedHeading = target;
+        }
+      }
+    }
+
+    if (!matchedHeading) continue;
+
+    // Claim this heading
+    claimed.add(matchedHeading.index);
+
+    const headingStart = matchedHeading.start;
+    const headingEnd = matchedHeading.end;
 
     // Check if already wrapped with a data-template attribute (avoid double-wrapping)
-    const before = result.substring(Math.max(0, headingStart - 300), headingStart);
+    const before = html.substring(Math.max(0, headingStart - 300), headingStart);
     if (before.includes(`data-template="${section.templateType}"`)) {
       continue;
     }
 
     // Find the end of this section: next same-level heading or end of content
-    const afterHeading = result.substring(headingEnd);
+    const afterHeading = html.substring(headingEnd);
     const nextHeadingRegex = new RegExp(`<${tag}[\\s>]`, "i");
     const nextHeadingMatch = nextHeadingRegex.exec(afterHeading);
 
@@ -251,22 +326,19 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
     if (nextHeadingMatch) {
       sectionEnd = headingEnd + nextHeadingMatch.index;
     } else {
-      sectionEnd = result.length;
+      sectionEnd = html.length;
     }
 
     // Check if the section is already wrapped in a background-color div from applyBackgroundColors
-    // If so, we need to replace that entire div with our template-styled version
-    const beforeSection = result.substring(Math.max(0, headingStart - 200), headingStart);
+    const beforeSection = html.substring(Math.max(0, headingStart - 200), headingStart);
     const bgDivMatch = beforeSection.match(/<div[^>]*style="[^"]*background-color[^"]*"[^>]*>\s*$/i);
 
     let actualStart = headingStart;
     let actualEnd = sectionEnd;
 
     if (bgDivMatch) {
-      // The heading is inside a background-color div — find the start of that div
       actualStart = headingStart - bgDivMatch[0].length;
-      // Find the closing </div> after the section content
-      const afterSection = result.substring(sectionEnd);
+      const afterSection = html.substring(sectionEnd);
       const closingDivMatch = afterSection.match(/^\s*<\/div>/i);
       if (closingDivMatch) {
         actualEnd = sectionEnd + closingDivMatch[0].length;
@@ -274,7 +346,7 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
     }
 
     // Extract the body content (everything after the heading, excluding the heading itself)
-    const bodyContent = result.substring(headingEnd, sectionEnd).trim();
+    const bodyContent = html.substring(headingEnd, sectionEnd).trim();
 
     // Build the template-styled wrapper
     let wrappedSection: string;
@@ -288,8 +360,20 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
       continue;
     }
 
-    // Replace the section in the result
-    result = result.substring(0, actualStart) + wrappedSection + result.substring(actualEnd);
+    replacements.push({
+      actualStart,
+      actualEnd,
+      replacement: wrappedSection,
+    });
+  }
+
+  // ===== PHASE 2: Apply replacements in reverse document order =====
+  // Sort by actualStart descending so later replacements don't shift earlier positions
+  replacements.sort((a, b) => b.actualStart - a.actualStart);
+
+  let result = html;
+  for (const r of replacements) {
+    result = result.substring(0, r.actualStart) + r.replacement + result.substring(r.actualEnd);
   }
 
   return result;

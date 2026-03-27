@@ -148,9 +148,11 @@ describe("applyTemplateStyles", () => {
   });
 
   it("handles heading not found in HTML gracefully", () => {
+    // Outline has 2 sections but HTML only has 1 heading — the template section has no match
     const html = "<h2>Introduction</h2><p>Content.</p>";
     const sections: OutlineSection[] = [
-      { id: "1", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
+      { id: "1", heading: "Introduction", type: "h2", points: [] },
+      { id: "2", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
     ];
     expect(applyTemplateStyles(html, sections)).toBe(html);
   });
@@ -410,5 +412,85 @@ describe("applyTemplateStyles", () => {
 
     const cardCount = (result.match(/border-left: 4px solid #334155/g) || []).length;
     expect(cardCount).toBe(5);
+  });
+
+  // ==================== POSITIONAL MATCHING TESTS ====================
+
+  it("uses positional matching when LLM renames use-cases heading to something not in aliases", () => {
+    // Real-world scenario: outline has "Use Cases" but LLM renamed to "Who These Medicare Options Are Designed For"
+    const html = `<h2>Understanding Your Medicare Journey</h2><p>Intro content.</p><h2>Who These Medicare Options Are Designed For</h2><p>Different plans serve different people.</p><p><strong>The Frequent Healthcare User</strong></p><p>If you see multiple specialists.</p><p><strong>The Budget-Conscious Senior</strong></p><p>If keeping premiums low is your priority.</p><h2>Medicare Basics</h2><p>More content.</p>`;
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Understanding Your Medicare Journey", type: "h2", points: [] },
+      { id: "2", heading: "Use Cases", type: "h2", points: [], templateType: "use-cases" },
+      { id: "3", heading: "Medicare Basics", type: "h2", points: [] },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="use-cases"');
+    expect(result).toContain("The Frequent Healthcare User");
+    expect(result).toContain("The Budget-Conscious Senior");
+    expect(result).toContain("border-left: 4px solid #334155");
+    expect(result).not.toContain("<h2>Who These Medicare Options Are Designed For</h2>");
+    expect(result).toContain("<h2>Understanding Your Medicare Journey</h2>");
+    expect(result).toContain("<h2>Medicare Basics</h2>");
+  });
+
+  it("uses positional matching when LLM renames summary heading to something creative", () => {
+    const html = `<h2>Intro</h2><p>Welcome.</p><h2>Your Path Forward</h2><p>Here is what we covered.</p>`;
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Intro", type: "h2", points: [] },
+      { id: "2", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("Here is what we covered.");
+    expect(result).not.toContain("<h2>Your Path Forward</h2>");
+  });
+
+  it("prefers exact match over positional match", () => {
+    // Even though positional would match the 2nd heading, exact match should find the 3rd
+    const html = `<h2>Intro</h2><p>Welcome.</p><h2>Random Section</h2><p>Content.</p><h2>Use Cases</h2><p>Intro.</p><p><strong>Case A</strong></p><p>Desc.</p>`;
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Intro", type: "h2", points: [] },
+      { id: "2", heading: "Use Cases", type: "h2", points: [], templateType: "use-cases" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    // Should match "Use Cases" exactly (3rd heading), not positionally (2nd heading)
+    expect(result).toContain('data-template="use-cases"');
+    expect(result).toContain("Case A");
+    expect(result).toContain("<h2>Random Section</h2>");
+  });
+
+  it("positional matching works with pro-tip when LLM renames heading", () => {
+    const html = `<h2>Intro</h2><p>Content.</p><h2>A Helpful Reminder</h2><p>Always check your eligibility.</p><h2>Next</h2><p>More.</p>`;
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Intro", type: "h2", points: [] },
+      { id: "2", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
+      { id: "3", heading: "Next", type: "h2", points: [] },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="pro-tip"');
+    expect(result).toContain("Always check your eligibility.");
+    expect(result).toContain("<h2>Intro</h2>");
+    expect(result).toContain("<h2>Next</h2>");
+  });
+
+  it("positional matching handles multiple templates with renamed headings", () => {
+    const html = `<h2>Getting Started</h2><p>Intro.</p><h2>Important Advice</h2><p>Tip content.</p><h2>Who Benefits Most</h2><p>Intro text.</p><p><strong>Group A</strong></p><p>Desc A.</p><h2>Final Words</h2><p>Wrap up.</p>`;
+    const sections: OutlineSection[] = [
+      { id: "1", heading: "Getting Started", type: "h2", points: [] },
+      { id: "2", heading: "Pro Tip", type: "h2", points: [], templateType: "pro-tip" },
+      { id: "3", heading: "Use Cases", type: "h2", points: [], templateType: "use-cases" },
+      { id: "4", heading: "Summary", type: "h2", points: [], templateType: "summary" },
+    ];
+    const result = applyTemplateStyles(html, sections);
+
+    expect(result).toContain('data-template="pro-tip"');
+    expect(result).toContain('data-template="use-cases"');
+    expect(result).toContain('data-template="summary"');
+    expect(result).toContain("<h2>Getting Started</h2>");
   });
 });

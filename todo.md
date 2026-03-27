@@ -495,3 +495,4 @@
 ## Brand Voice Tab Layout
 - [x] Change Brand Voice and Banned Phrases cards from stacked to two-column side-by-side grid (lg:grid-cols-2)
 - [x] Fix top alignment between Brand Voice card and Banned Phrases card in two-column grid (items-start)
+- [x] Move New Brand Voice button from header to below brand voice cards to fix column alignment

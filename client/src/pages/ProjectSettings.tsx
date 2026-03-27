@@ -1538,7 +1538,7 @@ export default function ProjectSettings() {
     : "";
 
   // Determine if the active tab has a "create" button
-  const showCreateButton = ["voice", "cta", "citations"].includes(activeTab);
+  const showCreateButton = ["cta", "citations"].includes(activeTab);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -1603,6 +1603,11 @@ export default function ProjectSettings() {
 
       {/* Brand Voice Tab */}
       {activeTab === "voice" && (
+        <>
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold">Brand Voices</h2>
+          <p className="text-muted-foreground text-sm mt-0.5">Set the tone and style for your AI-generated articles.</p>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           {/* Left column: Brand Voice cards */}
           <div className="space-y-4">
@@ -1699,6 +1704,13 @@ export default function ProjectSettings() {
             })
           )}
 
+          {/* Add New Brand Voice button below cards */}
+          {voiceList.length > 0 && (
+            <Button onClick={openCreate} variant="outline" className="gap-2 w-full border-dashed">
+              <Plus className="w-4 h-4" /> New Brand Voice
+            </Button>
+          )}
+
           </div>
 
           {/* Right column: Banned Phrases */}
@@ -1706,6 +1718,7 @@ export default function ProjectSettings() {
             <BannedPhrasesSection projectId={activeProjectId!} />
           </div>
         </div>
+        </>
       )}
 
       {/* CTA Templates Tab */}

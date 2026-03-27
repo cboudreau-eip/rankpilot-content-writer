@@ -1603,7 +1603,7 @@ export default function ProjectSettings() {
 
       {/* Brand Voice Tab */}
       {activeTab === "voice" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           {/* Left column: Brand Voice cards */}
           <div className="space-y-4">
           {voiceLoading ? (

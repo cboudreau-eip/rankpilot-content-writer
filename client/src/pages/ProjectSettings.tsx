@@ -1603,12 +1603,7 @@ export default function ProjectSettings() {
 
       {/* Brand Voice Tab */}
       {activeTab === "voice" && (
-        <>
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold">Brand Voices</h2>
-          <p className="text-muted-foreground text-sm mt-0.5">Set the tone and style for your AI-generated articles.</p>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           {/* Left column: Brand Voice cards */}
           <div className="space-y-4">
           {voiceLoading ? (
@@ -1718,7 +1713,6 @@ export default function ProjectSettings() {
             <BannedPhrasesSection projectId={activeProjectId!} />
           </div>
         </div>
-        </>
       )}
 
       {/* CTA Templates Tab */}

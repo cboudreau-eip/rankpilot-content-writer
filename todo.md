@@ -491,3 +491,6 @@
 - [x] Inject banned phrases into article generation prompt as ABSOLUTE HARD CONSTRAINT section
 - [x] Add post-generation scan that removes any banned phrases that slipped through (case-insensitive, regex-safe)
 - [x] 11 new tests for banned phrase removal, all 260 tests pass
+
+## Brand Voice Tab Layout
+- [x] Change Brand Voice and Banned Phrases cards from stacked to two-column side-by-side grid (lg:grid-cols-2)

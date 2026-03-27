@@ -1603,7 +1603,9 @@ export default function ProjectSettings() {
 
       {/* Brand Voice Tab */}
       {activeTab === "voice" && (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left column: Brand Voice cards */}
+          <div className="space-y-4">
           {voiceLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
           ) : voiceList.length === 0 ? (
@@ -1697,8 +1699,12 @@ export default function ProjectSettings() {
             })
           )}
 
-          {/* Banned Phrases Section */}
-          <BannedPhrasesSection projectId={activeProjectId!} />
+          </div>
+
+          {/* Right column: Banned Phrases */}
+          <div>
+            <BannedPhrasesSection projectId={activeProjectId!} />
+          </div>
         </div>
       )}
 

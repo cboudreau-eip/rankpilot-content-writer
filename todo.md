@@ -508,3 +508,12 @@
 - [x] Investigate why Summary template fails while Pro Tip now works
 - [x] Implement fix: two-pass heading matching (exact first, then alias fallback) with synonym lists for summary/pro-tip
 - [x] Run tests — all 267 tests pass (7 new alias-matching tests added)
+
+## Build Use Cases Insert Template
+- [x] Add Use Cases template definition in GenerateArticle.tsx (icon, label, section config)
+- [x] Update schema templateType enum to include "use-cases"
+- [x] Add wrapUseCases function in applyTemplateStyles.ts with stacked card styling
+- [x] Add "use-cases" aliases for heading matching
+- [x] Update LLM prompt instructions in routers.ts for use-cases template type
+- [x] Write tests for Use Cases post-processing (exact match, alias match, card splitting)
+- [x] Run all tests and verify — all 277 tests pass (10 new Use Cases tests)

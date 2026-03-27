@@ -1,12 +1,13 @@
 /**
  * Post-process generated article HTML to wrap sections that have a
- * templateType set (e.g., "pro-tip", "summary") with styled HTML containers.
+ * templateType set (e.g., "pro-tip", "summary", "use-cases") with styled HTML containers.
  *
  * This runs AFTER applyBackgroundColors and adds template-specific styling
  * (icons, borders, etc.) that goes beyond simple background colors.
  *
  * Pro Tip: Green left border, light green background, inline SVG checkmark icon
  * Summary: Gray left border, light gray background, clean box layout
+ * Use Cases: Stacked cards with slate left border, light background per card
  */
 
 import type { OutlineSection } from "../drizzle/schema";
@@ -40,6 +41,76 @@ ${innerContent}
 }
 
 /**
+ * Split Use Cases body content into individual cards.
+ * Looks for <p><strong>...</strong></p> patterns and groups each with its following paragraph(s).
+ * Returns an array of { title, body } objects, plus any intro text before the first card.
+ */
+function splitUseCaseCards(bodyContent: string): { intro: string; cards: { title: string; body: string }[] } {
+  // Find all <p> tags that contain a <strong> as the primary content (use case titles)
+  const strongParagraphRegex = /<p[^>]*>\s*<strong[^>]*>(.*?)<\/strong>\s*<\/p>/gi;
+  const matches: { index: number; fullMatch: string; title: string }[] = [];
+
+  let match: RegExpExecArray | null;
+  while ((match = strongParagraphRegex.exec(bodyContent)) !== null) {
+    matches.push({
+      index: match.index,
+      fullMatch: match[0],
+      title: match[1],
+    });
+  }
+
+  if (matches.length === 0) {
+    // No card structure found — return everything as intro
+    return { intro: bodyContent, cards: [] };
+  }
+
+  // Everything before the first strong paragraph is the intro
+  const intro = bodyContent.substring(0, matches[0].index).trim();
+
+  const cards: { title: string; body: string }[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const current = matches[i];
+    const contentStart = current.index + current.fullMatch.length;
+    const contentEnd = i + 1 < matches.length ? matches[i + 1].index : bodyContent.length;
+    const body = bodyContent.substring(contentStart, contentEnd).trim();
+    cards.push({ title: current.title, body });
+  }
+
+  return { intro, cards };
+}
+
+/**
+ * The styled HTML wrapper for a Use Cases section.
+ * Splits body content into individual stacked cards with slate left border.
+ */
+function wrapUseCases(innerContent: string): string {
+  const { intro, cards } = splitUseCaseCards(innerContent);
+
+  if (cards.length === 0) {
+    // Fallback: if no card structure detected, wrap the whole thing in a single card
+    return `<div data-template="use-cases">
+${intro || innerContent}
+</div>`;
+  }
+
+  let html = `<div data-template="use-cases">\n`;
+
+  if (intro) {
+    html += `${intro}\n`;
+  }
+
+  for (const card of cards) {
+    html += `<div style="background-color: #F8FAFC; border-left: 4px solid #334155; border-radius: 8px; padding: 16px 20px; margin: 12px 0;">
+<p style="margin: 0 0 4px 0;"><strong style="color: #1E293B; font-size: 1.05em;">${card.title}</strong></p>
+${card.body}
+</div>\n`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+/**
  * Normalize a heading string for comparison.
  */
 function normalizeHeading(text: string): string {
@@ -63,12 +134,13 @@ function normalizeHeading(text: string): string {
 const HEADING_ALIASES: Record<string, string[]> = {
   "summary": ["summary", "conclusion", "final thoughts", "in summary", "wrapping up", "key takeaways summary", "to sum up", "article summary"],
   "pro-tip": ["pro tip", "expert tip", "quick tip", "insider tip", "bonus tip", "helpful tip"],
+  "use-cases": ["use cases", "common scenarios", "who this applies to", "when to use this", "common use cases", "typical scenarios", "who should consider this", "who benefits", "scenarios"],
 };
 
 interface TemplateSectionInfo {
   heading: string;
   level: "h2" | "h3";
-  templateType: "pro-tip" | "summary";
+  templateType: "pro-tip" | "summary" | "use-cases";
 }
 
 /**
@@ -118,7 +190,7 @@ function headingMatchesAlias(matchedText: string, templateType: string): boolean
 
 /**
  * Apply template-specific styles to article HTML based on outline section data.
- * This wraps Pro Tip and Summary sections with their styled containers,
+ * This wraps Pro Tip, Summary, and Use Cases sections with their styled containers,
  * replacing any existing background-color div wrapper if present.
  */
 export function applyTemplateStyles(html: string, sections: OutlineSection[]): string {
@@ -210,6 +282,8 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
       wrappedSection = wrapProTip(bodyContent);
     } else if (section.templateType === "summary") {
       wrappedSection = wrapSummary(bodyContent);
+    } else if (section.templateType === "use-cases") {
+      wrappedSection = wrapUseCases(bodyContent);
     } else {
       continue;
     }

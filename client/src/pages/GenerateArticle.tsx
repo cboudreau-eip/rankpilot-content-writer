@@ -165,6 +165,22 @@ const SECTION_TEMPLATES = [
         aiInstructions: "Format as Q&A pairs using <h3> for each question and a paragraph for each answer. Include 5-7 questions. Use questions that people actually search for (long-tail keywords). Keep answers to 2-3 sentences each.",
       },
     },
+    {
+      icon: LayoutGrid,
+      label: "Use Cases",
+      description: "Stacked cards for scenarios, groups, or categories",
+      section: {
+        heading: "Use Cases",
+        type: "h2" as const,
+        points: [
+          "3-5 distinct scenarios, groups, or categories",
+          "Each with a bold sub-heading and 1-2 sentence explanation",
+        ],
+        aiInstructions: "Write a brief intro paragraph (1-2 sentences) that sets context for the use cases below. Then write 3-5 distinct use cases or scenarios. For EACH use case, write a <p> tag containing a <strong> tag with the use case name/title, followed by a closing </p> tag, then a NEW <p> tag with a 1-2 sentence description. Example format: <p><strong>Scenario Name</strong></p><p>Description of this scenario in 1-2 sentences.</p>. Do NOT use bullet points, numbered lists, or <h3> headings. Each use case must be a separate strong+paragraph pair.",
+        backgroundColor: "#F8FAFC",
+        templateType: "use-cases" as const,
+      },
+    },
   ]},
   { category: "Content Blocks", items: [
     {

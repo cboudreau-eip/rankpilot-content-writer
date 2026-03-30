@@ -22,7 +22,7 @@ import {
   Eye, ChevronDown, Loader2, BarChart3, Sparkles, ShieldCheck,
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
-  FileCheck, Info, ExternalLink, Repeat2,
+  FileCheck, Info, ExternalLink, Repeat2, MoreVertical, Download, Scan,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +32,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import type { EntityAnalysisResult } from "@shared/entity-types";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -452,6 +453,28 @@ export default function ArticleEditor() {
   const [showRedundancy, setShowRedundancy] = useState(false);
   const [redundancyResult, setRedundancyResult] = useState<any>(null);
 
+  // Entity Analyzer state
+  const [showEntity, setShowEntity] = useState(false);
+  const [entityResult, setEntityResult] = useState<EntityAnalysisResult | null>(null);
+
+  const entityMutation = trpc.entity.analyzeArticle.useMutation({
+    onSuccess: (data: any) => {
+      setEntityResult(data);
+      setShowEntity(true);
+      const score = data?.scores?.overallScore ?? 0;
+      if (score >= 80) {
+        toast.success(`Entity score: ${score}/100 — Strong entity structure!`);
+      } else if (score >= 60) {
+        toast.warning(`Entity score: ${score}/100 — Some improvements needed`);
+      } else {
+        toast.error(`Entity score: ${score}/100 — Significant entity issues`);
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to analyze entities");
+    },
+  });
+
   const redundancyMutation = trpc.redundancy.check.useMutation({
     onSuccess: (data) => {
       setRedundancyResult(data);
@@ -692,50 +715,119 @@ export default function ArticleEditor() {
             Grade
           </Button>
 
-          {/* Cross Check Button */}
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (showCrossCheck) { setShowCrossCheck(false); return; }
-              crossCheckMutation.mutate({ articleId });
-            }}
-            disabled={crossCheckMutation.isPending}
-            className={showCrossCheck ? "bg-teal-50 text-teal-700 border-teal-200" : ""}
-          >
-            {crossCheckMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <FileCheck className="w-4 h-4 mr-1.5" />
-            )}
-            Cross Check
-          </Button>
-
-          {/* Redundancy Check Button */}
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (showRedundancy) { setShowRedundancy(false); return; }
-              redundancyMutation.mutate({ articleId });
-            }}
-            disabled={redundancyMutation.isPending}
-            className={showRedundancy ? "bg-orange-50 text-orange-700 border-orange-200" : ""}
-          >
-            {redundancyMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <Repeat2 className="w-4 h-4 mr-1.5" />
-            )}
-            Redundancy
-          </Button>
-
           {/* SEO Toggle */}
           <Button
             variant="outline"
             onClick={() => setShowSeo(!showSeo)}
             className={showSeo ? "bg-indigo-50 text-indigo-700 border-indigo-200" : ""}
           >
+            <Search className="w-4 h-4 mr-1.5" />
             SEO
           </Button>
+
+          {/* Copy HTML */}
+          <Button
+            variant="outline"
+            onClick={async () => {
+              if (!editor) return;
+              const htmlContent = editor.getHTML();
+              try {
+                await navigator.clipboard.writeText(htmlContent);
+                setCopied(true);
+                toast.success("HTML copied to clipboard");
+                setTimeout(() => setCopied(false), 2000);
+              } catch {
+                toast.error("Failed to copy HTML");
+              }
+            }}
+            className={copied ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}
+          >
+            {copied ? <ClipboardCheck className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+
+          {/* Edit (toggle editor focus) */}
+          <Button
+            variant="outline"
+            onClick={() => editor?.chain().focus().run()}
+          >
+            <Wand2 className="w-4 h-4 mr-1.5" />
+            Edit
+          </Button>
+
+          {/* Overflow Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="shrink-0">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                onClick={() => {
+                  if (showEntity) { setShowEntity(false); return; }
+                  entityMutation.mutate({ articleId });
+                }}
+                disabled={entityMutation.isPending}
+                className={showEntity ? "bg-cyan-50 text-cyan-700" : ""}
+              >
+                {entityMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Scan className="w-4 h-4 mr-2 text-cyan-600" />
+                )}
+                Entity Analyzer
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (showCrossCheck) { setShowCrossCheck(false); return; }
+                  crossCheckMutation.mutate({ articleId });
+                }}
+                disabled={crossCheckMutation.isPending}
+                className={showCrossCheck ? "bg-teal-50 text-teal-700" : ""}
+              >
+                {crossCheckMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileCheck className="w-4 h-4 mr-2 text-teal-600" />
+                )}
+                Cross Check
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (showRedundancy) { setShowRedundancy(false); return; }
+                  redundancyMutation.mutate({ articleId });
+                }}
+                disabled={redundancyMutation.isPending}
+                className={showRedundancy ? "bg-orange-50 text-orange-700" : ""}
+              >
+                {redundancyMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Repeat2 className="w-4 h-4 mr-2 text-orange-600" />
+                )}
+                Redundancy Check
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!editor) return;
+                  const htmlContent = editor.getHTML();
+                  const blob = new Blob([htmlContent], { type: "text/html" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${slug || title || "article"}.html`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("HTML file downloaded");
+                }}
+              >
+                <Download className="w-4 h-4 mr-2 text-gray-600" />
+                Download HTML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Save */}
           <Button
@@ -978,6 +1070,14 @@ export default function ArticleEditor() {
               skipNextSyncRef.current = true;
               toast.success(`Fixed ${appliedCount} redundanc${appliedCount > 1 ? 'ies' : 'y'}`);
             }}
+          />
+        )}
+
+        {/* Entity Analyzer Sidebar */}
+        {showEntity && entityResult && (
+          <EntityPanel
+            result={entityResult}
+            onClose={() => setShowEntity(false)}
           />
         )}
 
@@ -1803,6 +1903,308 @@ function RedundancyPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Entity Analyzer Panel Component ── */
+
+const prominenceConfig = {
+  High: { color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-200" },
+  Medium: { color: "text-amber-700", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
+  Low: { color: "text-gray-600", bgColor: "bg-gray-50", borderColor: "border-gray-200" },
+} as const;
+
+const driftConfig = {
+  "No drift": { color: "text-emerald-700", bgColor: "bg-emerald-50" },
+  "Minor drift": { color: "text-amber-700", bgColor: "bg-amber-50" },
+  "Moderate drift": { color: "text-orange-700", bgColor: "bg-orange-50" },
+  "Severe dilution": { color: "text-red-700", bgColor: "bg-red-50" },
+} as const;
+
+const dominanceConfig = {
+  "Strong dominance": { color: "text-emerald-700", bgColor: "bg-emerald-50" },
+  "Moderate dominance": { color: "text-blue-700", bgColor: "bg-blue-50" },
+  "Split focus": { color: "text-amber-700", bgColor: "bg-amber-50" },
+  "Competing entities": { color: "text-red-700", bgColor: "bg-red-50" },
+} as const;
+
+function EntityPanel({
+  result,
+  onClose,
+}: {
+  result: EntityAnalysisResult;
+  onClose: () => void;
+}) {
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    entities: true,
+    salience: false,
+    fixes: false,
+  });
+
+  const toggleSection = (key: string) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const scores = result.scores;
+  const overallScore = scores?.overallScore ?? 0;
+  const scoreColor = overallScore >= 80 ? "text-emerald-600" : overallScore >= 60 ? "text-amber-600" : "text-red-600";
+  const scoreBg = overallScore >= 80 ? "bg-emerald-50" : overallScore >= 60 ? "bg-amber-50" : "bg-red-50";
+  const scoreRing = overallScore >= 80 ? "ring-emerald-200" : overallScore >= 60 ? "ring-amber-200" : "ring-red-200";
+
+  const scoreItems = [
+    { label: "Primary Clarity", value: scores?.primaryEntityClarity ?? 0, max: 30 },
+    { label: "Entity Focus", value: scores?.entityFocus ?? 0, max: 25 },
+    { label: "Supporting Coverage", value: scores?.supportingCoverage ?? 0, max: 25 },
+    { label: "GEO Extractability", value: scores?.geoExtractability ?? 0, max: 20 },
+  ];
+
+  const entities = result.entities || [];
+  const salience = result.salienceStructure;
+  const fixes = result.actionableFixes || [];
+  const primary = result.primaryEntity;
+
+  return (
+    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden max-h-[calc(100vh-120px)] overflow-y-auto">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border/40 bg-gradient-to-r from-cyan-50 to-blue-50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Scan className="w-4 h-4 text-cyan-600" />
+          <h3 className="font-semibold text-sm">Entity Analysis</h3>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Overall Score */}
+      <div className="px-4 py-3 border-b border-border/40 flex items-center gap-4">
+        <div className={`w-16 h-16 rounded-full ${scoreBg} ring-4 ${scoreRing} flex items-center justify-center`}>
+          <span className={`text-2xl font-black ${scoreColor}`}>{overallScore}</span>
+        </div>
+        <div className="flex-1 space-y-1.5">
+          {scoreItems.map((item) => {
+            const pct = item.max > 0 ? Math.round((item.value / item.max) * 100) : 0;
+            return (
+              <div key={item.label} className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground w-28 shrink-0">{item.label}</span>
+                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-medium w-10 text-right">{item.value}/{item.max}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Primary Entity */}
+      {primary && (
+        <div className="px-4 py-3 border-b border-border/40 bg-cyan-50/30">
+          <p className="text-[10px] font-bold text-cyan-700 mb-1.5 flex items-center gap-1">
+            <Target className="w-3 h-3" />
+            Primary Entity
+          </p>
+          <p className="text-sm font-semibold text-foreground">{primary.name}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            <span className="font-medium text-cyan-600">{primary.type}</span> — {primary.justification}
+          </p>
+        </div>
+      )}
+
+      {/* Entities List (collapsible) */}
+      <div className="border-b border-border/40">
+        <button
+          onClick={() => toggleSection("entities")}
+          className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+        >
+          <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+            <Search className="w-3.5 h-3.5 text-indigo-600" />
+            Detected Entities ({entities.length})
+          </span>
+          {expandedSections.entities ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {expandedSections.entities && (
+          <div className="px-4 pb-3 space-y-1.5">
+            {entities.map((entity, i) => {
+              const pConf = prominenceConfig[entity.prominence] || prominenceConfig.Low;
+              return (
+                <div key={i} className={`flex items-start gap-2 p-2 rounded-lg border ${pConf.borderColor} ${pConf.bgColor}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-foreground">{entity.name}</span>
+                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${pConf.bgColor} ${pConf.color}`}>
+                        {entity.prominence}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      <span className="font-medium">{entity.type}</span> — {entity.rationale}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Salience Structure (collapsible) */}
+      {salience && (
+        <div className="border-b border-border/40">
+          <button
+            onClick={() => toggleSection("salience")}
+            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+          >
+            <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+              <BarChart3 className="w-3.5 h-3.5 text-purple-600" />
+              Salience Structure
+            </span>
+            {expandedSections.salience ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {expandedSections.salience && (
+            <div className="px-4 pb-3 space-y-2">
+              {/* Dominance Gap */}
+              <div className="p-2 rounded-lg bg-muted/30 border border-border/40">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-semibold text-foreground">Dominance Gap</span>
+                  {(() => {
+                    const conf = dominanceConfig[salience.dominanceGap.grade as keyof typeof dominanceConfig] || dominanceConfig["Split focus"];
+                    return (
+                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${conf.bgColor} ${conf.color}`}>
+                        {salience.dominanceGap.grade}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <p className="text-[10px] text-muted-foreground">{salience.dominanceGap.description}</p>
+              </div>
+
+              {/* Early Reinforcement */}
+              <div className="p-2 rounded-lg bg-muted/30 border border-border/40">
+                <span className="text-[10px] font-semibold text-foreground block mb-1">Early Reinforcement</span>
+                <div className="flex gap-2 mb-1">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${salience.earlyReinforcement.inFirstParagraph ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                    {salience.earlyReinforcement.inFirstParagraph ? "\u2713" : "\u2717"} 1st Paragraph
+                  </span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${salience.earlyReinforcement.inHeading ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                    {salience.earlyReinforcement.inHeading ? "\u2713" : "\u2717"} In Heading
+                  </span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${salience.earlyReinforcement.withinFirst120Words ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                    {salience.earlyReinforcement.withinFirst120Words ? "\u2713" : "\u2717"} First 120 Words
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{salience.earlyReinforcement.summary}</p>
+              </div>
+
+              {/* Entity Drift */}
+              <div className="p-2 rounded-lg bg-muted/30 border border-border/40">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-semibold text-foreground">Entity Drift</span>
+                  {(() => {
+                    const conf = driftConfig[salience.entityDrift.level as keyof typeof driftConfig] || driftConfig["Minor drift"];
+                    return (
+                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${conf.bgColor} ${conf.color}`}>
+                        {salience.entityDrift.level}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <p className="text-[10px] text-muted-foreground">{salience.entityDrift.description}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actionable Fixes (collapsible) */}
+      {fixes.length > 0 && (
+        <div className="border-b border-border/40">
+          <button
+            onClick={() => toggleSection("fixes")}
+            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+          >
+            <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+              Actionable Fixes ({fixes.length})
+            </span>
+            {expandedSections.fixes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {expandedSections.fixes && (
+            <div className="px-4 pb-3 space-y-1.5">
+              {fixes.map((fix, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px]">
+                  <div className="w-4 h-4 rounded bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[9px] font-bold text-amber-700">{i + 1}</span>
+                  </div>
+                  <span className="text-muted-foreground leading-relaxed">{fix}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Supporting Coverage */}
+      {result.supportingCoverage && (
+        <div className="px-4 py-3 border-b border-border/40">
+          <p className="text-[10px] font-bold text-foreground mb-1.5 flex items-center gap-1">
+            <BookOpen className="w-3 h-3 text-blue-600" />
+            Supporting Coverage
+            <span className={`ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded ${
+              result.supportingCoverage.grade === "Comprehensive" ? "bg-emerald-50 text-emerald-700" :
+              result.supportingCoverage.grade === "Adequate" ? "bg-blue-50 text-blue-700" :
+              result.supportingCoverage.grade === "Thin" ? "bg-amber-50 text-amber-700" :
+              "bg-red-50 text-red-700"
+            }`}>{result.supportingCoverage.grade}</span>
+          </p>
+          <p className="text-[10px] text-muted-foreground mb-2">{result.supportingCoverage.evaluation}</p>
+          {result.supportingCoverage.missingComponents.length > 0 && (
+            <div>
+              <p className="text-[9px] font-semibold text-red-600 mb-1">Missing:</p>
+              <div className="flex flex-wrap gap-1">
+                {result.supportingCoverage.missingComponents.map((comp, i) => (
+                  <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-100">
+                    {comp}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* GEO Extractability */}
+      {result.geoExtractability && (
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-bold text-foreground mb-1.5 flex items-center gap-1">
+            <Bot className="w-3 h-3 text-purple-600" />
+            GEO/AI Extractability
+            <span className={`ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded ${
+              result.geoExtractability.grade === "High" ? "bg-emerald-50 text-emerald-700" :
+              result.geoExtractability.grade === "Moderate" ? "bg-amber-50 text-amber-700" :
+              "bg-red-50 text-red-700"
+            }`}>{result.geoExtractability.grade}</span>
+          </p>
+          <div className="flex gap-2 mb-1.5 flex-wrap">
+            <span className={`text-[9px] px-1.5 py-0.5 rounded ${result.geoExtractability.hasConcisenDefinitions ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+              {result.geoExtractability.hasConcisenDefinitions ? "\u2713" : "\u2717"} Definitions
+            </span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded ${result.geoExtractability.hasClearQuestionAnswering ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+              {result.geoExtractability.hasClearQuestionAnswering ? "\u2713" : "\u2717"} Q&A Format
+            </span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded ${result.geoExtractability.hasShortAnswerSummary ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+              {result.geoExtractability.hasShortAnswerSummary ? "\u2713" : "\u2717"} Short Summary
+            </span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded ${result.geoExtractability.hasCleanHeadings ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+              {result.geoExtractability.hasCleanHeadings ? "\u2713" : "\u2717"} Clean Headings
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">{result.geoExtractability.evaluation}</p>
+        </div>
+      )}
     </div>
   );
 }

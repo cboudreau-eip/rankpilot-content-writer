@@ -565,3 +565,14 @@
 - [x] Add "Entity Analyzer" to sidebar under Content section
 - [x] Wire route in App.tsx
 - [x] Write vitest tests for entity tRPC procedures (11 tests, all 312 tests passing)
+
+## Article Editor Toolbar Redesign + Entity Analyzer Panel
+- [x] Refactor toolbar: primary buttons (Status dropdown, Grade, SEO, Copy, Edit)
+- [x] Move Cross Check, Redundancy Check to overflow menu (⋮)
+- [x] Add Entity Analyzer to overflow menu
+- [x] Add Download HTML to overflow menu
+- [x] Style toolbar to match reference (pill-shaped buttons with icons, clean spacing)
+- [x] Build Entity Analyzer sidebar panel in Article Editor (overall score, score breakdown, primary entity, entities list, salience structure, actionable fixes, supporting coverage, GEO extractability)
+- [x] Wire entity.analyzeArticle mutation to the Entity panel
+- [x] All 312 tests passing, TypeScript compiles cleanly
+- [x] Save checkpoint

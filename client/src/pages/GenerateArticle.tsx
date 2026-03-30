@@ -9,7 +9,7 @@ import {
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
   BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate, Palette,
-  CheckCircle2,
+  CheckCircle2, Key, Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -610,6 +610,18 @@ export default function GenerateArticle() {
       icpProfileId: selectedIcpProfile?.id ?? undefined,
       secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
     });
+  };
+
+  // Helper: find which keywords match a section (heading + points + subSections)
+  const getMatchingKeywords = (section: OutlineSection): string[] => {
+    const allKeywords = [keyword.trim(), ...secondaryKeywords].filter(Boolean);
+    if (allKeywords.length === 0) return [];
+    const textParts = [
+      section.heading,
+      ...(section.points || []),
+      ...(section.subSections?.flatMap(sub => [sub.heading, ...(sub.points || [])]) || []),
+    ].join(" ").toLowerCase();
+    return allKeywords.filter(kw => textParts.includes(kw.toLowerCase()));
   };
 
   const handleGenerateArticle = async () => {
@@ -1699,6 +1711,35 @@ export default function GenerateArticle() {
               onChange={(e) => setOutlineTitle(e.target.value)}
               className="mt-1.5 text-lg font-semibold border-none shadow-none px-0 focus-visible:ring-0"
             />
+
+            {/* Target Keywords Bar */}
+            {(keyword.trim() || secondaryKeywords.length > 0) && (
+              <div className="mt-4 pt-4 border-t border-border/40">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Key className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-semibold text-foreground">Target Keywords</span>
+                  <span className="text-xs text-muted-foreground">({[keyword.trim(), ...secondaryKeywords].filter(Boolean).length})</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {keyword.trim() && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200 shadow-sm">
+                      <Target className="w-3.5 h-3.5" />
+                      {keyword.trim()}
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 ml-0.5">Primary</span>
+                    </span>
+                  )}
+                  {secondaryKeywords.map((kw, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                    >
+                      <Tag className="w-3 h-3 text-slate-400" />
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sections */}
@@ -1725,6 +1766,32 @@ export default function GenerateArticle() {
                     onChange={(e) => updateSectionHeading(section.id, e.target.value)}
                     className="flex-1 font-semibold text-lg bg-transparent border-none outline-none focus:ring-0"
                   />
+                  {/* Keyword Match Badges */}
+                  {(() => {
+                    const matches = getMatchingKeywords(section);
+                    if (matches.length === 0) return null;
+                    return (
+                      <div className="flex items-center gap-1 flex-shrink-0 mr-1">
+                        {matches.map((kw, ki) => {
+                          const isPrimary = kw.toLowerCase() === keyword.trim().toLowerCase();
+                          return (
+                            <span
+                              key={ki}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
+                                isPrimary
+                                  ? "bg-indigo-500 text-white shadow-sm"
+                                  : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                              }`}
+                              title={isPrimary ? "Primary keyword found in this section" : "Secondary keyword found in this section"}
+                            >
+                              {isPrimary ? <Target className="w-3 h-3" /> : <Tag className="w-3 h-3" />}
+                              {kw.length > 25 ? kw.substring(0, 25) + "…" : kw}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                   {/* Reorder + Add Below + Delete */}
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ opacity: 1 }}>
                     <Button

@@ -581,3 +581,9 @@
 - [x] Change Target Word Count default from 2000 to 1600
 - [x] Change Number of Sections default from 7 to 8
 - [x] Change Number of FAQs default from 4 to 8
+
+## Keyword Visibility in Step 2 (Outline Review)
+- [x] Display all selected keywords (suggested + manually entered) prominently at the top of Step 2 under the title
+- [x] Add keyword-section mapping: highlight which sections will use which keywords with colored pill badges
+- [x] Primary keyword shown as bold indigo pill with target icon; secondary keywords as slate pills with tag icon
+- [x] Section badges: primary keyword matches shown as solid indigo badge, secondary as emerald badge on section headers

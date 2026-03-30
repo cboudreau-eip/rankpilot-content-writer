@@ -490,7 +490,12 @@ BRAND VOICE REQUIREMENTS FOR OUTLINE:
 `;
         }
 
+        const currentYear = new Date().getFullYear();
+
         const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the given keyword.
+
+IMPORTANT — CURRENT DATE CONTEXT: The current year is ${currentYear}. All references to dates, years, regulations, trends, and time-sensitive topics MUST treat ${currentYear} as the present year. Do NOT reference 2024 or any prior year as "current."
+
 Return a JSON object with:
 - "title": A compelling, SEO-optimized article title
 - "sections": An array of sections, each with:
@@ -1566,7 +1571,13 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           ? `- Output as PLAIN TEXT with markdown-style headings (## for H2, ### for H3). Do NOT use HTML tags.\n- Use plain text formatting: **bold**, bullet points with -, numbered lists with 1. 2. 3.`
           : `- Use proper HTML formatting: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td> tags\n- For links use <a href="URL">anchor text</a> format`;
 
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.toLocaleString('en-US', { month: 'long' });
+
         const systemPrompt = `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
+
+IMPORTANT — CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${currentYear}. You MUST treat ${currentYear} as the current year. All references to dates, years, statistics, regulations, and time-sensitive information MUST reflect ${currentYear} as the present year. Do NOT reference 2024 or any prior year as "current" or "this year." If citing statistics or data, prefer the most recent available and clearly label the year of the data.
 
 Guidelines:
 - Write in ${settings?.tone ?? "a professional and informative"} tone

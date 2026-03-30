@@ -533,3 +533,8 @@
 - [x] Inject secondary keywords into article generation system prompt
 - [x] Write tests for suggestKeywords procedure — 8 tests
 - [x] Run all tests — all 290 tests pass
+
+## Fix Articles Referencing 2024 Instead of Current Year
+- [x] Inject current date/year into article generation system prompt so LLM knows the current year
+- [x] Also inject into outline generation prompt for consistency
+- [x] Run tests and verify — all 290 tests pass

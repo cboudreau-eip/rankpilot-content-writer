@@ -522,3 +522,14 @@
 - [x] Investigate why card-splitting failed on real LLM output — LLM renamed "Use Cases" to contextual heading not in alias list
 - [x] Fix: rewrote applyTemplateStyles with two-phase approach (match all headings first on original HTML, then apply replacements in reverse order) and added 3-pass matching (exact → alias → positional)
 - [x] Run tests and verify — all 282 tests pass (5 new positional matching tests)
+
+## Phase 1: LLM-Powered Keyword Suggestions
+- [x] Add suggestKeywords tRPC procedure (LLM-powered, returns secondary/LSI/long-tail arrays)
+- [x] Add secondaryKeywords to OutlineSettings type and outline/article generation input schemas
+- [x] Add "Keywords to Include" field with comma-separated input and + button
+- [x] Add "Suggest Keywords" button that calls the LLM procedure
+- [x] Build clickable chips UI for suggested keywords (3 categories: Related, LSI, Long-Tail with Add All/Dismiss)
+- [x] Add selected keywords as removable chips with "Clear all" option
+- [x] Inject secondary keywords into article generation system prompt
+- [x] Write tests for suggestKeywords procedure — 8 tests
+- [x] Run all tests — all 290 tests pass

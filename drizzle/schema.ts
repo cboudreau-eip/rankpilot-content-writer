@@ -110,6 +110,8 @@ export interface OutlineSettings {
   sitemapUrl?: string;
   sitemapUrls?: string[];
   autoLinkCount?: number;
+  /** Secondary keywords / LSI terms to weave into the article */
+  secondaryKeywords?: string[];
 }
 
 /**

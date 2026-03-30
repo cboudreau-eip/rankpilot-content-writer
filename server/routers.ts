@@ -264,6 +264,74 @@ export const appRouter = router({
         return deleteOutline(input.id);
       }),
 
+    /** LLM-powered keyword suggestions for article generation */
+    suggestKeywords: protectedProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        contentType: z.string().optional(),
+        targetAudience: z.string().optional(),
+        targetLocation: z.string().optional(),
+        projectId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const prompt = `You are an expert SEO keyword researcher. Given a primary keyword, suggest related keywords that should be naturally woven into an article to improve topical coverage and semantic relevance.
+
+Primary keyword: "${input.keyword}"
+${input.contentType ? `Content type: ${input.contentType}` : ""}
+${input.targetAudience ? `Target audience: ${input.targetAudience}` : ""}
+${input.targetLocation ? `Target location: ${input.targetLocation}` : ""}
+
+Return a JSON object with exactly these three arrays:
+1. "secondary" — 5-8 closely related search terms (synonyms, variations, related queries people also search for)
+2. "lsi" — 5-8 LSI/semantic terms (contextually related entities, concepts, and terminology that Google expects to see in comprehensive content on this topic)
+3. "longTail" — 3-5 long-tail keyword variations (lower-competition, more specific phrases)
+
+Rules:
+- Each keyword should be lowercase
+- No duplicates across the three arrays
+- Do NOT include the primary keyword itself
+- Focus on terms that would genuinely improve the article's topical depth and search relevance
+- For LSI terms, think about what entities and concepts Google's NLP would expect in authoritative content on this topic`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: "You are an SEO keyword research expert. Return ONLY valid JSON, no markdown fences or explanation." },
+            { role: "user", content: prompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "keyword_suggestions",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  secondary: { type: "array", items: { type: "string" }, description: "Closely related search terms" },
+                  lsi: { type: "array", items: { type: "string" }, description: "LSI/semantic terms" },
+                  longTail: { type: "array", items: { type: "string" }, description: "Long-tail keyword variations" },
+                },
+                required: ["secondary", "lsi", "longTail"],
+                additionalProperties: false,
+              },
+            },
+          },
+        }, input.projectId ?? null);
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const text = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        try {
+          const parsed = JSON.parse(text);
+          return {
+            secondary: (parsed.secondary || []).slice(0, 8) as string[],
+            lsi: (parsed.lsi || []).slice(0, 8) as string[],
+            longTail: (parsed.longTail || []).slice(0, 5) as string[],
+          };
+        } catch {
+          throw new Error("Failed to parse keyword suggestions");
+        }
+      }),
+
     /** AI-powered outline generation */
     generate: protectedProcedure
       .input(z.object({
@@ -283,6 +351,7 @@ export const appRouter = router({
         autoLinkCount: z.number().optional(),
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
+        secondaryKeywords: z.array(z.string()).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         // Auto-fetch ICP from project and brand voice (use selected or default)
@@ -524,6 +593,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
             manualLinks: input.manualLinks,
             sitemapUrls: input.sitemapUrls,
             autoLinkCount: input.autoLinkCount,
+            secondaryKeywords: input.secondaryKeywords,
           },
           projectId: input.projectId,
           userId: ctx.user.id,
@@ -1185,6 +1255,7 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         autoLinkCount: z.number().optional(),
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
+        secondaryKeywords: z.array(z.string()).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const outline = await getOutlineById(input.outlineId);
@@ -1473,6 +1544,13 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         const effectiveManualLinks = input.manualLinks || settings?.manualLinks || [];
         const effectiveSitemapUrls: string[] = input.sitemapUrls || (settings?.sitemapUrls as string[] | undefined) || (settings?.sitemapUrl ? [settings.sitemapUrl] : []);
         const effectiveAutoLinkCount = input.autoLinkCount || settings?.autoLinkCount || 5;
+        const effectiveSecondaryKeywords: string[] = input.secondaryKeywords || settings?.secondaryKeywords || [];
+
+        // Build secondary keywords instructions
+        let secondaryKeywordsInstructions = "";
+        if (effectiveSecondaryKeywords.length > 0) {
+          secondaryKeywordsInstructions = `\n\nSECONDARY KEYWORDS & LSI TERMS (MUST naturally incorporate):\nThe following keywords and terms should be woven naturally throughout the article to improve topical coverage and semantic relevance. Do NOT force them — use them where they fit contextually. Aim to include each term at least once, but prioritize natural readability over keyword stuffing:\n${effectiveSecondaryKeywords.map(k => `- "${k}"`).join("\n")}\nThese terms help search engines understand the article's topical depth and authority. Distribute them across different sections rather than clustering them in one place.`;
+        }
 
         // Build internal linking instructions
         let linkingInstructions = "";
@@ -1540,6 +1618,7 @@ ${brandVoiceSection}
 
 ${icpSection}
 ${ctaContext}
+${secondaryKeywordsInstructions}
 ${linkingInstructions}
 
 Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} content of the article body${effectiveFormat === "html" ? " (no <html>, <head>, or <body> tags)" : ""}. Start with the first ${effectiveFormat === "plaintext" ? "## heading" : "<h2> section"}.`;

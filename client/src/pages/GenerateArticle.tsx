@@ -372,6 +372,12 @@ export default function GenerateArticle() {
   const [showCustomSitemapInput, setShowCustomSitemapInput] = useState(false);
   const [autoLinkCount, setAutoLinkCount] = useState("5");
 
+  // Secondary keywords (LLM-suggested or manual)
+  const [secondaryKeywords, setSecondaryKeywords] = useState<string[]>([]);
+  const [keywordInputValue, setKeywordInputValue] = useState("");
+  const [suggestedKeywords, setSuggestedKeywords] = useState<{ secondary: string[]; lsi: string[]; longTail: string[] } | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   // Outline state
   const [outlineTitle, setOutlineTitle] = useState("");
   const [sections, setSections] = useState<OutlineSection[]>([]);
@@ -525,6 +531,25 @@ export default function GenerateArticle() {
     setManualLinks((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const suggestKeywordsMutation = trpc.outlines.suggestKeywords.useMutation({
+    onSuccess: (data) => {
+      if (data) {
+        // Combine all suggestions into a flat array, deduplicating
+        const allSuggestions = [...data.secondary, ...data.lsi, ...data.longTail];
+        const existing = new Set(secondaryKeywords.map(k => k.toLowerCase()));
+        const newKeywords = allSuggestions.filter(k => !existing.has(k.toLowerCase()));
+        setSuggestedKeywords({
+          secondary: data.secondary,
+          lsi: data.lsi,
+          longTail: data.longTail,
+        });
+        setShowSuggestions(true);
+        toast.success(`Found ${allSuggestions.length} keyword suggestions!`);
+      }
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to suggest keywords"),
+  });
+
   const generateOutlineMutation = trpc.outlines.generate.useMutation({
     onSuccess: (data: any) => {
       if (data) {
@@ -583,6 +608,7 @@ export default function GenerateArticle() {
       autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
       brandVoiceId: selectedBrandVoice?.id ?? undefined,
       icpProfileId: selectedIcpProfile?.id ?? undefined,
+      secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
     });
   };
 
@@ -614,6 +640,7 @@ export default function GenerateArticle() {
       autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
       brandVoiceId: selectedBrandVoice?.id ?? undefined,
       icpProfileId: selectedIcpProfile?.id ?? undefined,
+      secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
     });
   };
 
@@ -1092,6 +1119,229 @@ export default function GenerateArticle() {
                 className="mt-1.5"
                 rows={3}
               />
+            </div>
+
+            {/* Keywords to Include */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-sm font-semibold">Keywords to Include (optional)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  disabled={!keyword.trim() || suggestKeywordsMutation.isPending}
+                  onClick={() => {
+                    if (!keyword.trim()) {
+                      toast.error("Enter a target keyword first");
+                      return;
+                    }
+                    suggestKeywordsMutation.mutate({
+                      keyword: keyword.trim(),
+                      contentType: contentType || undefined,
+                      targetAudience: effectiveAudience || undefined,
+                      targetLocation: targetLocation.trim() || undefined,
+                      projectId: activeProjectId ?? undefined,
+                    });
+                  }}
+                >
+                  {suggestKeywordsMutation.isPending ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" />Suggesting...</>
+                  ) : (
+                    <><Wand2 className="w-3 h-3" />Suggest Keywords</>
+                  )}
+                </Button>
+              </div>
+
+              {/* Manual input */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Secondary keywords, LSI terms (comma-separated)"
+                  value={keywordInputValue}
+                  onChange={(e) => setKeywordInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      const val = keywordInputValue.trim().replace(/,$/g, "");
+                      if (val && !secondaryKeywords.includes(val.toLowerCase())) {
+                        setSecondaryKeywords(prev => [...prev, val.toLowerCase()]);
+                      }
+                      setKeywordInputValue("");
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3"
+                  onClick={() => {
+                    const vals = keywordInputValue.split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+                    const existing = new Set(secondaryKeywords);
+                    const newOnes = vals.filter(v => !existing.has(v));
+                    if (newOnes.length > 0) {
+                      setSecondaryKeywords(prev => [...prev, ...newOnes]);
+                    }
+                    setKeywordInputValue("");
+                  }}
+                  disabled={!keywordInputValue.trim()}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {/* Selected keywords chips */}
+              {secondaryKeywords.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {secondaryKeywords.map((kw, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
+                    >
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => setSecondaryKeywords(prev => prev.filter((_, idx) => idx !== i))}
+                        className="hover:text-indigo-900 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {secondaryKeywords.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSecondaryKeywords([])}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-1"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* LLM Suggestions panel */}
+              {showSuggestions && suggestedKeywords && (
+                <div className="mt-3 p-3 rounded-lg border border-indigo-100 bg-indigo-50/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI Suggestions
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const all = [...suggestedKeywords.secondary, ...suggestedKeywords.lsi, ...suggestedKeywords.longTail];
+                          const existing = new Set(secondaryKeywords);
+                          const newOnes = all.filter(k => !existing.has(k.toLowerCase())).map(k => k.toLowerCase());
+                          setSecondaryKeywords(prev => [...prev, ...newOnes]);
+                          setShowSuggestions(false);
+                          toast.success(`Added ${newOnes.length} keywords`);
+                        }}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                      >
+                        Add All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSuggestions(false)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+
+                  {suggestedKeywords.secondary.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Related Keywords</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {suggestedKeywords.secondary.map((kw, i) => {
+                          const isAdded = secondaryKeywords.includes(kw.toLowerCase());
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={isAdded}
+                              onClick={() => {
+                                if (!isAdded) setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                                isAdded
+                                  ? "bg-indigo-100 text-indigo-400 border-indigo-200 cursor-default"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer"
+                              }`}
+                            >
+                              {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                              {kw}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {suggestedKeywords.lsi.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">LSI / Semantic Terms</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {suggestedKeywords.lsi.map((kw, i) => {
+                          const isAdded = secondaryKeywords.includes(kw.toLowerCase());
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={isAdded}
+                              onClick={() => {
+                                if (!isAdded) setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                                isAdded
+                                  ? "bg-emerald-100 text-emerald-400 border-emerald-200 cursor-default"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer"
+                              }`}
+                            >
+                              {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                              {kw}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {suggestedKeywords.longTail.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Long-Tail Variations</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {suggestedKeywords.longTail.map((kw, i) => {
+                          const isAdded = secondaryKeywords.includes(kw.toLowerCase());
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={isAdded}
+                              onClick={() => {
+                                if (!isAdded) setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                                isAdded
+                                  ? "bg-amber-100 text-amber-400 border-amber-200 cursor-default"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50 cursor-pointer"
+                              }`}
+                            >
+                              {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                              {kw}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Brand Voice Section */}

@@ -576,3 +576,8 @@
 - [x] Wire entity.analyzeArticle mutation to the Entity panel
 - [x] All 312 tests passing, TypeScript compiles cleanly
 - [x] Save checkpoint
+
+## Update Article Generation Defaults
+- [x] Change Target Word Count default from 2000 to 1600
+- [x] Change Number of Sections default from 7 to 8
+- [x] Change Number of FAQs default from 4 to 8

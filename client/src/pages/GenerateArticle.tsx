@@ -353,9 +353,9 @@ export default function GenerateArticle() {
   const [keyword, setKeyword] = useState("");
   const [contentType, setContentType] = useState("blog");
   const [tone, setTone] = useState("professional");
-  const [targetWordCount, setTargetWordCount] = useState("2000");
-  const [numSections, setNumSections] = useState("7");
-  const [numFaqs, setNumFaqs] = useState("4");
+  const [targetWordCount, setTargetWordCount] = useState("1600");
+  const [numSections, setNumSections] = useState("8");
+  const [numFaqs, setNumFaqs] = useState("8");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
 
   // New fields

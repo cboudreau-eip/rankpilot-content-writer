@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'projects' AND COLUMN_NAME = 'bannedPhrases';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'projects' AND COLUMN_NAME = 'bannedPhrases';",
+  "rows": [
+    {
+      "COLUMN_NAME": "bannedPhrases"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nbannedPhrases\n",
+  "stderr": "",
+  "execution_time_ms": 179
+}

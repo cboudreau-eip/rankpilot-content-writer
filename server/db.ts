@@ -424,9 +424,14 @@ export async function deleteCitation(id: number) {
 
 // ---- Cross Check (Reference Doc) Helpers ----
 
-export async function updateProjectReferenceDocMeta(projectId: number, s3Key: string | null, docName: string | null, docLength: number | null) {
+export async function updateProjectReferenceDocMeta(projectId: number, s3Key: string | null, docName: string | null, docLength: number | null, docContent: string | null = null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(projects).set({ referenceDocS3Key: s3Key, referenceDocName: docName, referenceDocLength: docLength }).where(eq(projects.id, projectId));
+  await db.update(projects).set({
+    referenceDocS3Key: s3Key,
+    referenceDocName: docName,
+    referenceDocLength: docLength,
+    referenceDocContent: docContent,
+  }).where(eq(projects.id, projectId));
   return getProjectById(projectId);
 }

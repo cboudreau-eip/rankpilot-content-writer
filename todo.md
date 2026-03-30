@@ -538,3 +538,15 @@
 - [x] Inject current date/year into article generation system prompt so LLM knows the current year
 - [x] Also inject into outline generation prompt for consistency
 - [x] Run tests and verify — all 290 tests pass
+
+## Fix Cross-Reference Data Wiped on Every Deployment
+- [x] Investigate why cross-check/reference doc data is lost when publishing updates
+- [x] Check if data is stored in DB column vs local file vs S3
+- [x] Check if db:push migrations are dropping/recreating columns
+- [x] Implement durable fix: dual-storage (DB primary + S3 backup) so cross-check data persists across deployments
+- [x] Added referenceDocContent mediumtext column to projects table
+- [x] Updated getReferenceDoc to read from DB first, fallback to S3 with self-healing backfill
+- [x] Updated updateReferenceDoc to save content to both DB and S3 (S3 failure is non-critical)
+- [x] Updated checkArticle to use DB content as primary source
+- [x] Backfilled existing S3 content into DB column
+- [x] Run tests and verify — all 301 tests pass (11 new dual-storage tests)

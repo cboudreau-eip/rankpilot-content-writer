@@ -1,0 +1,73 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'projects' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'projects' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "name"
+    },
+    {
+      "COLUMN_NAME": "color"
+    },
+    {
+      "COLUMN_NAME": "domain"
+    },
+    {
+      "COLUMN_NAME": "description"
+    },
+    {
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "referenceDocName"
+    },
+    {
+      "COLUMN_NAME": "icpPrimaryName"
+    },
+    {
+      "COLUMN_NAME": "icpWhoTheyAre"
+    },
+    {
+      "COLUMN_NAME": "icpPains"
+    },
+    {
+      "COLUMN_NAME": "icpGoals"
+    },
+    {
+      "COLUMN_NAME": "icpObjections"
+    },
+    {
+      "COLUMN_NAME": "icpDecisionTriggers"
+    },
+    {
+      "COLUMN_NAME": "icpTrustSignals"
+    },
+    {
+      "COLUMN_NAME": "llmProvider"
+    },
+    {
+      "COLUMN_NAME": "llmModel"
+    },
+    {
+      "COLUMN_NAME": "referenceDocS3Key"
+    },
+    {
+      "COLUMN_NAME": "referenceDocLength"
+    },
+    {
+      "COLUMN_NAME": "bannedPhrases"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nname\ncolor\ndomain\ndescription\nuserId\ncreatedAt\nupdatedAt\nreferenceDocName\nicpPrimaryName\nicpWhoTheyAre\nicpPains\nicpGoals\nicpObjections\nicpDecisionTriggers\nicpTrustSignals\nllmProvider\nllmModel\nreferenceDocS3Key\nreferenceDocLength\nbannedPhrases\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

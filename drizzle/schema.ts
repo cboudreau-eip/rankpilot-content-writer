@@ -1,4 +1,4 @@
-import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, json, mediumtext, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -48,6 +48,8 @@ export const projects = mysqlTable("projects", {
   referenceDocName: varchar("referenceDocName", { length: 512 }),
   /** Character count of the reference document (for display without fetching from S3) */
   referenceDocLength: int("referenceDocLength"),
+  /** Full content of the reference document (primary storage — DB is source of truth, S3 is backup) */
+  referenceDocContent: mediumtext("referenceDocContent"),
   /** Banned phrases that should never appear in generated content (JSON array of strings) */
   bannedPhrases: json("bannedPhrases").$type<string[]>(),
   /** LLM provider: 'builtin' (default Gemini via Forge) or 'claude' (Anthropic Claude) */

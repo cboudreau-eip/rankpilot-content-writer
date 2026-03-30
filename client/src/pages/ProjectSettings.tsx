@@ -1108,7 +1108,7 @@ function CrossCheckTab({ projectId }: { projectId: number }) {
       </Card>
 
       {/* Current Reference Doc or Upload */}
-      {!isEditing && refDoc?.referenceDoc ? (
+      {!isEditing && (refDoc?.referenceDoc || refDoc?.hasMetadata) ? (
         <Card>
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
@@ -1117,8 +1117,8 @@ function CrossCheckTab({ projectId }: { projectId: number }) {
                   <FileText className="w-5 h-5 text-violet-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">{refDoc.referenceDocName || "Reference Document"}</h3>
-                  <p className="text-sm text-muted-foreground">{(refDoc.referenceDocLength ?? refDoc.referenceDoc?.length ?? 0).toLocaleString()} characters</p>
+                  <h3 className="text-lg font-semibold">{refDoc?.referenceDocName || "Reference Document"}</h3>
+                  <p className="text-sm text-muted-foreground">{(refDoc?.referenceDocLength ?? refDoc?.referenceDoc?.length ?? 0).toLocaleString()} characters</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -1130,9 +1130,26 @@ function CrossCheckTab({ projectId }: { projectId: number }) {
                 </Button>
               </div>
             </div>
-            <div className="bg-muted/40 rounded-lg p-4 max-h-64 overflow-y-auto">
-              <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">{refDoc.referenceDoc.substring(0, 2000)}{refDoc.referenceDoc.length > 2000 ? "\n\n... (truncated for preview)" : ""}</pre>
-            </div>
+            {refDoc?.s3FetchFailed && !refDoc?.referenceDoc ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800 mb-1">Content temporarily unavailable</p>
+                    <p className="text-sm text-amber-700 mb-3">
+                      The reference document metadata is saved, but the content could not be loaded. This can happen after a deployment. Please re-upload or paste your document content to restore it.
+                    </p>
+                    <Button size="sm" onClick={startEditing} className="gap-1.5">
+                      <Pencil className="w-3.5 h-3.5" /> Re-upload Content
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : refDoc?.referenceDoc ? (
+              <div className="bg-muted/40 rounded-lg p-4 max-h-64 overflow-y-auto">
+                <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">{refDoc.referenceDoc.substring(0, 2000)}{refDoc.referenceDoc.length > 2000 ? "\n\n... (truncated for preview)" : ""}</pre>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : !isEditing ? (

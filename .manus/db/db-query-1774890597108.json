@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE projects SET referenceDocContent = (SELECT 'BACKFILL_NEEDED') WHERE referenceDocS3Key IS NOT NULL AND referenceDocContent IS NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute UPDATE projects SET referenceDocContent = (SELECT 'BACKFILL_NEEDED') WHERE referenceDocS3Key IS NOT NULL AND referenceDocContent IS NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 72
+}

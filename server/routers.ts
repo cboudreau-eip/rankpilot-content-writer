@@ -931,13 +931,37 @@ Return ONLY valid JSON, no markdown code blocks.`;
         if (!project) throw new Error("Project not found");
 
         let referenceDoc: string | null = null;
-        if (project.referenceDocS3Key) {
+        let s3FetchFailed = false;
+        const hasMetadata = !!(project.referenceDocName && (project.referenceDocS3Key || project.referenceDocContent));
+
+        // Primary source: database column (always available, survives deployments)
+        if (project.referenceDocContent) {
+          referenceDoc = project.referenceDocContent;
+        }
+        // Fallback: S3 (for backward compatibility / if DB column was somehow empty)
+        else if (project.referenceDocS3Key) {
           try {
             const { url } = await storageGet(project.referenceDocS3Key);
             const resp = await fetch(url);
-            if (resp.ok) referenceDoc = await resp.text();
+            if (resp.ok) {
+              referenceDoc = await resp.text();
+              // Self-heal: backfill DB column from S3 so future reads are instant
+              try {
+                await updateProjectReferenceDocMeta(
+                  input.projectId,
+                  project.referenceDocS3Key,
+                  project.referenceDocName,
+                  referenceDoc.length,
+                  referenceDoc
+                );
+              } catch { /* non-critical */ }
+            } else {
+              console.warn(`S3 fetch returned ${resp.status} for key: ${project.referenceDocS3Key}`);
+              s3FetchFailed = true;
+            }
           } catch (e) {
             console.warn("Failed to fetch reference doc from S3:", e);
+            s3FetchFailed = true;
           }
         }
 
@@ -945,10 +969,12 @@ Return ONLY valid JSON, no markdown code blocks.`;
           referenceDoc,
           referenceDocName: project.referenceDocName,
           referenceDocLength: project.referenceDocLength,
+          s3FetchFailed,
+          hasMetadata,
         };
       }),
 
-    /** Update the reference document for a project (uploads to S3) */
+    /** Update the reference document for a project (dual-storage: DB + S3) */
     updateReferenceDoc: protectedProcedure
       .input(z.object({
         projectId: z.number(),
@@ -957,18 +983,26 @@ Return ONLY valid JSON, no markdown code blocks.`;
       }))
       .mutation(async ({ input }) => {
         if (input.referenceDoc) {
-          // Upload to S3
-          const s3Key = `reference-docs/project-${input.projectId}-${Date.now()}.txt`;
-          await storagePut(s3Key, input.referenceDoc, "text/plain");
+          // Upload to S3 as backup (non-blocking — DB is source of truth)
+          let s3Key: string | null = null;
+          try {
+            s3Key = `reference-docs/project-${input.projectId}-${Date.now()}.txt`;
+            await storagePut(s3Key, input.referenceDoc, "text/plain");
+          } catch (e) {
+            console.warn("S3 upload failed (non-critical, DB has content):", e);
+            s3Key = null; // Don't save a broken S3 key
+          }
+          // Save content to DB (primary) + S3 key (backup reference)
           return updateProjectReferenceDocMeta(
             input.projectId,
             s3Key,
             input.referenceDocName,
-            input.referenceDoc.length
+            input.referenceDoc.length,
+            input.referenceDoc
           );
         } else {
-          // Clear reference doc
-          return updateProjectReferenceDocMeta(input.projectId, null, null, null);
+          // Clear reference doc from both DB and S3 metadata
+          return updateProjectReferenceDocMeta(input.projectId, null, null, null, null);
         }
       }),
 
@@ -982,19 +1016,23 @@ Return ONLY valid JSON, no markdown code blocks.`;
         const project = await getProjectById(article.projectId);
         if (!project) throw new Error("Project not found");
 
-        if (!project.referenceDocS3Key) {
+        if (!project.referenceDocContent && !project.referenceDocS3Key) {
           throw new Error("No reference document found for this project. Add one in Project Settings > Cross Check tab.");
         }
 
-        // Fetch reference doc content from S3
+        // Read reference doc: DB first (primary), S3 fallback
         let referenceDoc: string;
-        try {
-          const { url } = await storageGet(project.referenceDocS3Key);
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error(`S3 fetch failed: ${resp.status}`);
-          referenceDoc = await resp.text();
-        } catch (e) {
-          throw new Error("Failed to retrieve reference document. Please re-upload it in Project Settings > Cross Check tab.");
+        if (project.referenceDocContent) {
+          referenceDoc = project.referenceDocContent;
+        } else {
+          try {
+            const { url } = await storageGet(project.referenceDocS3Key!);
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`S3 fetch failed: ${resp.status}`);
+            referenceDoc = await resp.text();
+          } catch (e) {
+            throw new Error("Failed to retrieve reference document. Please re-upload it in Project Settings > Cross Check tab.");
+          }
         }
         const referenceDocName = project.referenceDocName || "Reference Document";
 

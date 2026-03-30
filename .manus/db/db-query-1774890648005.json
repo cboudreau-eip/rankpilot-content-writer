@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, name, referenceDocS3Key, referenceDocName, referenceDocLength, LENGTH(referenceDocContent) as contentLen FROM projects;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, referenceDocS3Key, referenceDocName, referenceDocLength, LENGTH(referenceDocContent) as contentLen FROM projects;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Medicare FAQ",
+      "referenceDocS3Key": "reference-docs/project-1-1774888550109.txt",
+      "referenceDocName": "2026",
+      "referenceDocLength": "3496",
+      "contentLen": "3496"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\treferenceDocS3Key\treferenceDocName\treferenceDocLength\tcontentLen\n1\tMedicare FAQ\treference-docs/project-1-1774888550109.txt\t2026\t3496\t3496\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

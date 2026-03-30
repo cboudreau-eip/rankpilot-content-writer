@@ -26,6 +26,8 @@ import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } fro
 import { articles, projects, brandVoices, citationSources } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
+import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
+import type { EntityAnalysisResult, SemanticAnalysisResult } from "../shared/entity-types";
 
 /**
  * Unified LLM caller — routes to built-in (Forge/Gemini) or Claude based on project settings.
@@ -2008,6 +2010,125 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
   }),
 
   // ---- Content Grading ----
+  // ---- Entity / Salience Analyzer ----
+  entity: router({
+    /** Entity + Salience analysis — 6-step framework */
+    analyzeContent: protectedProcedure
+      .input(z.object({
+        content: z.string().min(50, "Content must be at least 50 characters"),
+        primaryKeyword: z.string().optional(),
+        projectId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Truncate to ~15k chars to stay within token limits
+        const truncated = input.content.slice(0, 15000);
+        const prompt = getEntityAnalysisPrompt(truncated, input.primaryKeyword || undefined);
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert SEO entity analyst. Respond with raw JSON only." },
+            { role: "user", content: prompt },
+          ],
+        }, input.projectId);
+
+        const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse entity analysis response");
+        return JSON.parse(jsonMatch[0]) as EntityAnalysisResult;
+      }),
+
+    /** Analyze an existing article by ID */
+    analyzeArticle: protectedProcedure
+      .input(z.object({
+        articleId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new Error("Article not found");
+
+        // Strip HTML tags for analysis
+        const textContent = (article.content || "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (textContent.length < 50) throw new Error("Article content is too short to analyze");
+
+        const truncated = textContent.slice(0, 15000);
+        const keyword = article.keyword || undefined;
+        const prompt = getEntityAnalysisPrompt(truncated, keyword);
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert SEO entity analyst. Respond with raw JSON only." },
+            { role: "user", content: prompt },
+          ],
+        }, article.projectId);
+
+        const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse entity analysis response");
+        return JSON.parse(jsonMatch[0]) as EntityAnalysisResult;
+      }),
+
+    /** Semantic analysis — 4-layer framework */
+    analyzeSemantic: protectedProcedure
+      .input(z.object({
+        content: z.string().min(50, "Content must be at least 50 characters"),
+        targetKeyword: z.string().min(1, "Target keyword is required for semantic analysis"),
+        projectId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const truncated = input.content.slice(0, 15000);
+        const prompt = getSemanticAnalysisPrompt(truncated, input.targetKeyword);
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert SEO semantic analyst. Respond with raw JSON only." },
+            { role: "user", content: prompt },
+          ],
+        }, input.projectId);
+
+        const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse semantic analysis response");
+        return JSON.parse(jsonMatch[0]) as SemanticAnalysisResult;
+      }),
+
+    /** Semantic analysis for an existing article by ID */
+    analyzeArticleSemantic: protectedProcedure
+      .input(z.object({
+        articleId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new Error("Article not found");
+        if (!article.keyword) throw new Error("Article has no keyword set. A keyword is required for semantic analysis.");
+
+        const textContent = (article.content || "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (textContent.length < 50) throw new Error("Article content is too short to analyze");
+
+        const truncated = textContent.slice(0, 15000);
+        const prompt = getSemanticAnalysisPrompt(truncated, article.keyword);
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert SEO semantic analyst. Respond with raw JSON only." },
+            { role: "user", content: prompt },
+          ],
+        }, article.projectId);
+
+        const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse semantic analysis response");
+        return JSON.parse(jsonMatch[0]) as SemanticAnalysisResult;
+      }),
+  }),
+
   grading: router({
     /** Standalone content grader — paste any content, 4-category 85-point system */
     gradeContent: protectedProcedure

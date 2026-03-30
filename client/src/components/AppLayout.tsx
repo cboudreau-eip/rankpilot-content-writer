@@ -90,6 +90,7 @@ const navSections = [
       { icon: ListTree, label: "Outlines", path: "/outlines" },
       { icon: Network, label: "Topic Clusters", path: "/clusters" },
       { icon: Award, label: "Grade Content", path: "/grade" },
+      { icon: Search, label: "Entity Analyzer", path: "/entity-analyzer" },
     ],
   },
   {

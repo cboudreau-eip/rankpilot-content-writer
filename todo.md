@@ -550,3 +550,18 @@
 - [x] Updated checkArticle to use DB content as primary source
 - [x] Backfilled existing S3 content into DB column
 - [x] Run tests and verify — all 301 tests pass (11 new dual-storage tests)
+
+## Entity/Salience Analyzer (Phase 1 — Standalone Page)
+- [x] Create entity analysis LLM prompts (entity + salience + semantic) in server/entity-prompts.ts
+- [x] Create shared types for entity analysis results in shared/entity-types.ts
+- [x] Add tRPC procedures: entity.analyzeContent, entity.analyzeArticle, entity.analyzeSemantic, entity.analyzeArticleSemantic
+- [x] Build EntityAnalyzer.tsx page with paste-text input and article selector
+- [x] Build score cards (Primary Clarity, Entity Focus, Supporting Coverage, GEO Extractability)
+- [x] Build entity table with sortable columns (Name, Type, Prominence, Rationale)
+- [x] Build salience structure cards (Dominance Gap, Early Reinforcement, Entity Drift)
+- [x] Build supporting coverage and GEO extractability sections
+- [x] Build actionable fixes list + advanced recommendations (collapsible)
+- [x] Build semantic analysis tab (Relevance, Section Breakdown, Redundancy, Topic Coverage, Semantic Fixes)
+- [x] Add "Entity Analyzer" to sidebar under Content section
+- [x] Wire route in App.tsx
+- [x] Write vitest tests for entity tRPC procedures (11 tests, all 312 tests passing)

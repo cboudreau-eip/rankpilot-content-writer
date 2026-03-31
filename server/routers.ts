@@ -33,7 +33,8 @@ import type { ResearchFindings } from "../shared/research-types";
 
 /** Build a research section string to inject into the outline prompt */
 function buildResearchSection(research: any): string {
-  let section = `\n=== RESEARCH FINDINGS - USE THESE TO INFORM THE OUTLINE ===\n\n`;
+  const currentYear = new Date().getFullYear();
+  let section = `\n=== RESEARCH FINDINGS - USE THESE TO INFORM THE OUTLINE ===\nCurrent Year: ${currentYear}. Always use the most recent data available. Prefer ${currentYear} data over older data.\n\n`;
 
   if (research.statistics?.length) {
     section += `STATISTICS & DATA POINTS TO REFERENCE:\n`;
@@ -343,7 +344,11 @@ export const appRouter = router({
         projectId: z.number(),
       }))
       .mutation(async ({ input }) => {
+        const currentYear = new Date().getFullYear();
         const researchPrompt = `You are an expert research assistant conducting comprehensive topic research for content creation.
+
+CURRENT DATE: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+CURRENT YEAR: ${currentYear}
 
 RESEARCH TOPIC: "${input.topic}"
 ${input.keyword ? `PRIMARY KEYWORD: "${input.keyword}"` : ""}
@@ -354,7 +359,9 @@ Conduct thorough research and provide findings in these categories:
 1. STATISTICS & DATA POINTS
 - Find 5-8 relevant statistics, facts, or data points
 - Include specific numbers, percentages, or metrics
-- Prioritize recent data (2024-2026)
+- MANDATORY: Prioritize ${currentYear} data first. Only use ${currentYear - 1} data if no ${currentYear} data exists for that specific statistic.
+- NEVER use data from ${currentYear - 2} or earlier when more recent data is available.
+- All statistics must reflect the most current figures available as of ${currentYear}.
 - Cite specific, real sources (government agencies, research organizations, industry reports)
 
 2. AUTHORITATIVE SOURCES
@@ -428,16 +435,19 @@ RESPOND WITH VALID JSON ONLY in this exact format:
 }
 
 IMPORTANT RULES:
+- The current year is ${currentYear}. ALL data, statistics, and sources MUST be from ${currentYear} whenever available.
+- If ${currentYear} data is not yet published for a specific metric, use ${currentYear - 1} data and explicitly note it as "(${currentYear - 1}, latest available)".
+- NEVER present ${currentYear - 2} or older data without flagging it as potentially outdated.
+- The "year" field in statistics MUST accurately reflect the data year — do NOT fabricate ${currentYear} dates for older data.
 - Only cite real, verifiable sources that actually exist
 - Be specific with URLs - use actual page paths, not just homepages
-- Use recent data where possible (note the year)
 - If you're uncertain about exact URLs, use the base domain
 - Make statistics specific and actionable for content creation
 - Questions should reflect real user search intent`;
 
         const response = await callLLM({
           messages: [
-            { role: "system", content: "You are an expert research assistant. Return ONLY valid JSON, no markdown fences or explanation." },
+            { role: "system", content: `You are an expert research assistant. The current year is ${currentYear}. Always prioritize ${currentYear} data and sources. Return ONLY valid JSON, no markdown fences or explanation.` },
             { role: "user", content: researchPrompt },
           ],
           response_format: {

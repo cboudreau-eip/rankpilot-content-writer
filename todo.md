@@ -659,3 +659,10 @@
 - [x] Build editor UI: remove individual images from article
 - [x] Write vitest tests for articleImages procedures (12 tests: generate, suggestPlacements, regenerate, remove)
 - [x] All 330 tests pass (21 test files)
+
+## Fix Research Feature: Outdated Data (2024/2025 Instead of 2026)
+- [x] Investigate research procedure prompt to find where year/date context is missing
+- [x] Update research prompt to dynamically inject current year (2026) and enforce current-year data priority
+- [x] Add instructions to flag/discard data older than current year where fresher data exists
+- [x] Update system message and buildResearchSection to also carry current year context
+- [x] Test and verify (all 330 tests pass)

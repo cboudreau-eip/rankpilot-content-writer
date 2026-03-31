@@ -1352,14 +1352,17 @@ export default function GenerateArticle() {
                             <button
                               key={i}
                               type="button"
-                              disabled={isAdded}
                               onClick={() => {
-                                if (!isAdded) setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                                if (isAdded) {
+                                  setSecondaryKeywords(prev => prev.filter(k => k !== kw.toLowerCase()));
+                                } else {
+                                  setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                                }
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
                                 isAdded
-                                  ? "bg-indigo-100 text-indigo-400 border-indigo-200 cursor-default"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer"
+                                  ? "bg-indigo-100 text-indigo-700 border-indigo-300 hover:bg-indigo-200"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50"
                               }`}
                             >
                               {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
@@ -1381,14 +1384,17 @@ export default function GenerateArticle() {
                             <button
                               key={i}
                               type="button"
-                              disabled={isAdded}
                               onClick={() => {
-                                if (!isAdded) setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                                if (isAdded) {
+                                  setSecondaryKeywords(prev => prev.filter(k => k !== kw.toLowerCase()));
+                                } else {
+                                  setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                                }
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
                                 isAdded
-                                  ? "bg-emerald-100 text-emerald-400 border-emerald-200 cursor-default"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer"
+                                  ? "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50"
                               }`}
                             >
                               {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
@@ -1410,14 +1416,17 @@ export default function GenerateArticle() {
                             <button
                               key={i}
                               type="button"
-                              disabled={isAdded}
                               onClick={() => {
-                                if (!isAdded) setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                                if (isAdded) {
+                                  setSecondaryKeywords(prev => prev.filter(k => k !== kw.toLowerCase()));
+                                } else {
+                                  setSecondaryKeywords(prev => [...prev, kw.toLowerCase()]);
+                                }
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
                                 isAdded
-                                  ? "bg-amber-100 text-amber-400 border-amber-200 cursor-default"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50 cursor-pointer"
+                                  ? "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50"
                               }`}
                             >
                               {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}

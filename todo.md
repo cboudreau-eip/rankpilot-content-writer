@@ -601,3 +601,8 @@
 - [x] Two-phase flow: Research → Outline generation (with fallback if research fails)
 - [x] Build collapsible Research Findings panel in Step 2 (Statistics, Sources, Experts, Questions, Competitor Angles, Key Takeaways)
 - [x] All 312 tests passing, TypeScript compiles cleanly
+
+## Keyword Deselection Fix
+- [x] Allow deselecting previously selected suggested keywords from the secondary keywords list
+- [x] All three categories (Related, LSI, Long-Tail) now toggle on click: add if not selected, remove if already selected
+- [x] Updated styling: selected keywords show darker text and hover effect to indicate clickability

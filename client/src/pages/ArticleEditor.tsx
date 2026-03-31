@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { RegenerateSection, SectionDiffPreview } from "@/components/RegenerateSection";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -444,6 +445,16 @@ export default function ArticleEditor() {
   // Track a version counter to signal GradePanel to clear selections
   const [appliedVersion, setAppliedVersion] = useState(0);
   const [copied, setCopied] = useState(false);
+
+  // Regenerate Section state
+  const [regenDiff, setRegenDiff] = useState<{
+    sectionHeading: string;
+    oldContent: string;
+    newContent: string;
+    updatedArticleContent: string;
+    wordCount: number;
+  } | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   // Cross Check state
   const [showCrossCheck, setShowCrossCheck] = useState(false);
@@ -1013,7 +1024,26 @@ export default function ArticleEditor() {
           )}
 
           {/* Editor Content */}
-          <EditorContent editor={editor} />
+          <div ref={editorContainerRef} className="relative">
+            <EditorContent editor={editor} />
+            {/* Regenerate Section Overlay */}
+            {editor && editorContainerRef.current && (
+              <RegenerateSection
+                articleId={articleId}
+                editorElement={editorContainerRef.current}
+                onSectionRegenerated={(data) => {
+                  setRegenDiff(data);
+                  // Update editor with the new content immediately (with highlights)
+                  const oldHtml = editor.getHTML();
+                  const highlightedHtml = buildHighlightedHtml(oldHtml, data.updatedArticleContent);
+                  editor.commands.setContent(highlightedHtml);
+                  setHasHighlights(true);
+                  skipNextSyncRef.current = true;
+                  refetch();
+                }}
+              />
+            )}
+          </div>
         </div>
 
         {/* Grade Sidebar */}
@@ -1158,6 +1188,42 @@ export default function ArticleEditor() {
           />
         )}
 
+
+        {/* Section Regeneration Diff Preview */}
+        {regenDiff && (
+          <SectionDiffPreview
+            sectionHeading={regenDiff.sectionHeading}
+            oldContent={regenDiff.oldContent}
+            newContent={regenDiff.newContent}
+            onAccept={() => {
+              // Content is already applied — just clear the diff panel and save
+              if (editor) {
+                editor.chain().focus().selectAll().unsetHighlight().run();
+                editor.commands.setTextSelection(0);
+                setHasHighlights(false);
+              }
+              setRegenDiff(null);
+              toast.success("Section accepted");
+            }}
+            onDiscard={() => {
+              // Revert to the original content by refetching from DB
+              // The old content is still in the DB until we save
+              skipNextSyncRef.current = false;
+              refetch();
+              setRegenDiff(null);
+              setHasHighlights(false);
+              toast.info("Section reverted to original");
+            }}
+            onTryAgain={() => {
+              // Revert and re-open the form
+              skipNextSyncRef.current = false;
+              refetch();
+              setHasHighlights(false);
+              setRegenDiff(null);
+              toast.info("Reverted — try regenerating again");
+            }}
+          />
+        )}
 
         {/* SEO Sidebar */}
         {showSeo && (

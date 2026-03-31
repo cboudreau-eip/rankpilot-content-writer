@@ -1538,6 +1538,271 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         return deleteArticle(input.id);
       }),
 
+    /** Regenerate a single section of an article using AI */
+    regenerateSection: protectedProcedure
+      .input(z.object({
+        articleId: z.number(),
+        sectionHeading: z.string().min(1),
+        instructions: z.string().optional(),
+        toneOverride: z.string().optional(),
+        lengthPreference: z.enum(["shorter", "same", "longer"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        console.log(`[RegenSection] Starting. articleId=${input.articleId}, heading="${input.sectionHeading}"`);
+
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new Error("Article not found");
+        if (!article.content) throw new Error("Article has no content");
+
+        // --- Extract the target section from the article HTML ---
+        const content = article.content;
+        // Find all H2 boundaries
+        const h2Regex = /<h2[^>]*>([\s\S]*?)<\/h2>/gi;
+        const h2Matches: Array<{ fullMatch: string; text: string; index: number }> = [];
+        let match: RegExpExecArray | null;
+        while ((match = h2Regex.exec(content)) !== null) {
+          const headingText = match[1].replace(/<[^>]*>/g, "").trim();
+          h2Matches.push({ fullMatch: match[0], text: headingText, index: match.index });
+        }
+
+        // Find the target section by heading text (case-insensitive, trimmed)
+        const targetIdx = h2Matches.findIndex(h =>
+          h.text.toLowerCase().trim() === input.sectionHeading.toLowerCase().trim()
+        );
+        if (targetIdx === -1) {
+          throw new Error(`Section "${input.sectionHeading}" not found in article. Available sections: ${h2Matches.map(h => h.text).join(", ")}`);
+        }
+
+        const sectionStart = h2Matches[targetIdx].index;
+        const sectionEnd = targetIdx + 1 < h2Matches.length
+          ? h2Matches[targetIdx + 1].index
+          : content.length;
+        const oldSectionContent = content.slice(sectionStart, sectionEnd).trim();
+
+        // --- Build surrounding context ---
+        const prevSectionSnippet = sectionStart > 0
+          ? content.slice(Math.max(0, sectionStart - 500), sectionStart)
+              .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(-300)
+          : "";
+        const nextSectionSnippet = sectionEnd < content.length
+          ? content.slice(sectionEnd, Math.min(content.length, sectionEnd + 500))
+              .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300)
+          : "";
+
+        // --- Fetch project context: brand voice, ICP, outline ---
+        const project = article.projectId ? await getProjectById(article.projectId) : null;
+        const projectId = article.projectId;
+
+        // Brand voice
+        let brandVoiceContext = "";
+        let maxSentences = 5;
+        if (projectId) {
+          const allVoices = await getBrandVoicesByProject(projectId);
+          const bv = allVoices.find((v: any) => v.isDefault === 1) || allVoices[0];
+          if (bv) {
+            const perspectiveMap: Record<string, string> = {
+              first: "first person (we/our/us)",
+              second: "second person (you/your)",
+              third: "third person (they/the company)",
+            };
+            const styleMap: Record<string, string> = {
+              short: "Short and direct. Paragraphs of 1-3 sentences.",
+              mixed: "Varied and natural rhythm. Paragraphs of 2-5 sentences.",
+              detailed: "Detailed and explanatory. Paragraphs of 3-6 sentences.",
+            };
+            maxSentences = bv.sentenceStyle === "short" ? 3 : bv.sentenceStyle === "detailed" ? 6 : 5;
+
+            // Parse avoid list
+            const AVOID_LABELS: Record<string, string> = {
+              jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+              fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+              cliches: "Industry clichés", passive: "Passive voice",
+              buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+              unverified: "Unverified statistics", competitor: "Competitor comparisons",
+            };
+            let avoidItems: string[] = [];
+            const avoidList = bv.avoidList || "";
+            if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+              const parts = avoidList.split("|");
+              for (const part of parts) {
+                if (part.startsWith("PRESETS:")) {
+                  const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+                  avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+                } else if (part.startsWith("CUSTOM:")) {
+                  const custom = part.replace("CUSTOM:", "").trim();
+                  if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+                }
+              }
+            } else if (avoidList) {
+              avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+            }
+
+            brandVoiceContext = `\nBRAND VOICE:\n- Tone: ${bv.toneTraits || "Professional"}\n- Perspective: ${perspectiveMap[bv.perspective] || bv.perspective}\n- Sentence style: ${styleMap[bv.sentenceStyle] || "Varied"}${avoidItems.length > 0 ? `\n- Avoid: ${avoidItems.join(", ")}` : ""}`;
+          }
+        }
+
+        // ICP context (simplified)
+        let icpContext = "";
+        if (project?.icpPrimaryName) {
+          icpContext = `\nTARGET AUDIENCE: ${project.icpPrimaryName}${project.icpWhoTheyAre ? ` — ${project.icpWhoTheyAre}` : ""}`;
+        }
+
+        // Outline context for this section
+        let outlineContext = "";
+        if (article.outlineId) {
+          const outline = await getOutlineById(article.outlineId);
+          if (outline?.sections) {
+            const outlineSection = (outline.sections as OutlineSection[]).find(s =>
+              s.heading.toLowerCase().trim() === input.sectionHeading.toLowerCase().trim()
+            );
+            if (outlineSection) {
+              outlineContext = `\nORIGINAL OUTLINE FOR THIS SECTION:\nHeading: ${outlineSection.heading}`;
+              if (outlineSection.points?.length) {
+                outlineContext += `\nKey points to cover:\n${outlineSection.points.map(p => `- ${p}`).join("\n")}`;
+              }
+              if (outlineSection.aiInstructions) {
+                outlineContext += `\nAI Instructions: ${outlineSection.aiInstructions}`;
+              }
+              if (outlineSection.subSections?.length) {
+                outlineContext += `\nSub-sections:`;
+                for (const sub of outlineSection.subSections) {
+                  outlineContext += `\n  ### ${sub.heading}`;
+                  if (sub.points?.length) {
+                    outlineContext += `\n${sub.points.map(p => `  - ${p}`).join("\n")}`;
+                  }
+                  if (sub.aiInstructions) {
+                    outlineContext += `\n  AI Instructions: ${sub.aiInstructions}`;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Banned phrases
+        let bannedPhrasesContext = "";
+        if (project?.bannedPhrases?.length) {
+          bannedPhrasesContext = `\n\nBANNED PHRASES (NEVER use these):\n${(project.bannedPhrases as string[]).filter(p => p.trim()).map(p => `- "${p}"`).join("\n")}`;
+        }
+
+        // Length guidance
+        const oldWordCount = oldSectionContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
+        let lengthGuidance = `Target approximately ${oldWordCount} words (same as the current section).`;
+        if (input.lengthPreference === "shorter") {
+          lengthGuidance = `Target approximately ${Math.round(oldWordCount * 0.65)} words (shorter than the current ${oldWordCount} words).`;
+        } else if (input.lengthPreference === "longer") {
+          lengthGuidance = `Target approximately ${Math.round(oldWordCount * 1.5)} words (longer than the current ${oldWordCount} words).`;
+        }
+
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
+
+        // --- Build the prompt ---
+        const systemPrompt = `You are an expert SEO content writer. You are regenerating a SINGLE SECTION of an existing article. Your job is to write a better version of this section that fits seamlessly into the surrounding content.
+
+CURRENT DATE: ${currentMonth} ${currentYear}. Treat ${currentYear} as the current year.
+
+ARTICLE CONTEXT:
+- Title: "${article.title}"
+- Keyword: "${article.keyword || article.title}"
+${brandVoiceContext}
+${icpContext}
+${outlineContext}
+${bannedPhrasesContext}
+
+SECTION TO REGENERATE: "${input.sectionHeading}"
+${lengthGuidance}
+${input.toneOverride ? `TONE OVERRIDE: Write this section in a ${input.toneOverride} tone.` : ""}
+${input.instructions ? `SPECIFIC INSTRUCTIONS: ${input.instructions}` : ""}
+
+${prevSectionSnippet ? `PREVIOUS SECTION ENDS WITH (for transition continuity):\n"...${prevSectionSnippet}"` : "This is the first section of the article."}
+
+${nextSectionSnippet ? `NEXT SECTION STARTS WITH (for transition continuity):\n"${nextSectionSnippet}..."` : "This is the last section of the article."}
+
+RULES:
+- Use proper HTML formatting: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td> tags
+- Start with the <h2> heading for this section
+- The content must flow naturally from the previous section and into the next
+- Match the writing style, tone, and quality of the rest of the article
+- Include relevant statistics, examples, and details
+- Do NOT include content from other sections — only write this one section
+- ANCHOR TEXT LENGTH: All links must use 2-7 word anchor text, never full sentences
+- NEVER use em dashes (—). Use commas, semicolons, or periods instead.
+- Return ONLY the HTML for this section (from <h2> to the end of the section content, before the next <h2>)`;
+
+        const userPrompt = `Here is the CURRENT version of this section that needs to be regenerated:\n\n${oldSectionContent}\n\nWrite a better version of this section.`;
+
+        console.log(`[RegenSection] Calling LLM for section "${input.sectionHeading}" (${oldWordCount} words)`);
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }, projectId);
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const rawSectionContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+
+        // --- Post-process the regenerated section ---
+        let newSectionContent = wrapBareTextInPTags(rawSectionContent);
+        newSectionContent = splitLongParagraphs(newSectionContent, maxSentences, "html");
+
+        // Apply template styles if the outline section had a template type
+        if (article.outlineId) {
+          const outline = await getOutlineById(article.outlineId);
+          if (outline?.sections) {
+            const outlineSection = (outline.sections as OutlineSection[]).find(s =>
+              s.heading.toLowerCase().trim() === input.sectionHeading.toLowerCase().trim()
+            );
+            if (outlineSection) {
+              // Apply background color if present
+              if (outlineSection.backgroundColor && !outlineSection.templateType) {
+                newSectionContent = applyBackgroundColors(newSectionContent, [outlineSection]);
+              }
+              // Apply template styles if present
+              if (outlineSection.templateType) {
+                newSectionContent = applyTemplateStyles(newSectionContent, [outlineSection]);
+              }
+            }
+          }
+        }
+
+        // Remove banned phrases from the regenerated section
+        if (project?.bannedPhrases?.length) {
+          for (const phrase of project.bannedPhrases as string[]) {
+            if (phrase.trim()) {
+              const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(escapedPhrase, 'gi');
+              newSectionContent = newSectionContent.replace(regex, '');
+            }
+          }
+          newSectionContent = newSectionContent.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
+        }
+
+        // --- Splice the new section into the full article ---
+        const updatedContent = content.slice(0, sectionStart) + newSectionContent + "\n" + content.slice(sectionEnd);
+        const newWordCount = updatedContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
+
+        // Save to database
+        await updateArticle(input.articleId, {
+          content: updatedContent,
+          wordCount: newWordCount,
+        });
+
+        console.log(`[RegenSection] Done. Section "${input.sectionHeading}" regenerated. Old words: ${oldWordCount}, New article words: ${newWordCount}`);
+
+        return {
+          success: true,
+          oldContent: oldSectionContent,
+          newContent: newSectionContent,
+          updatedArticleContent: updatedContent,
+          wordCount: newWordCount,
+          sectionHeading: input.sectionHeading,
+        };
+      }),
+
     /** AI-powered article generation from outline */
     generate: protectedProcedure
       .input(z.object({

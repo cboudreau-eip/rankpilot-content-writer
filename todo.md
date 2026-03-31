@@ -702,3 +702,16 @@
 - [x] Update remaining tests if needed
 - [x] Verify all tests pass and build succeeds (318 tests pass, build 0 errors)
 - [x] Save checkpoint
+
+## Regenerate Section Feature
+- [x] Backend: Add `articles.regenerateSection` tRPC mutation with section extraction, context-aware prompting, and post-processing
+- [x] Backend: Use project's selected LLM via callLLM helper (respects Claude/default setting)
+- [x] Backend: Include outline context, brand voice, ICP, keyword, and surrounding section snippets in prompt
+- [x] Backend: Handle edge cases — template sections, background colors, FAQ sub-sections, intro/conclusion
+- [x] Backend: Write tests for the regenerateSection mutation (22 tests)
+- [x] Frontend: Add hover action (RefreshCw icon) on H2 headings in the article editor
+- [x] Frontend: Build regeneration dialog with instructions textarea, tone override, and length preference
+- [x] Frontend: Show loading state on the section during regeneration
+- [x] Frontend: Diff preview sidebar with accept/discard/try-again actions + word count comparison
+- [x] Frontend: Update word count after accepting regenerated section
+- [x] Verify build passes and all 340 tests pass

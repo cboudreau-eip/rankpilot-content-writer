@@ -647,3 +647,15 @@
 - [x] Add retry logic with exponential backoff to both invokeLLM (Forge) and invokeClaudeLLM (Anthropic) — retries 429, 500, 503, 529 up to 3 times with 2s/4s/8s backoff
 - [x] Improve user-facing error messages for transient/overloaded errors (outline, article, research mutations)
 - [x] Test and verify (all 318 tests pass, 0 TS errors)
+
+## AI Image Generation in Article Creation (Option C: Auto + Manual Override)
+- [x] Review existing image generation helper and storage code
+- [x] Build backend procedure to generate image prompts from article sections via LLM
+- [x] Build backend procedure to generate images from prompts, upload to S3, return URLs
+- [x] Integrate image generation into article generation flow (auto-insert after each major section)
+- [x] Add "Generate Images" toggle to article creation form (GenerateArticle page)
+- [x] Build editor UI: Image Manager sidebar with suggest placements, generate, regenerate, remove
+- [x] Build editor UI: regenerate individual images with editable prompt
+- [x] Build editor UI: remove individual images from article
+- [x] Write vitest tests for articleImages procedures (12 tests: generate, suggestPlacements, regenerate, remove)
+- [x] All 330 tests pass (21 test files)

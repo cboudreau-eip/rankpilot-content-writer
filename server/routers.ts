@@ -2391,6 +2391,138 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         if (!jsonMatch) throw new Error("Failed to parse semantic analysis response");
         return JSON.parse(jsonMatch[0]) as SemanticAnalysisResult;
       }),
+
+    /** Apply selected entity/salience fixes to an article — surgical editing */
+    applyEntityFixes: protectedProcedure
+      .input(z.object({
+        articleId: z.number(),
+        selectedFixes: z.array(z.string()).min(1, "Select at least one fix to apply"),
+        primaryEntity: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
+        if (!article) throw new Error("Article not found");
+
+        // Fetch brand voice for consistent tone
+        let brandVoiceSection = "";
+        const [project] = article.projectId
+          ? await db.select().from(projects).where(eq(projects.id, article.projectId)).limit(1)
+          : [null];
+        if (project) {
+          const allVoices = await db.select().from(brandVoices).where(eq(brandVoices.projectId, project.id));
+          const bv = allVoices.find(v => v.isDefault === 1) || allVoices[0];
+          if (bv) {
+            const perspectiveMap: Record<string, string> = {
+              first: "first person (we/our/us)",
+              second: "second person (you/your)",
+              third: "third person (they/the company)",
+            };
+            brandVoiceSection = `\nBRAND VOICE (maintain this tone in all changes):\n- Tone: ${bv.toneTraits}\n- Perspective: ${perspectiveMap[bv.perspective] || bv.perspective}${bv.avoidList ? `\n- Avoid: ${bv.avoidList}` : ""}`;
+          }
+        }
+
+        const fixesList = input.selectedFixes.map((fix, i) => `${i + 1}. ${fix}`).join("\n");
+        const primaryEntityContext = input.primaryEntity ? `\nPRIMARY ENTITY: "${input.primaryEntity}" — all changes should reinforce this entity's salience and prominence.` : '';
+
+        // STEP 1: Ask LLM to plan surgical edits
+        const planPrompt = `You are an expert SEO entity optimization editor. Given the article and the entity/salience fixes to apply, identify the EXACT sections that need to change.
+${brandVoiceSection}
+${primaryEntityContext}
+
+For each fix, identify:
+1. The exact original text snippet that needs to be modified (copy it VERBATIM from the article — must be an exact match)
+2. The replacement text with the entity/salience fix applied
+
+Rules:
+- CRITICAL: Select the SMALLEST possible text snippet — ideally a SINGLE SENTENCE or SHORT PARAGRAPH. Never select a whole section when only one sentence needs changing.
+- Entity salience fixes typically involve:
+  * Adding the primary entity name to introductions, headings, or topic sentences
+  * Replacing vague pronouns ("it", "this", "they") with the actual entity name
+  * Adding supporting entity mentions where coverage is thin
+  * Restructuring sentences to place the primary entity in subject position
+  * Adding entity-reinforcing modifiers or context
+- The "original" field must be an EXACT substring of the article content (character-for-character match)
+- If a fix requires adding NEW content (e.g., a new definition paragraph), set "original" to the sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
+- NEVER rewrite, rephrase, or restructure text that is not directly related to the fix. Only change what is necessary to address the specific entity/salience issue.
+- Maintain the original HTML formatting, tone, and style
+- Keep all existing links, formatting tags, and structure intact
+
+Respond with ONLY a JSON array:
+[
+  {
+    "fix": "<which fix this addresses>",
+    "original": "<exact verbatim text from the article to find>",
+    "replacement": "<the replacement text with fix applied>"
+  }
+]
+
+Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
+
+        const userPrompt = `Apply these entity/salience fixes to the article:\n\n===FIXES TO APPLY===\n${fixesList}\n===END FIXES===\n\n===FULL ARTICLE (for context only — do NOT rewrite the whole thing)===\n${article.content}\n===END ARTICLE===`;
+
+        const llmResponse = await callLLM({
+          messages: [
+            { role: "system", content: planPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        const rawResponse = (llmResponse.choices?.[0]?.message?.content || "") as string;
+        let edits: Array<{ fix: string; original: string; replacement: string }> = [];
+        try {
+          const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) {
+            edits = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error("No JSON array found");
+          }
+        } catch {
+          throw new Error("Failed to parse entity fix plan. Please try again.");
+        }
+
+        // STEP 2: Apply edits surgically
+        let improvedContent = article.content || "";
+        let appliedCount = 0;
+
+        for (const edit of edits) {
+          if (!edit.original || !edit.replacement) continue;
+
+          // Try exact match first
+          if (improvedContent.includes(edit.original)) {
+            improvedContent = improvedContent.replace(edit.original, edit.replacement);
+            appliedCount++;
+          } else {
+            // Try trimmed match (whitespace differences)
+            const trimmedOriginal = edit.original.trim();
+            if (trimmedOriginal && improvedContent.includes(trimmedOriginal)) {
+              improvedContent = improvedContent.replace(trimmedOriginal, edit.replacement.trim());
+              appliedCount++;
+            }
+          }
+        }
+
+        if (appliedCount === 0) {
+          throw new Error("Could not match any sections in the article. Please try again.");
+        }
+
+        const wordCount = improvedContent.split(/\s+/).filter((w: string) => w.length > 0).length;
+
+        await db.update(articles).set({
+          content: improvedContent,
+          wordCount,
+        }).where(eq(articles.id, input.articleId));
+
+        return {
+          success: true,
+          content: improvedContent,
+          wordCount,
+          appliedCount,
+          totalFixes: input.selectedFixes.length,
+        };
+      }),
   }),
 
   grading: router({

@@ -371,3 +371,223 @@ describe("entity.analyzeArticleSemantic", () => {
     ).rejects.toThrow("Article not found");
   });
 });
+
+/**
+ * Helper: creates a mock Drizzle-like DB that handles the chained query patterns:
+ *   db.select().from(articles).where(...).limit(1)  -> returns articleRow
+ *   db.select().from(projects).where(...).limit(1)  -> returns projectRow
+ *   db.select().from(brandVoices).where(...)         -> returns brandVoiceRows (no .limit)
+ *   db.update(articles).set(...).where(...)          -> resolves void
+ */
+function createMockDb(opts: {
+  articleRow?: any;
+  projectRow?: any;
+  brandVoiceRows?: any[];
+}) {
+  const { articleRow = null, projectRow = null, brandVoiceRows = [] } = opts;
+
+  // Track which table .from() was called with so .where() returns the right data
+  let currentTable: any = null;
+
+  const mockFrom = vi.fn().mockImplementation((table: any) => {
+    currentTable = table;
+    return {
+      where: vi.fn().mockImplementation(() => {
+        // brandVoices query has no .limit() — returns array directly
+        const isBrandVoices = currentTable?.name === "brand_voices" || currentTable === (brandVoices as any);
+        if (isBrandVoices) {
+          return Promise.resolve(brandVoiceRows);
+        }
+        // articles / projects queries use .limit(1)
+        return {
+          limit: vi.fn().mockImplementation(() => {
+            const isArticles = currentTable?.name === "articles" || currentTable === (articles as any);
+            if (isArticles) {
+              return Promise.resolve(articleRow ? [articleRow] : []);
+            }
+            // projects
+            return Promise.resolve(projectRow ? [projectRow] : []);
+          }),
+        };
+      }),
+    };
+  });
+
+  return {
+    select: vi.fn().mockReturnValue({ from: mockFrom }),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    }),
+  };
+}
+
+import { articles, projects, brandVoices } from "../drizzle/schema";
+
+describe("entity.applyEntityFixes", () => {
+  it("applies selected entity fixes to an article", async () => {
+    const { getDb } = await import("./db");
+    (getDb as any).mockResolvedValue(createMockDb({
+      articleRow: {
+        id: 1,
+        content: "<h2>Medicare Advantage</h2><p>This is a health plan offered by private companies.</p>",
+        projectId: 1,
+        wordCount: 12,
+      },
+      projectRow: { id: 1, name: "Test Project" },
+      brandVoiceRows: [],
+    }));
+
+    llmMockResponse = JSON.stringify([
+      {
+        fix: "Add more entity mentions in middle sections",
+        original: "This is a health plan offered by private companies.",
+        replacement: "Medicare Advantage is a health plan offered by private insurance companies approved by CMS.",
+      },
+    ]);
+
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.entity.applyEntityFixes({
+      articleId: 1,
+      selectedFixes: ["Add more entity mentions in middle sections"],
+      primaryEntity: "Medicare Advantage",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.appliedCount).toBe(1);
+    expect(result.totalFixes).toBe(1);
+    expect(result.content).toContain("Medicare Advantage is a health plan");
+    expect(result.wordCount).toBeGreaterThan(0);
+  });
+
+  it("throws for non-existent article", async () => {
+    const { getDb } = await import("./db");
+    (getDb as any).mockResolvedValue(createMockDb({
+      articleRow: null,
+    }));
+
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.entity.applyEntityFixes({
+        articleId: 999,
+        selectedFixes: ["Fix something"],
+      })
+    ).rejects.toThrow("Article not found");
+  });
+
+  it("throws when no fixes are selected", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.entity.applyEntityFixes({
+        articleId: 1,
+        selectedFixes: [],
+      })
+    ).rejects.toThrow();
+  });
+
+  it("throws when LLM returns unparseable response", async () => {
+    const { getDb } = await import("./db");
+    (getDb as any).mockResolvedValue(createMockDb({
+      articleRow: {
+        id: 1,
+        content: "<p>Some article content here for testing purposes.</p>",
+        projectId: null,
+        wordCount: 8,
+      },
+    }));
+
+    llmMockResponse = "This is not valid JSON at all";
+
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.entity.applyEntityFixes({
+        articleId: 1,
+        selectedFixes: ["Fix something"],
+      })
+    ).rejects.toThrow("Failed to parse entity fix plan");
+  });
+
+  it("throws when no edits match the article content", async () => {
+    const { getDb } = await import("./db");
+    (getDb as any).mockResolvedValue(createMockDb({
+      articleRow: {
+        id: 1,
+        content: "<p>Original article content that does not match.</p>",
+        projectId: null,
+        wordCount: 8,
+      },
+    }));
+
+    llmMockResponse = JSON.stringify([
+      {
+        fix: "Add entity mention",
+        original: "This text does not exist in the article at all",
+        replacement: "Replacement text",
+      },
+    ]);
+
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.entity.applyEntityFixes({
+        articleId: 1,
+        selectedFixes: ["Add entity mention"],
+      })
+    ).rejects.toThrow("Could not match any sections");
+  });
+
+  it("applies multiple fixes in a single call", async () => {
+    const { getDb } = await import("./db");
+    (getDb as any).mockResolvedValue(createMockDb({
+      articleRow: {
+        id: 1,
+        content: "<h2>Health Plans</h2><p>It is offered by private companies. They provide coverage options.</p>",
+        projectId: 1,
+        wordCount: 12,
+      },
+      projectRow: { id: 1, name: "Test Project" },
+      brandVoiceRows: [],
+    }));
+
+    llmMockResponse = JSON.stringify([
+      {
+        fix: "Replace vague heading with entity name",
+        original: "Health Plans",
+        replacement: "Medicare Advantage Plans",
+      },
+      {
+        fix: "Replace pronoun with entity name",
+        original: "It is offered by private companies.",
+        replacement: "Medicare Advantage is offered by private companies.",
+      },
+    ]);
+
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.entity.applyEntityFixes({
+      articleId: 1,
+      selectedFixes: [
+        "Replace vague heading with entity name",
+        "Replace pronoun with entity name",
+      ],
+      primaryEntity: "Medicare Advantage",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.appliedCount).toBe(2);
+    expect(result.totalFixes).toBe(2);
+    expect(result.content).toContain("Medicare Advantage Plans");
+    expect(result.content).toContain("Medicare Advantage is offered");
+  });
+});

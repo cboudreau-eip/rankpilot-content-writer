@@ -475,6 +475,28 @@ export default function ArticleEditor() {
     },
   });
 
+  const applyEntityFixesMutation = trpc.entity.applyEntityFixes.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.appliedCount} entity fix${data.appliedCount > 1 ? "es" : ""} applied — re-scanning...`);
+      // Update editor content with highlighted changes
+      const oldContent = editor?.getHTML() || "";
+      if (editor && data.content) {
+        const highlightedHtml = buildHighlightedHtml(oldContent, data.content);
+        editor.commands.setContent(highlightedHtml);
+        setHasHighlights(true);
+      }
+      skipNextSyncRef.current = true;
+      refetch();
+      // Auto-trigger re-scan after a short delay
+      setTimeout(() => {
+        entityMutation.mutate({ articleId });
+      }, 500);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to apply entity fixes");
+    },
+  });
+
   const redundancyMutation = trpc.redundancy.check.useMutation({
     onSuccess: (data) => {
       setRedundancyResult(data);
@@ -1078,6 +1100,14 @@ export default function ArticleEditor() {
           <EntityPanel
             result={entityResult}
             onClose={() => setShowEntity(false)}
+            onApplyFixes={(selectedFixes, primaryEntity) => {
+              applyEntityFixesMutation.mutate({
+                articleId,
+                selectedFixes,
+                primaryEntity: primaryEntity || undefined,
+              });
+            }}
+            isApplying={applyEntityFixesMutation.isPending}
           />
         )}
 
@@ -1932,15 +1962,38 @@ const dominanceConfig = {
 function EntityPanel({
   result,
   onClose,
+  onApplyFixes,
+  isApplying,
 }: {
   result: EntityAnalysisResult;
   onClose: () => void;
+  onApplyFixes?: (selectedFixes: string[], primaryEntity: string) => void;
+  isApplying?: boolean;
 }) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     entities: true,
     salience: false,
-    fixes: false,
+    fixes: true,
   });
+  const [selectedFixes, setSelectedFixes] = useState<Set<number>>(new Set());
+
+  const toggleFix = (index: number) => {
+    setSelectedFixes((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const selectAllFixes = () => {
+    const fixes = result.actionableFixes || [];
+    if (selectedFixes.size === fixes.length) {
+      setSelectedFixes(new Set());
+    } else {
+      setSelectedFixes(new Set(fixes.map((_, i) => i)));
+    }
+  };
 
   const toggleSection = (key: string) => {
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -2119,7 +2172,7 @@ function EntityPanel({
         </div>
       )}
 
-      {/* Actionable Fixes (collapsible) */}
+      {/* Actionable Fixes (collapsible + selectable) */}
       {fixes.length > 0 && (
         <div className="border-b border-border/40">
           <button
@@ -2134,14 +2187,67 @@ function EntityPanel({
           </button>
           {expandedSections.fixes && (
             <div className="px-4 pb-3 space-y-1.5">
+              {/* Select All / Deselect All */}
+              {onApplyFixes && (
+                <button
+                  onClick={selectAllFixes}
+                  className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium mb-1"
+                >
+                  {selectedFixes.size === fixes.length ? "Deselect All" : "Select All"}
+                </button>
+              )}
               {fixes.map((fix, i) => (
-                <div key={i} className="flex items-start gap-2 text-[11px]">
-                  <div className="w-4 h-4 rounded bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-[9px] font-bold text-amber-700">{i + 1}</span>
-                  </div>
-                  <span className="text-muted-foreground leading-relaxed">{fix}</span>
+                <div
+                  key={i}
+                  onClick={() => onApplyFixes && toggleFix(i)}
+                  className={`flex items-start gap-2 text-[11px] rounded-lg p-1.5 transition-colors ${
+                    onApplyFixes ? "cursor-pointer hover:bg-muted/40" : ""
+                  } ${selectedFixes.has(i) ? "bg-amber-50 border border-amber-200" : ""}`}
+                >
+                  {onApplyFixes ? (
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                      selectedFixes.has(i)
+                        ? "bg-amber-500 border-amber-500 text-white"
+                        : "border-gray-300 bg-white"
+                    }`}>
+                      {selectedFixes.has(i) && (
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-4 h-4 rounded bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-[9px] font-bold text-amber-700">{i + 1}</span>
+                    </div>
+                  )}
+                  <span className={`leading-relaxed ${selectedFixes.has(i) ? "text-foreground" : "text-muted-foreground"}`}>{fix}</span>
                 </div>
               ))}
+
+              {/* Apply Selected Button */}
+              {onApplyFixes && selectedFixes.size > 0 && (
+                <button
+                  onClick={() => {
+                    const selected = fixes.filter((_, i) => selectedFixes.has(i));
+                    onApplyFixes(selected, primary?.name || "");
+                  }}
+                  disabled={isApplying}
+                  className="w-full mt-2 py-2 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isApplying ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Applying Fixes...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      Apply Selected ({selectedFixes.size})
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>

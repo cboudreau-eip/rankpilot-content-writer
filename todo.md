@@ -613,3 +613,11 @@
 - [x] Identify root cause of broken/404 links (outline prompt passed sitemap XML URLs instead of parsed page URLs)
 - [x] Implement fix: outline generation now pre-resolves sitemap XML URLs to actual page URLs from DB before building prompt (article generation already had the fix)
 - [x] Test and verify (all 312 tests pass)
+
+## Apply Entity/Salience Fixes Feature
+- [x] Create applyEntityFixes tRPC procedure (takes article content + selected fixes, LLM rewrites to apply)
+- [x] Add selectable checkboxes to each fix item in Entity Analyzer sidebar panel
+- [x] Add "Apply Selected (N)" button that triggers the mutation
+- [x] After applying, auto-re-run entity scan to show updated scores
+- [x] Write vitest tests for applyEntityFixes procedure (5 tests: success, not found, empty input, unparseable LLM, no match, multi-fix)
+- [x] Test full flow: Scan → Select Fixes → Apply → Re-Scan (all 318 tests pass)

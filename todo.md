@@ -715,3 +715,10 @@
 - [x] Frontend: Diff preview sidebar with accept/discard/try-again actions + word count comparison
 - [x] Frontend: Update word count after accepting regenerated section
 - [x] Verify build passes and all 340 tests pass
+
+## Fix Excessive Hyperlink Insertion in Article Generation
+- [x] Investigate link insertion logic — found 3 root causes: weak 'approximately' wording, autoLinkCount not passed without sitemap, no post-processing enforcement
+- [x] Identified: autoLinkCount was only passed when sitemapUrls.length > 0, so no-sitemap generations had no limit
+- [x] Fixed prompt: changed 'approximately N links' to 'EXACTLY N links (no more, no fewer)' + added TOTAL LINK LIMIT rule covering internal + external combined
+- [x] Added post-processing link count enforcement: strips excess <a> tags after generation, preserves anchor text
+- [x] Added 11 tests for link count enforcement (server/link-count-enforcement.test.ts), all 351 tests pass, build succeeds

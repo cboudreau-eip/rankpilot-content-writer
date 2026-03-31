@@ -2106,7 +2106,7 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         const effectiveFormat = input.outputFormat || settings?.outputFormat || "html";
         const effectiveManualLinks = input.manualLinks || settings?.manualLinks || [];
         const effectiveSitemapUrls: string[] = input.sitemapUrls || (settings?.sitemapUrls as string[] | undefined) || (settings?.sitemapUrl ? [settings.sitemapUrl] : []);
-        const effectiveAutoLinkCount = input.autoLinkCount || settings?.autoLinkCount || 5;
+        const effectiveAutoLinkCount = input.autoLinkCount ?? settings?.autoLinkCount ?? 5;
         const effectiveSecondaryKeywords: string[] = input.secondaryKeywords || settings?.secondaryKeywords || [];
 
         // Build secondary keywords instructions
@@ -2139,7 +2139,7 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           }
 
           if (resolvedPageUrls.length > 0) {
-            linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links chosen from the following REAL page URLs. You MUST ONLY use URLs from this list — do NOT invent or guess URLs:\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}\nChoose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence. CRITICAL: Only use exact URLs from the list above. Never fabricate URLs.`;
+            linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nInsert EXACTLY ${effectiveAutoLinkCount} internal links (no more, no fewer) chosen from the following REAL page URLs. You MUST ONLY use URLs from this list — do NOT invent or guess URLs:\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}\nChoose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence. CRITICAL: Only use exact URLs from the list above. Never fabricate URLs.`;
           } else {
             // Fallback: if no parsed URLs found, skip auto-linking rather than hallucinate
             console.warn(`[Article Generate] No parsed URLs found for sitemaps: ${effectiveSitemapUrls.join(', ')}. Skipping auto-linking.`);
@@ -2191,6 +2191,7 @@ ${formatInstructions}
   * BAD (too long): <a href="...">Breaking the comparison into steps makes it manageable</a>
   * GOOD (concise): Breaking the comparison into <a href="...">manageable steps</a> helps simplify the process
   * The linked phrase should be a natural keyword or key concept, NOT a full sentence
+- TOTAL LINK LIMIT: The entire article must contain NO MORE THAN ${effectiveAutoLinkCount + (effectiveManualLinks.length > 0 ? effectiveManualLinks.length : 0)} links in total (internal + external combined). Count every <a href> tag. Do NOT exceed this limit.
 - CITATION LINK RULES: When inserting any external links or citations:
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
   * The anchor text MUST be the actual claim or fact being cited, kept to 2-7 words (e.g., <a href="...">covers outpatient services</a>)
@@ -2252,6 +2253,24 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           articleContent = articleContent.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
         }
 
+
+        // Post-processing: enforce link count cap — strip excess <a> tags if LLM over-inserted
+        const maxAllowedLinks = effectiveAutoLinkCount + (effectiveManualLinks.length > 0 ? effectiveManualLinks.length : 0);
+        const linkMatches = articleContent.match(/<a\s[^>]*>/gi);
+        const actualLinkCount = linkMatches ? linkMatches.length : 0;
+        if (actualLinkCount > maxAllowedLinks) {
+          console.warn(`[ArticleGen] LLM inserted ${actualLinkCount} links but limit is ${maxAllowedLinks}. Stripping excess links.`);
+          // Keep the first maxAllowedLinks links, unwrap the rest
+          let linksKept = 0;
+          articleContent = articleContent.replace(/<a\s([^>]*)>([\/\s\S]*?)<\/a>/gi, (match, _attrs, innerText) => {
+            if (linksKept < maxAllowedLinks) {
+              linksKept++;
+              return match; // keep it
+            }
+            return innerText; // unwrap — keep anchor text, remove the <a> tag
+          });
+          console.log(`[ArticleGen] After enforcement: kept ${linksKept} links.`);
+        }
 
         // Count words (exclude image tags from word count)
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;

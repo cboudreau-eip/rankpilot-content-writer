@@ -672,3 +672,10 @@
 - [x] Investigate why "Suggest Placements" returns no suggestions in editor (same parsing issue)
 - [x] Fix: strip markdown code fences before JSON.parse in both auto-generation and suggestPlacements
 - [x] Verified: suggestPlacements now returns 2 suggestions successfully in browser test
+
+## Fix Auto-Image Generation During Article Creation
+- [x] Check server logs — no [ImageGen] entries found, confirming deployed version lacks the feature
+- [x] Verified: deployed version was built from older checkpoint before image feature was added
+- [x] Confirmed: both articleImages routes and generateImages input work at runtime (curl tests return UNAUTHORIZED, not route-not-found)
+- [x] TS watch errors are stale/depth-limited — tsc --noEmit and pnpm build both pass with 0 errors
+- [x] User needs to Publish latest checkpoint to deploy the image generation feature

@@ -1557,6 +1557,7 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         generateImages: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        console.log(`[ArticleGen] Starting article generation. outlineId=${input.outlineId}, projectId=${input.projectId}, generateImages=${input.generateImages}, outputFormat=${input.outputFormat}`);
         const outline = await getOutlineById(input.outlineId);
         if (!outline) throw new Error("Outline not found");
 

@@ -1989,6 +1989,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
 
         // --- AI Image Generation (if enabled) ---
         if (input.generateImages && effectiveFormat === "html") {
+          console.log("[ImageGen] Starting image generation for article...");
           try {
             // Step 1: Ask LLM to identify the best sections for images and generate prompts
             const imagePromptResponse = await callLLM({
@@ -2043,25 +2044,37 @@ Return JSON only.`,
             const rawImagePrompts = imagePromptResponse.choices[0]?.message?.content;
             const imagePromptsText = typeof rawImagePrompts === "string" ? rawImagePrompts : (rawImagePrompts as any)?.[0]?.text ?? "";
             let imagePrompts: Array<{ afterHeading: string; prompt: string; altText: string }> = [];
+            console.log("[ImageGen] Raw LLM response for image prompts:", imagePromptsText?.substring(0, 500));
             try {
-              const parsed = JSON.parse(imagePromptsText);
+              // Strip markdown code fences if present
+              const cleanedImageText = imagePromptsText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+              const jsonMatch = cleanedImageText.match(/\{[\s\S]*\}/);
+              const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanedImageText);
               imagePrompts = parsed.images || [];
-            } catch {
-              console.warn("[ImageGen] Failed to parse image prompts from LLM");
+              console.log(`[ImageGen] Parsed ${imagePrompts.length} image prompts`);
+            } catch (parseErr: any) {
+              console.warn("[ImageGen] Failed to parse image prompts from LLM:", parseErr?.message);
             }
 
             // Step 2: Generate images in parallel (max 4)
             const imagesToGenerate = imagePrompts.slice(0, 4);
+            console.log(`[ImageGen] Generating ${imagesToGenerate.length} images...`);
             const imageResults = await Promise.allSettled(
-              imagesToGenerate.map(async (img) => {
+              imagesToGenerate.map(async (img, idx) => {
+                console.log(`[ImageGen] Generating image ${idx + 1}: ${img.prompt.substring(0, 80)}...`);
                 const result = await generateImage({ prompt: img.prompt });
+                console.log(`[ImageGen] Image ${idx + 1} result: ${result.url ? 'success' : 'no URL'}`);
                 return { ...img, url: result.url };
               })
             );
 
             // Step 3: Insert images into article HTML after the matching headings
+            let insertedCount = 0;
             for (const result of imageResults) {
-              if (result.status !== "fulfilled" || !result.value.url) continue;
+              if (result.status !== "fulfilled" || !result.value.url) {
+                console.warn(`[ImageGen] Image result skipped:`, result.status === 'rejected' ? (result as any).reason?.message : 'no URL');
+                continue;
+              }
               const { afterHeading, url, altText, prompt } = result.value;
 
               // Find the heading in the HTML and insert a figure after it
@@ -2074,8 +2087,13 @@ Return JSON only.`,
 
               if (headingRegex.test(articleContent)) {
                 articleContent = articleContent.replace(headingRegex, `$1${figureHtml}`);
+                insertedCount++;
+                console.log(`[ImageGen] Inserted image after heading: "${afterHeading}"`);
+              } else {
+                console.warn(`[ImageGen] Could not find heading to insert after: "${afterHeading}"`);
               }
             }
+            console.log(`[ImageGen] Finished: inserted ${insertedCount} images`);
           } catch (imgError: any) {
             console.warn("[ImageGen] Image generation failed, continuing without images:", imgError?.message);
             // Don't fail the entire article generation if images fail
@@ -2228,8 +2246,10 @@ Return JSON only.`,
         projectId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
+        console.log(`[ImageSuggest] Starting for article ${input.articleId}, projectId=${input.projectId}`);
         const article = await getArticleById(input.articleId);
         if (!article) throw new Error("Article not found");
+        console.log(`[ImageSuggest] Article found: "${article.title}", content length: ${(article.content || '').length}`);
 
         const response = await callLLM({
           messages: [
@@ -2283,10 +2303,17 @@ Return JSON only.`,
 
         const raw = response.choices[0]?.message?.content;
         const text = typeof raw === "string" ? raw : (raw as any)?.[0]?.text ?? "";
+        console.log(`[ImageSuggest] Raw LLM response:`, text?.substring(0, 500));
         try {
-          const parsed = JSON.parse(text);
-          return { suggestions: parsed.images || [] };
-        } catch {
+          // Strip markdown code fences if present (LLM sometimes wraps JSON in ```json ... ```)
+          const cleanedText = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+          const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+          const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanedText);
+          const suggestions = parsed.images || [];
+          console.log(`[ImageSuggest] Parsed ${suggestions.length} suggestions`);
+          return { suggestions };
+        } catch (parseErr: any) {
+          console.warn(`[ImageSuggest] Failed to parse LLM response:`, parseErr?.message);
           return { suggestions: [] };
         }
       }),

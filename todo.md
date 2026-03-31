@@ -666,3 +666,9 @@
 - [x] Add instructions to flag/discard data older than current year where fresher data exists
 - [x] Update system message and buildResearchSection to also carry current year context
 - [x] Test and verify (all 330 tests pass)
+
+## Fix Image Generation Bugs
+- [x] Investigate why auto-generation during article creation is not inserting images (LLM wraps JSON in ```json code fences)
+- [x] Investigate why "Suggest Placements" returns no suggestions in editor (same parsing issue)
+- [x] Fix: strip markdown code fences before JSON.parse in both auto-generation and suggestPlacements
+- [x] Verified: suggestPlacements now returns 2 suggestions successfully in browser test

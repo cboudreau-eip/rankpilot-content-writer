@@ -587,3 +587,7 @@
 - [x] Add keyword-section mapping: highlight which sections will use which keywords with colored pill badges
 - [x] Primary keyword shown as bold indigo pill with target icon; secondary keywords as slate pills with tag icon
 - [x] Section badges: primary keyword matches shown as solid indigo badge, secondary as emerald badge on section headers
+
+## Favicon Update
+- [x] Generated favicon matching sign-in page icon (white rocket on indigo-to-purple gradient)
+- [x] Uploaded to CDN and added favicon link tags to index.html (ICO + PNG + Apple Touch Icon)

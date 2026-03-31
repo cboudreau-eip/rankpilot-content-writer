@@ -716,6 +716,25 @@ BRAND VOICE REQUIREMENTS FOR OUTLINE:
 
         const currentYear = new Date().getFullYear();
 
+        // Resolve sitemap XML URLs to actual parsed page URLs for internal linking
+        let resolvedSitemapSection = '';
+        if (input.sitemapUrls?.length) {
+          const projectSitemaps = await getSitemapsByProject(input.projectId);
+          const pageUrls: string[] = [];
+          for (const sitemapXmlUrl of input.sitemapUrls) {
+            const match = projectSitemaps.find((s: any) => s.url === sitemapXmlUrl);
+            if (match?.parsedUrls && Array.isArray(match.parsedUrls)) {
+              for (const entry of match.parsedUrls) {
+                if (typeof entry === 'string') pageUrls.push(entry);
+                else if (entry && typeof entry === 'object' && 'url' in entry) pageUrls.push((entry as SitemapUrl).url);
+              }
+            }
+          }
+          if (pageUrls.length > 0) {
+            resolvedSitemapSection = `- The article will include ${input.autoLinkCount ?? 5} internal links. Plan sections where these REAL page URLs fit naturally:\n${pageUrls.slice(0, 50).map(u => `  \u2022 ${u}`).join('\n')}`;
+          }
+        }
+
         const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the given keyword.
 
 IMPORTANT — CURRENT DATE CONTEXT: The current year is ${currentYear}. All references to dates, years, regulations, trends, and time-sensitive topics MUST treat ${currentYear} as the present year. Do NOT reference 2024 or any prior year as "current."
@@ -742,7 +761,7 @@ ${input.additionalInstructions ? `- Additional instructions: ${input.additionalI
 ${input.targetLocation ? `- Target location: ${input.targetLocation} — tailor the outline to be relevant for this geographic area` : ""}
 ${input.targetAudience ? `- Target audience: ${input.targetAudience} — structure the outline to address this audience's needs` : ""}
 ${input.manualLinks?.length ? `- The final article will include these internal links — plan sections where they fit naturally:\n${input.manualLinks.map(l => `  • ${l.url}${l.anchorText ? ` (anchor: "${l.anchorText}")` : ""}`).join("\n")}` : ""}
-${input.sitemapUrls?.length ? `- The article will also include ${input.autoLinkCount ?? 5} automatic internal links from the following sitemaps:\n${input.sitemapUrls.map(u => `  • ${u}`).join("\n")}` : ""}
+${resolvedSitemapSection}
 ${icpSection}
 ${brandVoiceSection}
 ${input.research ? buildResearchSection(input.research) : ''}
@@ -1826,7 +1845,29 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all of these):\n${effectiveManualLinks.map((l, i) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : " with contextually appropriate anchor text"}`).join("\n")}\nWeave these links naturally into the article body. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
         }
         if (effectiveSitemapUrls.length > 0) {
-          linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links to relevant pages from the following sitemaps:\n${effectiveSitemapUrls.map(u => `  - ${u}`).join("\n")}\nChoose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
+          // Resolve sitemap XML URLs to actual parsed page URLs from the database
+          const projectSitemaps = await getSitemapsByProject(input.projectId);
+          const resolvedPageUrls: string[] = [];
+          for (const sitemapXmlUrl of effectiveSitemapUrls) {
+            const matchingSitemap = projectSitemaps.find(s => s.url === sitemapXmlUrl);
+            if (matchingSitemap && matchingSitemap.parsedUrls && Array.isArray(matchingSitemap.parsedUrls)) {
+              for (const entry of matchingSitemap.parsedUrls) {
+                if (typeof entry === 'string') {
+                  resolvedPageUrls.push(entry);
+                } else if (entry && typeof entry === 'object' && 'url' in entry) {
+                  const title = (entry as SitemapUrl).title;
+                  resolvedPageUrls.push(title ? `${(entry as SitemapUrl).url} (${title})` : (entry as SitemapUrl).url);
+                }
+              }
+            }
+          }
+
+          if (resolvedPageUrls.length > 0) {
+            linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nThe article should include approximately ${effectiveAutoLinkCount} internal links chosen from the following REAL page URLs. You MUST ONLY use URLs from this list — do NOT invent or guess URLs:\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}\nChoose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence. CRITICAL: Only use exact URLs from the list above. Never fabricate URLs.`;
+          } else {
+            // Fallback: if no parsed URLs found, skip auto-linking rather than hallucinate
+            console.warn(`[Article Generate] No parsed URLs found for sitemaps: ${effectiveSitemapUrls.join(', ')}. Skipping auto-linking.`);
+          }
         }
 
         // Output format instructions

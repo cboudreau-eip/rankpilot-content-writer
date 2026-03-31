@@ -606,3 +606,10 @@
 - [x] Allow deselecting previously selected suggested keywords from the secondary keywords list
 - [x] All three categories (Related, LSI, Long-Tail) now toggle on click: add if not selected, remove if already selected
 - [x] Updated styling: selected keywords show darker text and hover effect to indicate clickability
+
+## Fix Broken/404 Hyperlinks in Generated Articles
+- [x] Investigate how sitemap URLs are fetched and parsed
+- [x] Investigate how internal links are selected and inserted into articles by the LLM
+- [x] Identify root cause of broken/404 links (outline prompt passed sitemap XML URLs instead of parsed page URLs)
+- [x] Implement fix: outline generation now pre-resolves sitemap XML URLs to actual page URLs from DB before building prompt (article generation already had the fix)
+- [x] Test and verify (all 312 tests pass)

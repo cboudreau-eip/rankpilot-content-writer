@@ -625,3 +625,9 @@
 ## Entity Scan Loading Indicator
 - [x] Show Entity Analyzer sidebar immediately when scan starts with a loading/skeleton state
 - [x] Display spinner and progress text so user knows the scan is running
+
+## Loading Skeletons for All Scan Sidebars
+- [x] Add loading skeleton to Semantic Analyzer sidebar (no separate Semantic sidebar exists — entity scan covers this)
+- [x] Add loading skeleton to Cross-Check sidebar
+- [x] Add loading skeleton to Redundancy sidebar
+- [x] Ensure sidebar opens immediately on scan click for all three tools

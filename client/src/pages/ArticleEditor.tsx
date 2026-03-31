@@ -804,6 +804,7 @@ export default function ArticleEditor() {
               <DropdownMenuItem
                 onClick={() => {
                   if (showCrossCheck) { setShowCrossCheck(false); return; }
+                  setShowCrossCheck(true);
                   crossCheckMutation.mutate({ articleId });
                 }}
                 disabled={crossCheckMutation.isPending}
@@ -819,6 +820,7 @@ export default function ArticleEditor() {
               <DropdownMenuItem
                 onClick={() => {
                   if (showRedundancy) { setShowRedundancy(false); return; }
+                  setShowRedundancy(true);
                   redundancyMutation.mutate({ articleId });
                 }}
                 disabled={redundancyMutation.isPending}
@@ -1033,7 +1035,18 @@ export default function ArticleEditor() {
         )}
 
         {/* Cross Check Sidebar */}
-        {showCrossCheck && crossCheckResult && (
+        {showCrossCheck && crossCheckMutation.isPending && (
+          <ScanPanelSkeleton
+            title="Cross Check"
+            icon={<FileCheck className="w-4 h-4 text-teal-600" />}
+            gradientFrom="from-teal-50"
+            gradientTo="to-emerald-50"
+            accentColor="text-teal-600"
+            description="Checking article against reference sources for factual accuracy"
+            onClose={() => setShowCrossCheck(false)}
+          />
+        )}
+        {showCrossCheck && !crossCheckMutation.isPending && crossCheckResult && (
           <CrossCheckPanel
             result={crossCheckResult}
             onClose={() => setShowCrossCheck(false)}
@@ -1065,7 +1078,18 @@ export default function ArticleEditor() {
         )}
 
         {/* Redundancy Check Sidebar */}
-        {showRedundancy && redundancyResult && (
+        {showRedundancy && redundancyMutation.isPending && (
+          <ScanPanelSkeleton
+            title="Redundancy Check"
+            icon={<Repeat2 className="w-4 h-4 text-orange-600" />}
+            gradientFrom="from-orange-50"
+            gradientTo="to-amber-50"
+            accentColor="text-orange-600"
+            description="Scanning for repeated ideas, duplicate phrasing, and content overlap"
+            onClose={() => setShowRedundancy(false)}
+          />
+        )}
+        {showRedundancy && !redundancyMutation.isPending && redundancyResult && (
           <RedundancyPanel
             result={redundancyResult}
             onClose={() => setShowRedundancy(false)}
@@ -2391,6 +2415,82 @@ function EntityPanelSkeleton({
                   <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScanPanelSkeleton({
+  title,
+  icon,
+  gradientFrom,
+  gradientTo,
+  accentColor,
+  description,
+  onClose,
+  label,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  gradientFrom: string;
+  gradientTo: string;
+  accentColor: string;
+  description: string;
+  onClose: () => void;
+  label?: string;
+}) {
+  return (
+    <div className="w-80 bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+      {/* Header */}
+      <div className={`px-4 py-3 border-b border-border/40 bg-gradient-to-r ${gradientFrom} ${gradientTo} flex items-center justify-between`}>
+        <div className="flex items-center gap-2">
+          {icon}
+          <h3 className="font-semibold text-sm">{title}</h3>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Loading content */}
+      <div className="px-6 py-10 flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className={`w-14 h-14 rounded-full bg-gray-50 ring-4 ring-gray-100 flex items-center justify-center`}>
+            <Loader2 className={`w-6 h-6 ${accentColor} animate-spin`} />
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">{label || `Running ${title.toLowerCase()}...`}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {description}
+          </p>
+        </div>
+
+        {/* Animated skeleton rows */}
+        <div className="w-full space-y-3 mt-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-2 w-20 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+            </div>
+          ))}
+
+          {/* Skeleton result cards */}
+          <div className="border-t border-border/30 pt-3 space-y-2">
+            <div className="h-3 w-28 bg-gray-100 rounded animate-pulse" />
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-20 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                  <div className="h-2 w-14 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
+                </div>
+                <div className="h-2 w-full bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
+                <div className="h-2 w-3/4 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
               </div>
             ))}
           </div>

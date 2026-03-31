@@ -379,8 +379,6 @@ export default function GenerateArticle() {
   const [suggestedKeywords, setSuggestedKeywords] = useState<{ secondary: string[]; lsi: string[]; longTail: string[] } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Image generation state
-  const [generateImages, setGenerateImages] = useState(false);
 
   // Research state
   const [researchEnabled, setResearchEnabled] = useState(true);
@@ -751,7 +749,6 @@ export default function GenerateArticle() {
       brandVoiceId: selectedBrandVoice?.id ?? undefined,
       icpProfileId: selectedIcpProfile?.id ?? undefined,
       secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
-      generateImages: generateImages || undefined,
     });
   };
 
@@ -2369,16 +2366,6 @@ export default function GenerateArticle() {
               </DropdownMenu>
             </div>
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer select-none mr-2">
-                <input
-                  type="checkbox"
-                  checked={generateImages}
-                  onChange={(e) => setGenerateImages(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <Palette className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-medium text-foreground">Generate images</span>
-              </label>
               <Button variant="outline" onClick={() => setStep("settings")}>
                 Back to Settings
               </Button>

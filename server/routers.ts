@@ -16,7 +16,6 @@ import {
   updateProjectReferenceDocMeta,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
-import { generateImage } from "./_core/imageGeneration";
 import { applyBackgroundColors } from "./applyBackgroundColors";
 import { applyTemplateStyles } from "./applyTemplateStyles";
 import { invokeLLM } from "./_core/llm";
@@ -1554,10 +1553,9 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
         secondaryKeywords: z.array(z.string()).optional(),
-        generateImages: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        console.log(`[ArticleGen] Starting article generation. outlineId=${input.outlineId}, projectId=${input.projectId}, generateImages=${input.generateImages}, outputFormat=${input.outputFormat}`);
+        console.log(`[ArticleGen] Starting article generation. outlineId=${input.outlineId}, projectId=${input.projectId}, outputFormat=${input.outputFormat}`);
         const outline = await getOutlineById(input.outlineId);
         if (!outline) throw new Error("Outline not found");
 
@@ -1932,7 +1930,7 @@ ${formatInstructions}
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
   * The anchor text MUST be the actual claim or fact being cited, kept to 2-7 words (e.g., <a href="...">covers outpatient services</a>)
   * NEVER link to a homepage URL — always use the most specific deep page URL relevant to the claim
-- NO IMAGE DESCRIPTIONS OR PLACEHOLDERS: Do NOT write any text that describes an image, infographic, chart, diagram, or visual element. Do NOT include phrases like "Infographic showing...", "Diagram illustrating...", "Chart comparing...", "Image of...", "Visual representation of...", "Figure showing...", or any similar image description text. Images will be generated and inserted separately in post-processing. Your job is to write TEXT CONTENT ONLY — no references to visuals, figures, or illustrations.
+
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
@@ -1989,140 +1987,6 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           articleContent = articleContent.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
         }
 
-        // --- Clean up any image description text the LLM may have written ---
-        // The LLM sometimes writes text like "Infographic showing..." or "Diagram illustrating..." despite being told not to.
-        // Remove these before image generation so they don't appear alongside real images.
-        if (effectiveFormat === "html") {
-          // Match paragraphs or standalone text that describe images/infographics/diagrams/charts/visuals
-          const imageDescPatterns = [
-            // Standalone paragraphs that are purely image descriptions
-            /<p>\s*(?:Infographic|Diagram|Chart|Image|Figure|Visual|Illustration|Graphic|Photo|Picture|Screenshot)\s+(?:showing|illustrating|depicting|comparing|displaying|demonstrating|highlighting|outlining|representing|of\b)[^<]{10,}<\/p>/gi,
-            // "Visual representation of..." pattern (two-word keyword)
-            /<p>\s*Visual\s+representation\s+of\b[^<]{10,}<\/p>/gi,
-            // Same patterns in <em> or <strong> tags inside <p>
-            /<p>\s*<(?:em|strong|i)>\s*(?:Infographic|Diagram|Chart|Image|Figure|Visual|Illustration|Graphic|Photo|Picture|Screenshot)\s+(?:showing|illustrating|depicting|comparing|displaying|demonstrating|highlighting|outlining|representing|of\b)[^<]{10,}<\/(?:em|strong|i)>\s*<\/p>/gi,
-            // Bare text (not in a paragraph) that's an image description — wrapped in brackets or standalone
-            /\[(?:Infographic|Diagram|Chart|Image|Figure|Visual|Illustration):[^\]]{10,}\]/gi,
-          ];
-          for (const pattern of imageDescPatterns) {
-            articleContent = articleContent.replace(pattern, '');
-          }
-          // Clean up any resulting empty tags or excessive whitespace
-          articleContent = articleContent.replace(/<p>\s*<\/p>/g, '').replace(/\n{3,}/g, '\n\n').trim();
-        }
-
-        // --- AI Image Generation (if enabled) ---
-        if (input.generateImages && effectiveFormat === "html") {
-          console.log("[ImageGen] Starting image generation for article...");
-          try {
-            // Step 1: Ask LLM to identify the best sections for images and generate prompts
-            const imagePromptResponse = await callLLM({
-              messages: [
-                {
-                  role: "system",
-                  content: `You are an expert at creating image prompts for article illustrations. Given an article's HTML content, identify 2-4 key sections that would benefit from an illustration. For each, generate a detailed image prompt suitable for AI image generation.
-
-Rules:
-- Choose sections where a visual would add value (data explanations, process descriptions, concept introductions)
-- Do NOT place images in FAQ sections, table sections, or very short sections
-- Image prompts should describe professional, clean illustrations or infographics — NOT stock photos with people
-- Prompts should be specific, descriptive, and 1-2 sentences
-- Return the heading text (h2 or h3) that the image should appear AFTER
-
-Return JSON only.`,
-                },
-                {
-                  role: "user",
-                  content: `Article title: ${outline.title}\nKeyword: ${outline.keyword ?? outline.title}\n\nArticle HTML:\n${articleContent.substring(0, 8000)}`,
-                },
-              ],
-              response_format: {
-                type: "json_schema",
-                json_schema: {
-                  name: "image_prompts",
-                  strict: true,
-                  schema: {
-                    type: "object",
-                    properties: {
-                      images: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            afterHeading: { type: "string", description: "The exact heading text the image should appear after" },
-                            prompt: { type: "string", description: "Detailed image generation prompt" },
-                            altText: { type: "string", description: "Accessible alt text for the image" },
-                          },
-                          required: ["afterHeading", "prompt", "altText"],
-                          additionalProperties: false,
-                        },
-                      },
-                    },
-                    required: ["images"],
-                    additionalProperties: false,
-                  },
-                },
-              },
-            }, input.projectId);
-
-            const rawImagePrompts = imagePromptResponse.choices[0]?.message?.content;
-            const imagePromptsText = typeof rawImagePrompts === "string" ? rawImagePrompts : (rawImagePrompts as any)?.[0]?.text ?? "";
-            let imagePrompts: Array<{ afterHeading: string; prompt: string; altText: string }> = [];
-            console.log("[ImageGen] Raw LLM response for image prompts:", imagePromptsText?.substring(0, 500));
-            try {
-              // Strip markdown code fences if present
-              const cleanedImageText = imagePromptsText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-              const jsonMatch = cleanedImageText.match(/\{[\s\S]*\}/);
-              const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanedImageText);
-              imagePrompts = parsed.images || [];
-              console.log(`[ImageGen] Parsed ${imagePrompts.length} image prompts`);
-            } catch (parseErr: any) {
-              console.warn("[ImageGen] Failed to parse image prompts from LLM:", parseErr?.message);
-            }
-
-            // Step 2: Generate images in parallel (max 4)
-            const imagesToGenerate = imagePrompts.slice(0, 4);
-            console.log(`[ImageGen] Generating ${imagesToGenerate.length} images...`);
-            const imageResults = await Promise.allSettled(
-              imagesToGenerate.map(async (img, idx) => {
-                console.log(`[ImageGen] Generating image ${idx + 1}: ${img.prompt.substring(0, 80)}...`);
-                const result = await generateImage({ prompt: img.prompt });
-                console.log(`[ImageGen] Image ${idx + 1} result: ${result.url ? 'success' : 'no URL'}`);
-                return { ...img, url: result.url };
-              })
-            );
-
-            // Step 3: Insert images into article HTML after the matching headings
-            let insertedCount = 0;
-            for (const result of imageResults) {
-              if (result.status !== "fulfilled" || !result.value.url) {
-                console.warn(`[ImageGen] Image result skipped:`, result.status === 'rejected' ? (result as any).reason?.message : 'no URL');
-                continue;
-              }
-              const { afterHeading, url, altText, prompt } = result.value;
-
-              // Find the heading in the HTML and insert a figure after it
-              const headingEscaped = afterHeading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              const headingRegex = new RegExp(
-                `(<h[23][^>]*>[^<]*${headingEscaped}[^<]*<\/h[23]>)`,
-                "i"
-              );
-              const figureHtml = `\n<figure class="ai-generated-image" data-prompt="${prompt.replace(/"/g, "&quot;")}" style="margin: 24px 0; text-align: center;"><img src="${url}" alt="${altText.replace(/"/g, "&quot;")}" style="max-width: 100%; height: auto; border-radius: 8px;" /><figcaption style="font-size: 0.85em; color: #666; margin-top: 8px;">${altText}</figcaption></figure>`;
-
-              if (headingRegex.test(articleContent)) {
-                articleContent = articleContent.replace(headingRegex, `$1${figureHtml}`);
-                insertedCount++;
-                console.log(`[ImageGen] Inserted image after heading: "${afterHeading}"`);
-              } else {
-                console.warn(`[ImageGen] Could not find heading to insert after: "${afterHeading}"`);
-              }
-            }
-            console.log(`[ImageGen] Finished: inserted ${insertedCount} images`);
-          } catch (imgError: any) {
-            console.warn("[ImageGen] Image generation failed, continuing without images:", imgError?.message);
-            // Don't fail the entire article generation if images fail
-          }
-        }
 
         // Count words (exclude image tags from word count)
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
@@ -2193,189 +2057,7 @@ Return JSON only.`,
         return article;
       }),
   }),
-  // ---- Article Image Generation ----
-  articleImages: router({
-    /** Generate a single image from a prompt and return the S3 URL */
-    generate: protectedProcedure
-      .input(z.object({
-        prompt: z.string().min(1),
-        altText: z.string().optional(),
-      }))
-      .mutation(async ({ input }) => {
-        const result = await generateImage({ prompt: input.prompt });
-        if (!result.url) throw new Error("Image generation failed — no URL returned");
-        return {
-          url: result.url,
-          prompt: input.prompt,
-          altText: input.altText || "",
-        };
-      }),
 
-    /** Regenerate an image with a new or modified prompt */
-    regenerate: protectedProcedure
-      .input(z.object({
-        articleId: z.number(),
-        oldImageUrl: z.string(),
-        newPrompt: z.string().min(1),
-        altText: z.string().optional(),
-      }))
-      .mutation(async ({ input }) => {
-        const article = await getArticleById(input.articleId);
-        if (!article) throw new Error("Article not found");
-
-        // Generate the new image
-        const result = await generateImage({ prompt: input.newPrompt });
-        if (!result.url) throw new Error("Image generation failed — no URL returned");
-
-        // Replace the old image URL in the article content
-        let content = article.content || "";
-        if (input.oldImageUrl && content.includes(input.oldImageUrl)) {
-          content = content.replace(
-            new RegExp(input.oldImageUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
-            result.url
-          );
-          // Also update the data-prompt attribute
-          content = content.replace(
-            /data-prompt="[^"]*"/,
-            `data-prompt="${input.newPrompt.replace(/"/g, "&quot;")}"`
-          );
-        }
-
-        // Update alt text if provided
-        if (input.altText) {
-          // Find the figure containing the new URL and update alt + caption
-          const altEscaped = input.altText.replace(/"/g, "&quot;");
-          content = content.replace(
-            new RegExp(`(<img[^>]*src="${result.url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*alt=")[^"]*(")`, "i"),
-            `$1${altEscaped}$2`
-          );
-        }
-
-        // Save updated content
-        const wordCount = content.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
-        await updateArticle(input.articleId, { content, wordCount });
-
-        return {
-          url: result.url,
-          prompt: input.newPrompt,
-          altText: input.altText || "",
-          articleId: input.articleId,
-        };
-      }),
-
-    /** Generate image prompts for an existing article (for post-creation insertion) */
-    suggestPlacements: protectedProcedure
-      .input(z.object({
-        articleId: z.number(),
-        projectId: z.number().optional(),
-      }))
-      .mutation(async ({ input }) => {
-        console.log(`[ImageSuggest] Starting for article ${input.articleId}, projectId=${input.projectId}`);
-        const article = await getArticleById(input.articleId);
-        if (!article) throw new Error("Article not found");
-        console.log(`[ImageSuggest] Article found: "${article.title}", content length: ${(article.content || '').length}`);
-
-        const response = await callLLM({
-          messages: [
-            {
-              role: "system",
-              content: `You are an expert at creating image prompts for article illustrations. Given an article's HTML content, identify 2-4 key sections that would benefit from an illustration. For each, generate a detailed image prompt suitable for AI image generation.
-
-Rules:
-- Choose sections where a visual would add value (data explanations, process descriptions, concept introductions)
-- Do NOT place images in FAQ sections, table sections, or very short sections
-- Do NOT suggest images for sections that already contain an <img> tag
-- Image prompts should describe professional, clean illustrations or infographics — NOT stock photos with people
-- Prompts should be specific, descriptive, and 1-2 sentences
-- Return the heading text (h2 or h3) that the image should appear AFTER
-
-Return JSON only.`,
-            },
-            {
-              role: "user",
-              content: `Article title: ${article.title}\nKeyword: ${article.keyword || article.title}\n\nArticle HTML:\n${(article.content || "").substring(0, 8000)}`,
-            },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "image_prompts",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  images: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        afterHeading: { type: "string", description: "The exact heading text the image should appear after" },
-                        prompt: { type: "string", description: "Detailed image generation prompt" },
-                        altText: { type: "string", description: "Accessible alt text for the image" },
-                      },
-                      required: ["afterHeading", "prompt", "altText"],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ["images"],
-                additionalProperties: false,
-              },
-            },
-          },
-        }, input.projectId);
-
-        const raw = response.choices[0]?.message?.content;
-        const text = typeof raw === "string" ? raw : (raw as any)?.[0]?.text ?? "";
-        console.log(`[ImageSuggest] Raw LLM response:`, text?.substring(0, 500));
-        try {
-          // Strip markdown code fences if present (LLM sometimes wraps JSON in ```json ... ```)
-          const cleanedText = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-          const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-          const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanedText);
-          const suggestions = parsed.images || [];
-          console.log(`[ImageSuggest] Parsed ${suggestions.length} suggestions`);
-          return { suggestions };
-        } catch (parseErr: any) {
-          console.warn(`[ImageSuggest] Failed to parse LLM response:`, parseErr?.message);
-          return { suggestions: [] };
-        }
-      }),
-
-    /** Remove an image from an article by its URL */
-    remove: protectedProcedure
-      .input(z.object({
-        articleId: z.number(),
-        imageUrl: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const article = await getArticleById(input.articleId);
-        if (!article) throw new Error("Article not found");
-
-        let content = article.content || "";
-        // Remove the entire <figure> containing this image URL
-        const urlEscaped = input.imageUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const figureRegex = new RegExp(
-          `<figure[^>]*>[\\s\\S]*?${urlEscaped}[\\s\\S]*?<\/figure>`,
-          "i"
-        );
-        content = content.replace(figureRegex, "");
-
-        // Fallback: if no figure wrapper, remove standalone img tag
-        if (content.includes(input.imageUrl)) {
-          const imgRegex = new RegExp(`<img[^>]*src="${urlEscaped}"[^>]*\/?>`, "gi");
-          content = content.replace(imgRegex, "");
-        }
-
-        // Clean up empty lines
-        content = content.replace(/\n{3,}/g, "\n\n").trim();
-
-        const wordCount = content.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
-        await updateArticle(input.articleId, { content, wordCount });
-
-        return { success: true, articleId: input.articleId };
-      }),
-  }),
   // ---- Thin Content Analyzer ----
   thinContent: router({
     /** Analyze a sitemap URL for thin content issues */

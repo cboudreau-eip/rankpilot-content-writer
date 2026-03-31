@@ -689,3 +689,16 @@
 - [x] Does NOT remove regular paragraphs that mention images in passing context
 - [x] Added 21 new tests for image description cleanup (server/image-desc-cleanup.test.ts)
 - [x] All 351 tests pass (22 test files), build passes with 0 errors
+
+## Remove Image Generation Feature Entirely
+- [x] Remove "Generate Images" checkbox from GenerateArticle.tsx
+- [x] Remove generateImages input from articles.generate tRPC procedure
+- [x] Remove auto-image generation code block from article generation mutation
+- [x] Remove image description cleanup regex code from article generation
+- [x] Remove "NO IMAGE DESCRIPTIONS" prompt instruction
+- [x] Remove articleImages router (generate, regenerate, suggestPlacements, remove)
+- [x] Remove Image Manager sidebar from ArticleEditor.tsx
+- [x] Remove article-images.test.ts and image-desc-cleanup.test.ts
+- [x] Update remaining tests if needed
+- [x] Verify all tests pass and build succeeds (318 tests pass, build 0 errors)
+- [x] Save checkpoint

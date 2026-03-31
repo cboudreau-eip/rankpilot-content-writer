@@ -724,6 +724,7 @@ export default function ArticleEditor() {
             variant="outline"
             onClick={() => {
               if (showGrade) { setShowGrade(false); return; }
+              setShowGrade(true);
               gradeMutation.mutate({ articleId });
             }}
             disabled={gradeMutation.isPending}
@@ -1015,7 +1016,19 @@ export default function ArticleEditor() {
         </div>
 
         {/* Grade Sidebar */}
-        {showGrade && gradeResult && (
+        {showGrade && gradeMutation.isPending && (
+          <ScanPanelSkeleton
+            title="Content Grader"
+            icon={<BarChart3 className="w-4 h-4 text-purple-600" />}
+            gradientFrom="from-purple-50"
+            gradientTo="to-indigo-50"
+            accentColor="text-purple-600"
+            description="Grading content quality, readability, SEO optimization, and structure"
+            onClose={() => setShowGrade(false)}
+            onCancel={() => { gradeMutation.reset(); setShowGrade(false); }}
+          />
+        )}
+        {showGrade && !gradeMutation.isPending && gradeResult && (
           <GradePanel
             result={gradeResult}
             expanded={expandedGradeCats}
@@ -1044,6 +1057,7 @@ export default function ArticleEditor() {
             accentColor="text-teal-600"
             description="Checking article against reference sources for factual accuracy"
             onClose={() => setShowCrossCheck(false)}
+            onCancel={() => { crossCheckMutation.reset(); setShowCrossCheck(false); }}
           />
         )}
         {showCrossCheck && !crossCheckMutation.isPending && crossCheckResult && (
@@ -1087,6 +1101,7 @@ export default function ArticleEditor() {
             accentColor="text-orange-600"
             description="Scanning for repeated ideas, duplicate phrasing, and content overlap"
             onClose={() => setShowRedundancy(false)}
+            onCancel={() => { redundancyMutation.reset(); setShowRedundancy(false); }}
           />
         )}
         {showRedundancy && !redundancyMutation.isPending && redundancyResult && (
@@ -1122,10 +1137,10 @@ export default function ArticleEditor() {
 
         {/* Entity Analyzer Sidebar */}
         {showEntity && entityMutation.isPending && !entityResult && (
-          <EntityPanelSkeleton onClose={() => { setShowEntity(false); }} />
+          <EntityPanelSkeleton onClose={() => { setShowEntity(false); }} onCancel={() => { entityMutation.reset(); setShowEntity(false); }} />
         )}
         {showEntity && entityMutation.isPending && entityResult && (
-          <EntityPanelSkeleton onClose={() => { setShowEntity(false); }} label="Re-scanning..." />
+          <EntityPanelSkeleton onClose={() => { setShowEntity(false); }} onCancel={() => { entityMutation.reset(); setShowEntity(false); }} label="Re-scanning..." />
         )}
         {showEntity && !entityMutation.isPending && entityResult && (
           <EntityPanel
@@ -2348,9 +2363,11 @@ function EntityPanel({
 
 function EntityPanelSkeleton({
   onClose,
+  onCancel,
   label = "Analyzing entities...",
 }: {
   onClose: () => void;
+  onCancel?: () => void;
   label?: string;
 }) {
   return (
@@ -2379,6 +2396,15 @@ function EntityPanelSkeleton({
             Scanning entities, salience structure, and GEO extractability
           </p>
         </div>
+
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="text-xs text-muted-foreground hover:text-foreground border border-border/60 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
 
         {/* Animated skeleton bars */}
         <div className="w-full space-y-3 mt-2">
@@ -2432,6 +2458,7 @@ function ScanPanelSkeleton({
   accentColor,
   description,
   onClose,
+  onCancel,
   label,
 }: {
   title: string;
@@ -2441,6 +2468,7 @@ function ScanPanelSkeleton({
   accentColor: string;
   description: string;
   onClose: () => void;
+  onCancel?: () => void;
   label?: string;
 }) {
   return (
@@ -2469,6 +2497,15 @@ function ScanPanelSkeleton({
             {description}
           </p>
         </div>
+
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="text-xs text-muted-foreground hover:text-foreground border border-border/60 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
 
         {/* Animated skeleton rows */}
         <div className="w-full space-y-3 mt-2">

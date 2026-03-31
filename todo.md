@@ -631,3 +631,13 @@
 - [x] Add loading skeleton to Cross-Check sidebar
 - [x] Add loading skeleton to Redundancy sidebar
 - [x] Ensure sidebar opens immediately on scan click for all three tools
+
+## Content Grader Loading Skeleton
+- [x] Add loading skeleton to Content Grader sidebar
+- [x] Ensure sidebar opens immediately on grade click
+
+## Cancel Buttons on All Loading Skeletons
+- [x] Add cancel button to Entity Analyzer loading skeleton
+- [x] Add cancel button to Cross-Check loading skeleton
+- [x] Add cancel button to Redundancy loading skeleton
+- [x] Add cancel button to Content Grader loading skeleton

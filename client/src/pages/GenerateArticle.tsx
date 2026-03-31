@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
+import type { ResearchFindings } from "@shared/research-types";
 import { useLocation } from "wouter";
 import { useActiveProject } from "@/components/AppLayout";
 import {
@@ -9,7 +10,7 @@ import {
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
   BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate, Palette,
-  CheckCircle2, Key, Tag,
+  CheckCircle2, Key, Tag, Search, ExternalLink, GraduationCap, TrendingUp, Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -378,6 +379,11 @@ export default function GenerateArticle() {
   const [suggestedKeywords, setSuggestedKeywords] = useState<{ secondary: string[]; lsi: string[]; longTail: string[] } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Research state
+  const [researchEnabled, setResearchEnabled] = useState(true);
+  const [researchFindings, setResearchFindings] = useState<ResearchFindings | null>(null);
+  const [showResearchPanel, setShowResearchPanel] = useState(false);
+
   // Outline state
   const [outlineTitle, setOutlineTitle] = useState("");
   const [sections, setSections] = useState<OutlineSection[]>([]);
@@ -531,6 +537,60 @@ export default function GenerateArticle() {
     setManualLinks((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const researchTopicMutation = trpc.outlines.researchTopic.useMutation({
+    onSuccess: (data) => {
+      if (data) {
+        setResearchFindings(data);
+        setShowResearchPanel(true);
+        toast.success("Research completed! Generating outline with findings...");
+        // Now generate outline with research data
+        generateOutlineMutation.mutate({
+          keyword: keyword.trim(),
+          contentType,
+          tone,
+          targetWordCount: parseInt(targetWordCount),
+          numSections: parseInt(numSections),
+          numFaqs: parseInt(numFaqs),
+          additionalInstructions: additionalInstructions || undefined,
+          projectId: activeProjectId!,
+          targetLocation: targetLocation.trim() || undefined,
+          targetAudience: effectiveAudience || undefined,
+          outputFormat,
+          manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
+          sitemapUrls: allSitemapUrls.length > 0 ? allSitemapUrls : undefined,
+          autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
+          brandVoiceId: selectedBrandVoice?.id ?? undefined,
+          icpProfileId: selectedIcpProfile?.id ?? undefined,
+          secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
+          research: data,
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Research failed, generating outline without research...");
+      // Fallback: generate outline without research
+      generateOutlineMutation.mutate({
+        keyword: keyword.trim(),
+        contentType,
+        tone,
+        targetWordCount: parseInt(targetWordCount),
+        numSections: parseInt(numSections),
+        numFaqs: parseInt(numFaqs),
+        additionalInstructions: additionalInstructions || undefined,
+        projectId: activeProjectId!,
+        targetLocation: targetLocation.trim() || undefined,
+        targetAudience: effectiveAudience || undefined,
+        outputFormat,
+        manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
+        sitemapUrls: allSitemapUrls.length > 0 ? allSitemapUrls : undefined,
+        autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
+        brandVoiceId: selectedBrandVoice?.id ?? undefined,
+        icpProfileId: selectedIcpProfile?.id ?? undefined,
+        secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
+      });
+    },
+  });
+
   const suggestKeywordsMutation = trpc.outlines.suggestKeywords.useMutation({
     onSuccess: (data) => {
       if (data) {
@@ -582,6 +642,10 @@ export default function GenerateArticle() {
     onError: (err: any) => toast.error(err.message || "Failed to generate article"),
   });
 
+  const isResearching = researchTopicMutation.isPending;
+  const isGeneratingOutline = generateOutlineMutation.isPending;
+  const isProcessing = isResearching || isGeneratingOutline;
+
   const handleGenerateOutline = () => {
     if (!keyword.trim()) {
       toast.error("Please enter a target keyword");
@@ -591,25 +655,37 @@ export default function GenerateArticle() {
       toast.error("Please select a project first");
       return;
     }
-    generateOutlineMutation.mutate({
-      keyword: keyword.trim(),
-      contentType,
-      tone,
-      targetWordCount: parseInt(targetWordCount),
-      numSections: parseInt(numSections),
-      numFaqs: parseInt(numFaqs),
-      additionalInstructions: additionalInstructions || undefined,
-      projectId: activeProjectId,
-      targetLocation: targetLocation.trim() || undefined,
-      targetAudience: effectiveAudience || undefined,
-      outputFormat,
-      manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
-      sitemapUrls: allSitemapUrls.length > 0 ? allSitemapUrls : undefined,
-      autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
-      brandVoiceId: selectedBrandVoice?.id ?? undefined,
-      icpProfileId: selectedIcpProfile?.id ?? undefined,
-      secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
-    });
+
+    if (researchEnabled) {
+      // Step 1: Research first, then generate outline in onSuccess
+      researchTopicMutation.mutate({
+        topic: keyword.trim(),
+        keyword: keyword.trim(),
+        niche: activeProject?.description || undefined,
+        projectId: activeProjectId,
+      });
+    } else {
+      // Skip research, generate outline directly
+      generateOutlineMutation.mutate({
+        keyword: keyword.trim(),
+        contentType,
+        tone,
+        targetWordCount: parseInt(targetWordCount),
+        numSections: parseInt(numSections),
+        numFaqs: parseInt(numFaqs),
+        additionalInstructions: additionalInstructions || undefined,
+        projectId: activeProjectId,
+        targetLocation: targetLocation.trim() || undefined,
+        targetAudience: effectiveAudience || undefined,
+        outputFormat,
+        manualLinks: manualLinks.length > 0 ? manualLinks : undefined,
+        sitemapUrls: allSitemapUrls.length > 0 ? allSitemapUrls : undefined,
+        autoLinkCount: allSitemapUrls.length > 0 ? parseInt(autoLinkCount) : undefined,
+        brandVoiceId: selectedBrandVoice?.id ?? undefined,
+        icpProfileId: selectedIcpProfile?.id ?? undefined,
+        secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
+      });
+    }
   };
 
   // Helper: find which keywords match a section (heading + points + subSections)
@@ -1677,14 +1753,31 @@ export default function GenerateArticle() {
             </div>
           </div>
 
-          <div className="flex justify-end pt-2">
+          {/* Research toggle */}
+          <div className="flex items-center justify-between pt-2">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={researchEnabled}
+                onChange={(e) => setResearchEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <Search className="w-4 h-4 text-indigo-500" />
+              <span className="text-sm font-medium text-foreground">Research topic first</span>
+              <span className="text-xs text-muted-foreground">(recommended)</span>
+            </label>
             <Button
               onClick={handleGenerateOutline}
-              disabled={generateOutlineMutation.isPending || !keyword.trim()}
+              disabled={isProcessing || !keyword.trim()}
               className="gap-2 bg-indigo-600 hover:bg-indigo-700 px-6"
               size="lg"
             >
-              {generateOutlineMutation.isPending ? (
+              {isResearching ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Researching Topic...
+                </>
+              ) : isGeneratingOutline ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Generating Outline...
@@ -1741,6 +1834,123 @@ export default function GenerateArticle() {
               </div>
             )}
           </div>
+
+          {/* Research Findings Panel */}
+          {researchFindings && showResearchPanel && (
+            <div className="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+              <button
+                onClick={() => setShowResearchPanel(!showResearchPanel)}
+                className="w-full flex items-center justify-between p-4 hover:bg-indigo-50/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-semibold text-foreground">Research Findings</span>
+                  <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                    {(researchFindings.statistics?.length || 0) + (researchFindings.authoritativeSources?.length || 0) + (researchFindings.experts?.length || 0) + (researchFindings.commonQuestions?.length || 0)} items
+                  </span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <div className="px-4 pb-4 space-y-4">
+                {/* Statistics */}
+                {researchFindings.statistics?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">Statistics & Data Points</h4>
+                    <div className="space-y-1.5">
+                      {researchFindings.statistics.map((stat, i) => (
+                        <div key={i} className="text-sm text-muted-foreground flex gap-2">
+                          <span className="text-indigo-400 font-mono text-xs mt-0.5">{i + 1}.</span>
+                          <div>
+                            <span className="font-medium text-foreground">{stat.value}</span>
+                            <span> — {stat.fact}</span>
+                            <span className="text-xs text-muted-foreground"> ({stat.source}{stat.year ? `, ${stat.year}` : ''})</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Authoritative Sources */}
+                {researchFindings.authoritativeSources?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Authoritative Sources</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {researchFindings.authoritativeSources.map((source, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          {source.name}
+                          <span className="text-emerald-500">({source.type})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Experts */}
+                {researchFindings.experts?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-2">Experts & Thought Leaders</h4>
+                    <div className="space-y-1.5">
+                      {researchFindings.experts.map((expert, i) => (
+                        <div key={i} className="text-sm">
+                          <span className="font-medium text-foreground">{expert.name}</span>
+                          <span className="text-muted-foreground"> — {expert.credentials}</span>
+                          {expert.notableQuote && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5 ml-4">"{expert.notableQuote}"</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Common Questions */}
+                {researchFindings.commonQuestions?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">Common Questions (People Also Ask)</h4>
+                    <div className="space-y-1">
+                      {researchFindings.commonQuestions.map((q, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className="text-amber-400">?</span>
+                          <span className="text-foreground">{q.question}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200">{q.intent}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Competitor Angles */}
+                {researchFindings.competitorAngles?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-rose-600 uppercase tracking-wide mb-2">Competitor Angles</h4>
+                    <div className="space-y-1.5">
+                      {researchFindings.competitorAngles.map((angle, i) => (
+                        <div key={i} className="text-sm">
+                          <span className="font-medium text-foreground">{angle.angle}</span>
+                          <span className="text-muted-foreground"> — {angle.description}</span>
+                          {angle.differentiator && (
+                            <span className="text-xs text-rose-600 ml-1">→ {angle.differentiator}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Key Takeaways */}
+                {researchFindings.keyTakeaways?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Key Takeaways</h4>
+                    <ul className="space-y-1">
+                      {researchFindings.keyTakeaways.map((takeaway, i) => (
+                        <li key={i} className="text-sm text-muted-foreground flex gap-2">
+                          <span className="text-slate-400">•</span>
+                          {takeaway}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Sections */}
           <div className="space-y-3">

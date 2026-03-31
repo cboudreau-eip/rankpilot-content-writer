@@ -591,3 +591,13 @@
 ## Favicon Update
 - [x] Generated favicon matching sign-in page icon (white rocket on indigo-to-purple gradient)
 - [x] Uploaded to CDN and added favicon link tags to index.html (ICO + PNG + Apple Touch Icon)
+
+## Research Topic First Feature
+- [x] Create shared ResearchFindings types (shared/research-types.ts)
+- [x] Create researchTopic tRPC procedure with 6-category LLM research prompt
+- [x] Add buildResearchSection helper to inject research into outline prompt
+- [x] Add optional research field to outlines.generate input schema
+- [x] Add research toggle checkbox (enabled by default) before Generate Outline button
+- [x] Two-phase flow: Research → Outline generation (with fallback if research fails)
+- [x] Build collapsible Research Findings panel in Step 2 (Statistics, Sources, Experts, Questions, Competitor Angles, Key Takeaways)
+- [x] All 312 tests passing, TypeScript compiles cleanly

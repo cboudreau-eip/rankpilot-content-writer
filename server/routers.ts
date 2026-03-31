@@ -28,6 +28,73 @@ import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
 import type { EntityAnalysisResult, SemanticAnalysisResult } from "../shared/entity-types";
+import type { ResearchFindings } from "../shared/research-types";
+
+/** Build a research section string to inject into the outline prompt */
+function buildResearchSection(research: any): string {
+  let section = `\n=== RESEARCH FINDINGS - USE THESE TO INFORM THE OUTLINE ===\n\n`;
+
+  if (research.statistics?.length) {
+    section += `STATISTICS & DATA POINTS TO REFERENCE:\n`;
+    research.statistics.slice(0, 6).forEach((stat: any, i: number) => {
+      section += `  ${i + 1}. ${stat.value} - ${stat.fact} (${stat.source}${stat.year ? `, ${stat.year}` : ''})\n`;
+    });
+    section += '\n';
+  }
+
+  if (research.authoritativeSources?.length) {
+    section += `AUTHORITATIVE SOURCES TO CITE:\n`;
+    research.authoritativeSources.slice(0, 5).forEach((source: any, i: number) => {
+      section += `  ${i + 1}. ${source.name} (${source.type}) - ${source.description}\n`;
+    });
+    section += '\n';
+  }
+
+  if (research.experts?.length) {
+    section += `EXPERTS TO REFERENCE FOR E-E-A-T:\n`;
+    research.experts.slice(0, 4).forEach((expert: any, i: number) => {
+      section += `  ${i + 1}. ${expert.name}, ${expert.credentials}`;
+      if (expert.notableQuote) section += ` - "${expert.notableQuote}"`;
+      section += '\n';
+    });
+    section += '\n';
+  }
+
+  if (research.commonQuestions?.length) {
+    section += `COMMON QUESTIONS (USE FOR FAQ SECTION):\n`;
+    research.commonQuestions.slice(0, 6).forEach((q: any, i: number) => {
+      section += `  ${i + 1}. ${q.question} [${q.intent}]\n`;
+    });
+    section += '\n';
+  }
+
+  if (research.competitorAngles?.length) {
+    section += `COMPETITOR ANGLES (DIFFERENTIATE FROM THESE):\n`;
+    research.competitorAngles.slice(0, 4).forEach((angle: any, i: number) => {
+      section += `  ${i + 1}. ${angle.angle}`;
+      if (angle.differentiator) section += ` → Differentiate by: ${angle.differentiator}`;
+      section += '\n';
+    });
+    section += '\n';
+  }
+
+  if (research.keyTakeaways?.length) {
+    section += `KEY POINTS TO COVER:\n`;
+    research.keyTakeaways.forEach((takeaway: string, i: number) => {
+      section += `  ${i + 1}. ${takeaway}\n`;
+    });
+    section += '\n';
+  }
+
+  section += `RESEARCH INTEGRATION REQUIREMENTS:
+1. Structure the outline to address the common questions in the FAQ section
+2. Reference statistics in relevant sections (include source names)
+3. Create content that differentiates from competitor angles
+4. Design headings that cover the key takeaways
+5. Include expert references where credibility matters\n`;
+
+  return section;
+}
 
 /**
  * Unified LLM caller — routes to built-in (Forge/Gemini) or Claude based on project settings.
@@ -266,6 +333,160 @@ export const appRouter = router({
         return deleteOutline(input.id);
       }),
 
+    /** LLM-powered topic research before outline generation */
+    researchTopic: protectedProcedure
+      .input(z.object({
+        topic: z.string().min(1),
+        keyword: z.string().optional(),
+        niche: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const researchPrompt = `You are an expert research assistant conducting comprehensive topic research for content creation.
+
+RESEARCH TOPIC: "${input.topic}"
+${input.keyword ? `PRIMARY KEYWORD: "${input.keyword}"` : ""}
+${input.niche ? `INDUSTRY/NICHE: "${input.niche}"` : ""}
+
+Conduct thorough research and provide findings in these categories:
+
+1. STATISTICS & DATA POINTS
+- Find 5-8 relevant statistics, facts, or data points
+- Include specific numbers, percentages, or metrics
+- Prioritize recent data (2024-2026)
+- Cite specific, real sources (government agencies, research organizations, industry reports)
+
+2. AUTHORITATIVE SOURCES
+- List 5-7 authoritative sources on this topic
+- Include .gov, .edu, major industry publications, and research organizations
+- Provide specific URLs where possible
+- Categorize by type (government, academic, industry, research, news)
+
+3. EXPERTS & THOUGHT LEADERS
+- Identify 3-5 recognized experts in this field
+- Include their credentials, organization, and any notable quotes
+- Focus on people frequently cited in authoritative content
+
+4. COMMON QUESTIONS (People Also Ask)
+- List 6-8 questions people commonly search for on this topic
+- Indicate search intent (informational, transactional, navigational)
+- These should inform FAQ sections
+
+5. COMPETITOR CONTENT ANGLES
+- Identify 4-6 common angles or approaches used in top-ranking content
+- Note potential differentiators or underserved angles
+
+6. KEY TAKEAWAYS
+- Summarize 3-5 essential points a writer should know before creating content
+
+RESPOND WITH VALID JSON ONLY in this exact format:
+{
+  "statistics": [
+    {
+      "fact": "Brief description of the statistic",
+      "value": "The specific number or percentage",
+      "source": "Source name",
+      "sourceUrl": "https://specific-url.com",
+      "year": "2026"
+    }
+  ],
+  "authoritativeSources": [
+    {
+      "name": "Source Name",
+      "url": "https://example.gov/specific-page",
+      "type": "government",
+      "description": "Why this source is authoritative for this topic"
+    }
+  ],
+  "experts": [
+    {
+      "name": "Dr. Jane Smith",
+      "credentials": "PhD, Director of X Institute",
+      "organization": "Organization Name",
+      "notableQuote": "A relevant quote if available"
+    }
+  ],
+  "commonQuestions": [
+    {
+      "question": "How does X work?",
+      "searchVolume": "high",
+      "intent": "informational"
+    }
+  ],
+  "competitorAngles": [
+    {
+      "angle": "Cost comparison approach",
+      "description": "Many articles focus on comparing costs between options",
+      "differentiator": "Could differentiate by focusing on hidden costs"
+    }
+  ],
+  "keyTakeaways": [
+    "Key point 1 the writer should know",
+    "Key point 2 the writer should know"
+  ]
+}
+
+IMPORTANT RULES:
+- Only cite real, verifiable sources that actually exist
+- Be specific with URLs - use actual page paths, not just homepages
+- Use recent data where possible (note the year)
+- If you're uncertain about exact URLs, use the base domain
+- Make statistics specific and actionable for content creation
+- Questions should reflect real user search intent`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert research assistant. Return ONLY valid JSON, no markdown fences or explanation." },
+            { role: "user", content: researchPrompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "research_findings",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  statistics: { type: "array", items: { type: "object", properties: { fact: { type: "string" }, value: { type: "string" }, source: { type: "string" }, sourceUrl: { type: "string" }, year: { type: "string" } }, required: ["fact", "value", "source", "sourceUrl", "year"], additionalProperties: false } },
+                  authoritativeSources: { type: "array", items: { type: "object", properties: { name: { type: "string" }, url: { type: "string" }, type: { type: "string" }, description: { type: "string" } }, required: ["name", "url", "type", "description"], additionalProperties: false } },
+                  experts: { type: "array", items: { type: "object", properties: { name: { type: "string" }, credentials: { type: "string" }, organization: { type: "string" }, notableQuote: { type: "string" } }, required: ["name", "credentials", "organization", "notableQuote"], additionalProperties: false } },
+                  commonQuestions: { type: "array", items: { type: "object", properties: { question: { type: "string" }, searchVolume: { type: "string" }, intent: { type: "string" } }, required: ["question", "searchVolume", "intent"], additionalProperties: false } },
+                  competitorAngles: { type: "array", items: { type: "object", properties: { angle: { type: "string" }, description: { type: "string" }, differentiator: { type: "string" } }, required: ["angle", "description", "differentiator"], additionalProperties: false } },
+                  keyTakeaways: { type: "array", items: { type: "string" } },
+                },
+                required: ["statistics", "authoritativeSources", "experts", "commonQuestions", "competitorAngles", "keyTakeaways"],
+                additionalProperties: false,
+              },
+            },
+          },
+        }, input.projectId);
+
+        const rawContent = response.choices?.[0]?.message?.content;
+        const content = typeof rawContent === 'string' ? rawContent.trim() : '';
+        if (!content) throw new Error("No research results generated");
+
+        let findings: any;
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          findings = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
+        } catch {
+          throw new Error("Failed to parse research findings");
+        }
+
+        const result: ResearchFindings = {
+          topic: input.topic,
+          researchedAt: new Date().toISOString(),
+          statistics: findings.statistics || [],
+          authoritativeSources: findings.authoritativeSources || [],
+          experts: findings.experts || [],
+          commonQuestions: findings.commonQuestions || [],
+          competitorAngles: findings.competitorAngles || [],
+          keyTakeaways: findings.keyTakeaways || [],
+        };
+
+        return result;
+      }),
+
     /** LLM-powered keyword suggestions for article generation */
     suggestKeywords: protectedProcedure
       .input(z.object({
@@ -354,6 +575,7 @@ Rules:
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
         secondaryKeywords: z.array(z.string()).optional(),
+        research: z.any().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         // Auto-fetch ICP from project and brand voice (use selected or default)
@@ -523,6 +745,7 @@ ${input.manualLinks?.length ? `- The final article will include these internal l
 ${input.sitemapUrls?.length ? `- The article will also include ${input.autoLinkCount ?? 5} automatic internal links from the following sitemaps:\n${input.sitemapUrls.map(u => `  • ${u}`).join("\n")}` : ""}
 ${icpSection}
 ${brandVoiceSection}
+${input.research ? buildResearchSection(input.research) : ''}
 
 Return ONLY valid JSON, no markdown code blocks.`;
 

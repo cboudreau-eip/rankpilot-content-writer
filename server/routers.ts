@@ -1932,6 +1932,7 @@ ${formatInstructions}
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
   * The anchor text MUST be the actual claim or fact being cited, kept to 2-7 words (e.g., <a href="...">covers outpatient services</a>)
   * NEVER link to a homepage URL — always use the most specific deep page URL relevant to the claim
+- NO IMAGE DESCRIPTIONS OR PLACEHOLDERS: Do NOT write any text that describes an image, infographic, chart, diagram, or visual element. Do NOT include phrases like "Infographic showing...", "Diagram illustrating...", "Chart comparing...", "Image of...", "Visual representation of...", "Figure showing...", or any similar image description text. Images will be generated and inserted separately in post-processing. Your job is to write TEXT CONTENT ONLY — no references to visuals, figures, or illustrations.
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
@@ -1986,6 +1987,28 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           }
           // Clean up any empty tags left behind after removal
           articleContent = articleContent.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
+        }
+
+        // --- Clean up any image description text the LLM may have written ---
+        // The LLM sometimes writes text like "Infographic showing..." or "Diagram illustrating..." despite being told not to.
+        // Remove these before image generation so they don't appear alongside real images.
+        if (effectiveFormat === "html") {
+          // Match paragraphs or standalone text that describe images/infographics/diagrams/charts/visuals
+          const imageDescPatterns = [
+            // Standalone paragraphs that are purely image descriptions
+            /<p>\s*(?:Infographic|Diagram|Chart|Image|Figure|Visual|Illustration|Graphic|Photo|Picture|Screenshot)\s+(?:showing|illustrating|depicting|comparing|displaying|demonstrating|highlighting|outlining|representing|of\b)[^<]{10,}<\/p>/gi,
+            // "Visual representation of..." pattern (two-word keyword)
+            /<p>\s*Visual\s+representation\s+of\b[^<]{10,}<\/p>/gi,
+            // Same patterns in <em> or <strong> tags inside <p>
+            /<p>\s*<(?:em|strong|i)>\s*(?:Infographic|Diagram|Chart|Image|Figure|Visual|Illustration|Graphic|Photo|Picture|Screenshot)\s+(?:showing|illustrating|depicting|comparing|displaying|demonstrating|highlighting|outlining|representing|of\b)[^<]{10,}<\/(?:em|strong|i)>\s*<\/p>/gi,
+            // Bare text (not in a paragraph) that's an image description — wrapped in brackets or standalone
+            /\[(?:Infographic|Diagram|Chart|Image|Figure|Visual|Illustration):[^\]]{10,}\]/gi,
+          ];
+          for (const pattern of imageDescPatterns) {
+            articleContent = articleContent.replace(pattern, '');
+          }
+          // Clean up any resulting empty tags or excessive whitespace
+          articleContent = articleContent.replace(/<p>\s*<\/p>/g, '').replace(/\n{3,}/g, '\n\n').trim();
         }
 
         // --- AI Image Generation (if enabled) ---

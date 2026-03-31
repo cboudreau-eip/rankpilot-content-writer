@@ -679,3 +679,13 @@
 - [x] Confirmed: both articleImages routes and generateImages input work at runtime (curl tests return UNAUTHORIZED, not route-not-found)
 - [x] TS watch errors are stale/depth-limited — tsc --noEmit and pnpm build both pass with 0 errors
 - [x] User needs to Publish latest checkpoint to deploy the image generation feature
+
+## Fix Image Description Text in Articles (No Actual Images)
+- [x] Identified root cause: LLM writes image description text ("Infographic showing...") as prose in article body
+- [x] Added "NO IMAGE DESCRIPTIONS" instruction to article generation prompt
+- [x] Added post-generation cleanup: regex patterns strip image description paragraphs before image generation step
+- [x] Handles: Infographic, Diagram, Chart, Image, Figure, Visual, Illustration, Graphic, Photo, Picture, Screenshot + Visual representation of...
+- [x] Handles descriptions in <em>, <strong>, <i> tags and bracket-style [Infographic: ...] patterns
+- [x] Does NOT remove regular paragraphs that mention images in passing context
+- [x] Added 21 new tests for image description cleanup (server/image-desc-cleanup.test.ts)
+- [x] All 351 tests pass (22 test files), build passes with 0 errors

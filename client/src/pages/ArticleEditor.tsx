@@ -788,6 +788,7 @@ export default function ArticleEditor() {
               <DropdownMenuItem
                 onClick={() => {
                   if (showEntity) { setShowEntity(false); return; }
+                  setShowEntity(true);
                   entityMutation.mutate({ articleId });
                 }}
                 disabled={entityMutation.isPending}
@@ -1096,7 +1097,13 @@ export default function ArticleEditor() {
         )}
 
         {/* Entity Analyzer Sidebar */}
-        {showEntity && entityResult && (
+        {showEntity && entityMutation.isPending && !entityResult && (
+          <EntityPanelSkeleton onClose={() => { setShowEntity(false); }} />
+        )}
+        {showEntity && entityMutation.isPending && entityResult && (
+          <EntityPanelSkeleton onClose={() => { setShowEntity(false); }} label="Re-scanning..." />
+        )}
+        {showEntity && !entityMutation.isPending && entityResult && (
           <EntityPanel
             result={entityResult}
             onClose={() => setShowEntity(false)}
@@ -2311,6 +2318,84 @@ function EntityPanel({
           <p className="text-[10px] text-muted-foreground">{result.geoExtractability.evaluation}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function EntityPanelSkeleton({
+  onClose,
+  label = "Analyzing entities...",
+}: {
+  onClose: () => void;
+  label?: string;
+}) {
+  return (
+    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border/40 bg-gradient-to-r from-cyan-50 to-blue-50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Scan className="w-4 h-4 text-cyan-600" />
+          <h3 className="font-semibold text-sm">Entity Analysis</h3>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Loading content */}
+      <div className="px-6 py-10 flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-full bg-cyan-50 ring-4 ring-cyan-100 flex items-center justify-center">
+            <Loader2 className="w-7 h-7 text-cyan-600 animate-spin" />
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Scanning entities, salience structure, and GEO extractability
+          </p>
+        </div>
+
+        {/* Animated skeleton bars */}
+        <div className="w-full space-y-3 mt-2">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-24 bg-gray-100 rounded-full animate-pulse" />
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" />
+              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-20 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-28 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-24 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
+              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
+            </div>
+          </div>
+
+          {/* Skeleton entity cards */}
+          <div className="border-t border-border/30 pt-3 space-y-2">
+            <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="p-2 rounded-lg border border-gray-100 bg-gray-50/50 space-y-1.5" style={{ animationDelay: `${i * 200}ms` }}>
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-24 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                  <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
+                </div>
+                <div className="h-2 w-full bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

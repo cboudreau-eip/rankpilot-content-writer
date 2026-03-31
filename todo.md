@@ -621,3 +621,7 @@
 - [x] After applying, auto-re-run entity scan to show updated scores
 - [x] Write vitest tests for applyEntityFixes procedure (5 tests: success, not found, empty input, unparseable LLM, no match, multi-fix)
 - [x] Test full flow: Scan → Select Fixes → Apply → Re-Scan (all 318 tests pass)
+
+## Entity Scan Loading Indicator
+- [x] Show Entity Analyzer sidebar immediately when scan starts with a loading/skeleton state
+- [x] Display spinner and progress text so user knows the scan is running

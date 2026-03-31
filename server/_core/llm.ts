@@ -312,21 +312,41 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  // Retry with exponential backoff for transient errors (429, 500, 503, 529)
+  const MAX_RETRIES = 3;
+  let lastError: Error | undefined;
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(resolveApiUrl(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      return (await response.json()) as InvokeResult;
+    }
+
     const errorText = await response.text();
-    throw new Error(
+    const isRetryable = [429, 500, 503, 529].includes(response.status)
+      || /overloaded|rate.?limit|too many|capacity/i.test(errorText);
+
+    lastError = new Error(
       `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
     );
+
+    if (!isRetryable || attempt === MAX_RETRIES) {
+      throw lastError;
+    }
+
+    // Exponential backoff: 2s, 4s, 8s
+    const delay = Math.pow(2, attempt + 1) * 1000;
+    console.warn(`[LLM] Retryable error (status=${response.status}), attempt ${attempt + 1}/${MAX_RETRIES}, retrying in ${delay}ms...`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
-  return (await response.json()) as InvokeResult;
+  throw lastError || new Error("LLM invoke failed after retries");
 }

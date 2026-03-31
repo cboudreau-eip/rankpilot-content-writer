@@ -567,7 +567,12 @@ export default function GenerateArticle() {
       }
     },
     onError: (err: any) => {
-      toast.error(err.message || "Research failed, generating outline without research...");
+      const msg = err.message || "";
+      if (/overloaded|529|rate.?limit|too many|capacity/i.test(msg)) {
+        toast.error("The AI service is currently overloaded. Generating outline without research...");
+      } else {
+        toast.error(msg || "Research failed, generating outline without research...");
+      }
       // Fallback: generate outline without research
       generateOutlineMutation.mutate({
         keyword: keyword.trim(),
@@ -627,7 +632,14 @@ export default function GenerateArticle() {
         toast.success("Outline generated successfully!");
       }
     },
-    onError: (err: any) => toast.error(err.message || "Failed to generate outline"),
+    onError: (err: any) => {
+      const msg = err.message || "";
+      if (/overloaded|529|rate.?limit|too many|capacity/i.test(msg)) {
+        toast.error("The AI service is currently overloaded. Please wait a moment and try again.");
+      } else {
+        toast.error(msg || "Failed to generate outline");
+      }
+    },
   });
 
   const updateOutlineMutation = trpc.outlines.update.useMutation();
@@ -639,7 +651,14 @@ export default function GenerateArticle() {
         navigate(`/articles/${data.id}`);
       }
     },
-    onError: (err: any) => toast.error(err.message || "Failed to generate article"),
+    onError: (err: any) => {
+      const msg = err.message || "";
+      if (/overloaded|529|rate.?limit|too many|capacity/i.test(msg)) {
+        toast.error("The AI service is currently overloaded. Please wait a moment and try again.");
+      } else {
+        toast.error(msg || "Failed to generate article");
+      }
+    },
   });
 
   const isResearching = researchTopicMutation.isPending;

@@ -153,12 +153,40 @@ export async function invokeClaudeLLM(
     system = system ? `${system}${jsonInstruction}` : jsonInstruction;
   }
 
-  const response = await client.messages.create({
-    model: selectedModel,
-    max_tokens: maxTokens,
-    system: system || undefined,
-    messages: anthropicMessages,
-  });
+  // Retry with exponential backoff for transient errors (429, 529, 500, 503)
+  const MAX_RETRIES = 3;
+  let lastError: unknown;
+  let response: Anthropic.Message | undefined;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      response = await client.messages.create({
+        model: selectedModel,
+        max_tokens: maxTokens,
+        system: system || undefined,
+        messages: anthropicMessages,
+      });
+      break; // success
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status ?? err?.statusCode ?? err?.error?.status;
+      const isRetryable = [429, 500, 503, 529].includes(status)
+        || (typeof err?.message === "string" && /overloaded|rate.?limit|too many|capacity|server error/i.test(err.message));
+
+      if (!isRetryable || attempt === MAX_RETRIES) {
+        throw err;
+      }
+
+      // Exponential backoff: 2s, 4s, 8s
+      const delay = Math.pow(2, attempt + 1) * 1000;
+      console.warn(`[Claude] Retryable error (status=${status}), attempt ${attempt + 1}/${MAX_RETRIES}, retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error("Claude API call failed after retries");
+  }
 
   // Convert Anthropic response → our InvokeResult format
   const textContent = response.content

@@ -641,3 +641,9 @@
 - [x] Add cancel button to Cross-Check loading skeleton
 - [x] Add cancel button to Redundancy loading skeleton
 - [x] Add cancel button to Content Grader loading skeleton
+
+## Fix 529 Overloaded LLM Error During Outline Generation
+- [x] Investigate outline generation LLM call and current error handling
+- [x] Add retry logic with exponential backoff to both invokeLLM (Forge) and invokeClaudeLLM (Anthropic) — retries 429, 500, 503, 529 up to 3 times with 2s/4s/8s backoff
+- [x] Improve user-facing error messages for transient/overloaded errors (outline, article, research mutations)
+- [x] Test and verify (all 318 tests pass, 0 TS errors)

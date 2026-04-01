@@ -48,20 +48,25 @@ function createUnauthContext(): { ctx: TrpcContext } {
 
 // ---- Sitemaps Router Tests ----
 describe("sitemaps router", () => {
-  it("sitemaps.list requires authentication", async () => {
+  it("sitemaps.list works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(caller.sitemaps.list({ projectId: 1 })).rejects.toThrow();
+    await expect(caller.sitemaps.list({ projectId: 1 })).resolves.not.toThrow();
   });
 
-  it("sitemaps.create requires authentication", async () => {
+  it("sitemaps.create works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(
-      caller.sitemaps.create({ url: "https://example.com/sitemap.xml", projectId: 1 })
-    ).rejects.toThrow();
+    // Should not throw an auth error — may throw DB/network error which is fine
+    try {
+      await caller.sitemaps.create({ url: "https://example.com/sitemap.xml", projectId: 1 });
+    } catch (e: any) {
+      // Should fail at DB/network level, not auth level
+      expect(e.message).not.toContain("UNAUTHORIZED");
+      expect(e.message).not.toContain("Please login");
+    }
   });
 
   it("sitemaps.create validates URL format", async () => {
@@ -74,31 +79,37 @@ describe("sitemaps router", () => {
     ).rejects.toThrow();
   });
 
-  it("sitemaps.delete requires authentication", async () => {
+  it("sitemaps.delete works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(caller.sitemaps.delete({ id: 1 })).rejects.toThrow();
+    await expect(caller.sitemaps.delete({ id: 1 })).resolves.not.toThrow();
   });
 
-  it("sitemaps.refresh requires authentication", async () => {
+  it("sitemaps.refresh works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(caller.sitemaps.refresh({ id: 1 })).rejects.toThrow();
+    // Should not throw an auth error — may throw DB error which is fine
+    try {
+      await caller.sitemaps.refresh({ id: 1 });
+    } catch (e: any) {
+      expect(e.message).not.toContain("UNAUTHORIZED");
+      expect(e.message).not.toContain("Please login");
+    }
   });
 });
 
 // ---- Citations Router Tests ----
 describe("citations router", () => {
-  it("citations.list requires authentication", async () => {
+  it("citations.list works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(caller.citations.list({ projectId: 1 })).rejects.toThrow();
+    await expect(caller.citations.list({ projectId: 1 })).resolves.not.toThrow();
   });
 
-  it("citations.create requires authentication", async () => {
+  it("citations.create works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -108,7 +119,7 @@ describe("citations router", () => {
         url: "https://example.com",
         projectId: 1,
       })
-    ).rejects.toThrow();
+    ).resolves.not.toThrow();
   });
 
   it("citations.create validates required fields", async () => {
@@ -138,35 +149,35 @@ describe("citations router", () => {
     ).rejects.toThrow();
   });
 
-  it("citations.update requires authentication", async () => {
+  it("citations.update works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
     await expect(
       caller.citations.update({ id: 1, name: "Updated" })
-    ).rejects.toThrow();
+    ).resolves.not.toThrow();
   });
 
-  it("citations.delete requires authentication", async () => {
+  it("citations.delete works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(caller.citations.delete({ id: 1 })).rejects.toThrow();
+    await expect(caller.citations.delete({ id: 1 })).resolves.not.toThrow();
   });
 });
 
 // ---- Cross Check Router Tests ----
 describe("crossCheck router", () => {
-  it("crossCheck.getReferenceDoc requires authentication", async () => {
+  it("crossCheck.getReferenceDoc works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
     await expect(
       caller.crossCheck.getReferenceDoc({ projectId: 1 })
-    ).rejects.toThrow();
+    ).resolves.not.toThrow();
   });
 
-  it("crossCheck.updateReferenceDoc requires authentication", async () => {
+  it("crossCheck.updateReferenceDoc works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -176,16 +187,20 @@ describe("crossCheck router", () => {
         referenceDoc: "Some content",
         referenceDocName: "Test Doc",
       })
-    ).rejects.toThrow();
+    ).resolves.not.toThrow();
   });
 
-  it("crossCheck.checkArticle requires authentication", async () => {
+  it("crossCheck.checkArticle works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(
-      caller.crossCheck.checkArticle({ articleId: 1 })
-    ).rejects.toThrow();
+    // Should not throw an auth error — may throw DB error which is fine
+    try {
+      await caller.crossCheck.checkArticle({ articleId: 1 });
+    } catch (e: any) {
+      expect(e.message).not.toContain("UNAUTHORIZED");
+      expect(e.message).not.toContain("Please login");
+    }
   });
 
   it("crossCheck.updateReferenceDoc accepts null values for removal", async () => {

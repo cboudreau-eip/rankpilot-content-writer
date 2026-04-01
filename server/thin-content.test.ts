@@ -47,16 +47,20 @@ function createUnauthContext(): { ctx: TrpcContext } {
 }
 
 describe("thinContent router", () => {
-  it("thinContent.analyze requires authentication", async () => {
+  it("thinContent.analyze works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(
-      caller.thinContent.analyze({
+    // Should not throw an auth error — may throw network error which is fine
+    try {
+      await caller.thinContent.analyze({
         sitemapUrl: "https://example.com/sitemap.xml",
         wordThreshold: 300,
-      })
-    ).rejects.toThrow();
+      });
+    } catch (e: any) {
+      expect(e.message).not.toContain("UNAUTHORIZED");
+      expect(e.message).not.toContain("Please login");
+    }
   });
 
   it("thinContent.analyze validates URL format", async () => {
@@ -107,13 +111,13 @@ describe("thinContent router", () => {
     ).rejects.toThrow();
   });
 
-  it("thinContent.getProjectSitemaps requires authentication", async () => {
+  it("thinContent.getProjectSitemaps works without authentication (public access)", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
 
     await expect(
       caller.thinContent.getProjectSitemaps({ projectId: 1 })
-    ).rejects.toThrow();
+    ).resolves.not.toThrow();
   });
 
   it("thinContent.analyze accepts optional wordThreshold", async () => {

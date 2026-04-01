@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   getProjectsByUserId, getProjectById, createProject, updateProject, deleteProject,
@@ -217,24 +217,20 @@ function splitLongParagraphs(content: string, maxSentences: number, format: stri
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
-    }),
+    me: publicProcedure.query(() => null),
+    logout: publicProcedure.mutation(() => ({ success: true } as const)),
   }),
 
   projects: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return getProjectsByUserId(ctx.user.id);
+    list: publicProcedure.query(async ({ ctx }) => {
+      return getProjectsByUserId(1);
     }),
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getProjectById(input.id);
       }),
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         name: z.string().min(1).max(255),
         color: z.string().optional(),
@@ -247,10 +243,10 @@ export const appRouter = router({
           color: input.color ?? "#6366f1",
           domain: input.domain ?? null,
           description: input.description ?? null,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(255).optional(),
@@ -272,7 +268,7 @@ export const appRouter = router({
         const { id, ...data } = input;
         return updateProject(id, data);
       }),
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteProject(input.id);
@@ -280,23 +276,23 @@ export const appRouter = router({
   }),
 
   outlines: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getOutlinesByProject(input.projectId);
       }),
 
-    listAll: protectedProcedure.query(async ({ ctx }) => {
-      return getOutlinesByUser(ctx.user.id);
+    listAll: publicProcedure.query(async ({ ctx }) => {
+      return getOutlinesByUser(1);
     }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getOutlineById(input.id);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         title: z.string().min(1),
         keyword: z.string().optional(),
@@ -311,11 +307,11 @@ export const appRouter = router({
           sections: input.sections as OutlineSection[],
           settings: (input.settings as OutlineSettings) ?? null,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
 
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         title: z.string().optional(),
@@ -329,14 +325,14 @@ export const appRouter = router({
         return updateOutline(id, data as any);
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteOutline(input.id);
       }),
 
     /** LLM-powered topic research before outline generation */
-    researchTopic: protectedProcedure
+    researchTopic: publicProcedure
       .input(z.object({
         topic: z.string().min(1),
         keyword: z.string().optional(),
@@ -499,7 +495,7 @@ IMPORTANT RULES:
       }),
 
     /** LLM-powered keyword suggestions for article generation */
-    suggestKeywords: protectedProcedure
+    suggestKeywords: publicProcedure
       .input(z.object({
         keyword: z.string().min(1),
         contentType: z.string().optional(),
@@ -567,7 +563,7 @@ Rules:
       }),
 
     /** AI-powered outline generation */
-    generate: protectedProcedure
+    generate: publicProcedure
       .input(z.object({
         keyword: z.string().min(1),
         contentType: z.string().optional(),
@@ -856,7 +852,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
             secondaryKeywords: input.secondaryKeywords,
           },
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
 
         return outline;
@@ -864,19 +860,19 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   icpProfiles: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getICPsByProject(input.projectId);
       }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getICPById(input.id);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         name: z.string().min(1).max(255),
         description: z.string().optional(),
@@ -908,11 +904,11 @@ Return ONLY valid JSON, no markdown code blocks.`;
           searchBehavior: input.searchBehavior ?? null,
           isDefault: input.isDefault ?? 0,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
 
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(255).optional(),
@@ -937,7 +933,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
         return updateICP(id, data as any);
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteICP(input.id);
@@ -945,19 +941,19 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   brandVoices: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getBrandVoicesByProject(input.projectId);
       }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getBrandVoiceById(input.id);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         name: z.string().min(1).max(255),
         toneTraits: z.string().optional(),
@@ -978,11 +974,11 @@ Return ONLY valid JSON, no markdown code blocks.`;
           avoidList: input.avoidList ?? null,
           isDefault: input.isDefault ?? 0,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
 
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(255).optional(),
@@ -998,7 +994,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
         return updateBrandVoice(id, data as any);
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteBrandVoice(input.id);
@@ -1006,19 +1002,19 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   ctaTemplates: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getCTAsByProject(input.projectId);
       }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getCTAById(input.id);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         name: z.string().min(1).max(255),
         content: z.string().min(1),
@@ -1039,11 +1035,11 @@ Return ONLY valid JSON, no markdown code blocks.`;
           buttonText: input.buttonText ?? null,
           isDefault: input.isDefault ?? 0,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
 
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(255).optional(),
@@ -1059,7 +1055,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
         return updateCTA(id, data as any);
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteCTA(input.id);
@@ -1067,19 +1063,19 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   sitemaps: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getSitemapsByProject(input.projectId);
       }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getSitemapById(input.id);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         url: z.string().url().min(1),
         projectId: z.number(),
@@ -1100,7 +1096,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
         });
       }),
 
-    refresh: protectedProcedure
+    refresh: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         const sitemap = await getSitemapById(input.id);
@@ -1118,7 +1114,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
         });
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteSitemap(input.id);
@@ -1126,19 +1122,19 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   citations: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getCitationsByProject(input.projectId);
       }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getCitationById(input.id);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         name: z.string().min(1).max(512),
         url: z.string().url().min(1),
@@ -1153,11 +1149,11 @@ Return ONLY valid JSON, no markdown code blocks.`;
           description: input.description ?? null,
           category: input.category ?? null,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
 
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(512).optional(),
@@ -1170,7 +1166,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
         return updateCitation(id, data as any);
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteCitation(input.id);
@@ -1179,7 +1175,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
 
   crossCheck: router({
     /** Get the reference document metadata for a project */
-    getReferenceDoc: protectedProcedure
+    getReferenceDoc: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         const project = await getProjectById(input.projectId);
@@ -1230,7 +1226,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
       }),
 
     /** Update the reference document for a project (dual-storage: DB + S3) */
-    updateReferenceDoc: protectedProcedure
+    updateReferenceDoc: publicProcedure
       .input(z.object({
         projectId: z.number(),
         referenceDoc: z.string().nullable(),
@@ -1262,7 +1258,7 @@ Return ONLY valid JSON, no markdown code blocks.`;
       }),
 
     /** Run cross-check on an article against the project's reference document */
-    checkArticle: protectedProcedure
+    checkArticle: publicProcedure
       .input(z.object({ articleId: z.number() }))
       .mutation(async ({ input }) => {
         const article = await getArticleById(input.articleId);
@@ -1365,7 +1361,7 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
   // ---- Redundancy Checker ----
   redundancy: router({
     /** Analyze article content for redundancies: repeated phrases, redundant ideas, recycled stats, filler patterns */
-    check: protectedProcedure
+    check: publicProcedure
       .input(z.object({ articleId: z.number() }))
       .mutation(async ({ input }) => {
         const article = await getArticleById(input.articleId);
@@ -1460,29 +1456,29 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
   }),
 
   articles: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number(), status: z.string().optional() }))
       .query(async ({ input }) => {
         return getArticlesByProject(input.projectId, input.status);
       }),
 
-    listAll: protectedProcedure.query(async ({ ctx }) => {
-      return getArticlesByUser(ctx.user.id);
+    listAll: publicProcedure.query(async ({ ctx }) => {
+      return getArticlesByUser(1);
     }),
 
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getArticleById(input.id);
       }),
 
-    stats: protectedProcedure
+    stats: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getArticleStats(input.projectId);
       }),
 
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         title: z.string().min(1),
         content: z.string().optional(),
@@ -1510,11 +1506,11 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
           contentType: input.contentType ?? null,
           outlineId: input.outlineId ?? null,
           excerpt: null,
-          userId: ctx.user.id,
+          userId: 1,
         });
       }),
 
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         title: z.string().optional(),
@@ -1533,14 +1529,14 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         return updateArticle(id, data as any);
       }),
 
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteArticle(input.id);
       }),
 
     /** Regenerate a single section of an article using AI */
-    regenerateSection: protectedProcedure
+    regenerateSection: publicProcedure
       .input(z.object({
         articleId: z.number(),
         sectionHeading: z.string().min(1),
@@ -1805,7 +1801,7 @@ RULES:
       }),
 
     /** AI-powered article generation from outline */
-    generate: protectedProcedure
+    generate: publicProcedure
       .input(z.object({
         outlineId: z.number(),
         projectId: z.number(),
@@ -2333,7 +2329,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           contentType: settings?.contentType ?? null,
           outlineId: outline.id,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
 
         // Mark outline as complete
@@ -2346,7 +2342,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
   // ---- Thin Content Analyzer ----
   thinContent: router({
     /** Analyze a sitemap URL for thin content issues */
-    analyze: protectedProcedure
+    analyze: publicProcedure
       .input(z.object({
         sitemapUrl: z.string().url(),
         wordThreshold: z.number().min(50).max(5000).optional(),
@@ -2565,7 +2561,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
       }),
 
     /** Get sitemaps for a project (for the project selector) */
-    getProjectSitemaps: protectedProcedure
+    getProjectSitemaps: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return getSitemapsByProject(input.projectId);
@@ -2576,7 +2572,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
   // ---- Entity / Salience Analyzer ----
   entity: router({
     /** Entity + Salience analysis — 6-step framework */
-    analyzeContent: protectedProcedure
+    analyzeContent: publicProcedure
       .input(z.object({
         content: z.string().min(50, "Content must be at least 50 characters"),
         primaryKeyword: z.string().optional(),
@@ -2601,7 +2597,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
       }),
 
     /** Analyze an existing article by ID */
-    analyzeArticle: protectedProcedure
+    analyzeArticle: publicProcedure
       .input(z.object({
         articleId: z.number(),
       }))
@@ -2635,7 +2631,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
       }),
 
     /** Semantic analysis — 4-layer framework */
-    analyzeSemantic: protectedProcedure
+    analyzeSemantic: publicProcedure
       .input(z.object({
         content: z.string().min(50, "Content must be at least 50 characters"),
         targetKeyword: z.string().min(1, "Target keyword is required for semantic analysis"),
@@ -2659,7 +2655,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
       }),
 
     /** Semantic analysis for an existing article by ID */
-    analyzeArticleSemantic: protectedProcedure
+    analyzeArticleSemantic: publicProcedure
       .input(z.object({
         articleId: z.number(),
       }))
@@ -2692,7 +2688,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
       }),
 
     /** Apply selected entity/salience fixes to an article — surgical editing */
-    applyEntityFixes: protectedProcedure
+    applyEntityFixes: publicProcedure
       .input(z.object({
         articleId: z.number(),
         selectedFixes: z.array(z.string()).min(1, "Select at least one fix to apply"),
@@ -2826,7 +2822,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
 
   grading: router({
     /** Standalone content grader — paste any content, 4-category 85-point system */
-    gradeContent: protectedProcedure
+    gradeContent: publicProcedure
       .input(z.object({ content: z.string().min(50, "Content must be at least 50 characters") }))
       .mutation(async ({ input }) => {
         const systemPrompt = `You are an expert content analyst specializing in GEO (Generative Engine Optimization) and AI search readiness. Analyze the provided content and grade it across these 4 weighted categories:
@@ -2935,7 +2931,7 @@ Respond in this exact JSON format:
       }),
 
     /** Per-article grader — 6+2 categories with Brand Voice + ICP conditional scoring */
-    gradeArticle: protectedProcedure
+    gradeArticle: publicProcedure
       .input(z.object({ articleId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
@@ -3201,7 +3197,7 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
       }),
 
     /** Apply selected improvements from a grade to an article — surgical section-level editing */
-    applyImprovements: protectedProcedure
+    applyImprovements: publicProcedure
       .input(z.object({
         articleId: z.number(),
         categoryKey: z.string(),
@@ -3349,7 +3345,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
       }),
 
     /** Apply selected improvements to raw content (standalone grader — surgical section-level editing) */
-    applyContentImprovements: protectedProcedure
+    applyContentImprovements: publicProcedure
       .input(z.object({
         content: z.string().min(10),
         categoryKey: z.string(),
@@ -3447,7 +3443,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
      * Upload and parse a GSC Excel file. Stores parsed data and computed categories in DB.
      * Accepts base64-encoded file content.
      */
-    upload: protectedProcedure
+    upload: publicProcedure
       .input(z.object({
         projectId: z.number(),
         fileName: z.string(),
@@ -3473,7 +3469,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           zeroClickPages: parsed.zeroClickPages,
           cannibalizationGroups: parsed.cannibalizationGroups,
           projectId: input.projectId,
-          userId: ctx.user.id,
+          userId: 1,
         });
 
         const insertId = (result as any).insertId as number;
@@ -3484,7 +3480,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
     /**
      * List all GSC exports for a project, newest first.
      */
-    list: protectedProcedure
+    list: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         const db = await getDb();
@@ -3507,7 +3503,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
     /**
      * Get a single GSC export with full data.
      */
-    getById: protectedProcedure
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         const db = await getDb();
@@ -3520,7 +3516,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
     /**
      * Delete a GSC export.
      */
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         const db = await getDb();
@@ -3533,7 +3529,7 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
      * Get near-jump keywords with a custom position threshold.
      * Re-computes from the stored raw queries so the threshold can be changed client-side.
      */
-    getNearJump: protectedProcedure
+    getNearJump: publicProcedure
       .input(z.object({
         id: z.number(),
         minPos: z.number().default(5),

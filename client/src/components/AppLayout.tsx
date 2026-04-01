@@ -1,5 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -103,7 +101,6 @@ const navSections = [
 
 // ---- Main Layout ----
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { loading, user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Active project state persisted in localStorage
@@ -112,10 +109,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return saved ? parseInt(saved, 10) : null;
   });
 
-  const { data: projectsList = [], isLoading: projectsLoading } = trpc.projects.list.useQuery(
-    undefined,
-    { enabled: !!user }
-  );
+  const { data: projectsList = [], isLoading: projectsLoading } = trpc.projects.list.useQuery(undefined);
 
   // Auto-select first project if none selected
   useEffect(() => {
@@ -135,34 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const activeProject = projectsList.find(p => p.id === activeProjectId) ?? null;
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />;
-  }
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg">
-            <Rocket className="w-8 h-8 text-white" />
-          </div>
-          <div className="flex flex-col items-center gap-3">
-            <h1 className="text-3xl font-extrabold tracking-tight text-center">RankPilot</h1>
-            <p className="text-base text-muted-foreground text-center max-w-sm">
-              Sign in to access your SEO content toolkit.
-            </p>
-          </div>
-          <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all text-base font-bold"
-          >
-            Sign in
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <ProjectContext.Provider value={{ activeProject, setActiveProjectId, projects: projectsList, isLoading: projectsLoading }}>
@@ -205,13 +172,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <button className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-accent/50 transition-colors w-full text-left focus:outline-none ${sidebarCollapsed ? "justify-center px-0" : ""}`}>
                   <Avatar className="h-9 w-9 border shrink-0">
                     <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary to-purple-500 text-white">
-                      {user?.name?.charAt(0).toUpperCase() ?? "U"}
+                      {"R"}
                     </AvatarFallback>
                   </Avatar>
                   {!sidebarCollapsed && (
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate leading-none">{user?.name || "User"}</p>
-                      <p className="text-xs text-muted-foreground truncate mt-1">{user?.role === "admin" ? "Admin" : "Member"}</p>
+                      <p className="text-sm font-semibold truncate leading-none">RankPilot</p>
+                      <p className="text-xs text-muted-foreground truncate mt-1">Admin</p>
                     </div>
                   )}
                   {!sidebarCollapsed && <MoreHorizontal className="w-4 h-4 text-muted-foreground shrink-0" />}
@@ -224,7 +191,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => { /* logout handled by useAuth */ }}
+                  onClick={() => {}}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />

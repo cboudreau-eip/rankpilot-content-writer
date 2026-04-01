@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +21,6 @@ const tabs = [
 ];
 
 export default function GeneralSettings() {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("account");
 
   // Notification preferences (local state for now)
@@ -73,29 +71,29 @@ export default function GeneralSettings() {
                 <User className="w-5 h-5 text-primary" />
                 Profile
               </CardTitle>
-              <CardDescription>Your account information from Manus OAuth.</CardDescription>
+              <CardDescription>Your account information.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
                 <Avatar className="h-20 w-20 border-2">
                   <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-primary to-purple-500 text-white">
-                    {user?.name?.charAt(0).toUpperCase() ?? "U"}
+                    {"R"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="text-xl font-semibold">{user?.name || "User"}</h3>
+                  <h3 className="text-xl font-semibold">RankPilot Admin</h3>
                   <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
                     <Mail className="w-4 h-4" />
-                    {user?.email || "No email set"}
+                    {"admin@rankpilot.com"}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="secondary" className="capitalize">
                       <Shield className="w-3 h-3 mr-1" />
-                      {user?.role || "user"}
+                      {"admin"}
                     </Badge>
                     <Badge variant="outline">
                       <KeyRound className="w-3 h-3 mr-1" />
-                      {user?.loginMethod || "manus"}
+                      {"local"}
                     </Badge>
                   </div>
                 </div>
@@ -106,13 +104,13 @@ export default function GeneralSettings() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-base font-semibold">Display Name</Label>
-                  <Input value={user?.name || ""} disabled className="text-base bg-muted" />
-                  <p className="text-xs text-muted-foreground">Managed through your Manus account.</p>
+                  <Input value="RankPilot Admin" disabled className="text-base bg-muted" />
+                  <p className="text-xs text-muted-foreground">Contact support to update your display name.</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-base font-semibold">Email</Label>
-                  <Input value={user?.email || ""} disabled className="text-base bg-muted" />
-                  <p className="text-xs text-muted-foreground">Managed through your Manus account.</p>
+                  <Input value="admin@rankpilot.com" disabled className="text-base bg-muted" />
+                  <p className="text-xs text-muted-foreground">Contact support to update your email.</p>
                 </div>
               </div>
             </CardContent>

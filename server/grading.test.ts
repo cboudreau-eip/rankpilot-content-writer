@@ -50,11 +50,15 @@ const caller = (ctx: TrpcContext) => appRouter.createCaller(ctx);
 
 describe("Grading Routes", () => {
   describe("grading.gradeContent (standalone)", () => {
-    it("should reject unauthenticated users", async () => {
+    it("should work without authentication (public access)", async () => {
       const { ctx } = createUnauthContext();
-      await expect(
-        caller(ctx).grading.gradeContent({ content: "Test content for grading" })
-      ).rejects.toThrow();
+      // Should not throw an auth error — may throw LLM error which is fine
+      try {
+        await caller(ctx).grading.gradeContent({ content: "Test content for grading" });
+      } catch (e: any) {
+        expect(e.message).not.toContain("UNAUTHORIZED");
+        expect(e.message).not.toContain("Please login");
+      }
     });
 
     it("should reject empty content", async () => {
@@ -86,14 +90,18 @@ describe("Grading Routes", () => {
   });
 
   describe("grading.gradeArticle (per-article)", () => {
-    it("should reject unauthenticated users", async () => {
+    it("should work without authentication (public access)", async () => {
       const { ctx } = createUnauthContext();
-      await expect(
-        caller(ctx).grading.gradeArticle({ articleId: 1 })
-      ).rejects.toThrow();
+      // Should not throw an auth error — may throw DB error which is fine
+      try {
+        await caller(ctx).grading.gradeArticle({ articleId: 1 });
+      } catch (e: any) {
+        expect(e.message).not.toContain("UNAUTHORIZED");
+        expect(e.message).not.toContain("Please login");
+      }
     });
 
-    it("should require a valid articleId", async () => {
+    it("should require a valid articleId (positive integer)", async () => {
       const { ctx } = createAuthContext();
       await expect(
         caller(ctx).grading.gradeArticle({ articleId: 0 })
@@ -109,16 +117,20 @@ describe("Grading Routes", () => {
   });
 
   describe("grading.applyImprovements", () => {
-    it("should reject unauthenticated users", async () => {
+    it("should work without authentication (public access)", async () => {
       const { ctx } = createUnauthContext();
-      await expect(
-        caller(ctx).grading.applyImprovements({
+      // Should not throw an auth error — may throw DB error which is fine
+      try {
+        await caller(ctx).grading.applyImprovements({
           articleId: 1,
           categoryKey: "eeatTrust",
           categoryLabel: "E-E-A-T Trust Package",
           selectedImprovements: ["Add author credentials"],
-        })
-      ).rejects.toThrow();
+        });
+      } catch (e: any) {
+        expect(e.message).not.toContain("UNAUTHORIZED");
+        expect(e.message).not.toContain("Please login");
+      }
     });
 
     it("should require at least one improvement", async () => {
@@ -220,7 +232,7 @@ describe("Grading Routes", () => {
   });
 
   describe("grading.applyContentImprovements (standalone)", () => {
-    it("should reject unauthenticated users", async () => {
+    it("should work without authentication (public access)", async () => {
       const { ctx } = createUnauthContext();
       await expect(
         caller(ctx).grading.applyContentImprovements({
@@ -229,7 +241,7 @@ describe("Grading Routes", () => {
           categoryLabel: "E-E-A-T Trust Package",
           selectedImprovements: ["Add author credentials"],
         })
-      ).rejects.toThrow();
+      ).resolves.not.toThrow();
     });
 
     it("should reject empty content", async () => {

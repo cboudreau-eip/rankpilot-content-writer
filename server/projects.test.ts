@@ -102,8 +102,9 @@ describe("projects router", () => {
       expect(result[1].name).toBe("SEO Blog");
     });
 
-    it("throws for unauthenticated user", async () => {
-      await expect(unauthedCaller.projects.list()).rejects.toThrow();
+    it("works without authentication (public access)", async () => {
+      const result = await unauthedCaller.projects.list();
+      expect(result).toHaveLength(2);
     });
   });
 
@@ -150,10 +151,9 @@ describe("projects router", () => {
       ).rejects.toThrow();
     });
 
-    it("throws for unauthenticated user", async () => {
-      await expect(
-        unauthedCaller.projects.create({ name: "Test" })
-      ).rejects.toThrow();
+    it("works without authentication (public access)", async () => {
+      const result = await unauthedCaller.projects.create({ name: "Test" });
+      expect(result).toBeDefined();
     });
   });
 
@@ -164,10 +164,10 @@ describe("projects router", () => {
       ).resolves.not.toThrow();
     });
 
-    it("throws for unauthenticated user", async () => {
+    it("works without authentication (public access)", async () => {
       await expect(
-        unauthedCaller.projects.update({ id: 1, name: "Hack" })
-      ).rejects.toThrow();
+        unauthedCaller.projects.update({ id: 1, name: "Updated" })
+      ).resolves.not.toThrow();
     });
   });
 
@@ -178,10 +178,10 @@ describe("projects router", () => {
       ).resolves.not.toThrow();
     });
 
-    it("throws for unauthenticated user", async () => {
+    it("works without authentication (public access)", async () => {
       await expect(
         unauthedCaller.projects.delete({ id: 1 })
-      ).rejects.toThrow();
+      ).resolves.not.toThrow();
     });
   });
 });

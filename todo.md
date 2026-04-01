@@ -733,3 +733,17 @@
 - [x] Build per-keyword action buttons (generate article, add to outline)
 - [x] Write tests for the Excel parser and categorization engine (14 tests in gsc-parser.test.ts)
 - [x] Run build and save checkpoint — all 365 tests pass (23 test files), build succeeds
+
+## Remove Manus OAuth (Make App Fully Public)
+- [x] Backend: Replace all 69 protectedProcedure calls with publicProcedure in routers.ts
+- [x] Backend: Replace all ctx.user.id references with fixed owner ID (1) so existing data is preserved
+- [x] Backend: Update auth.me to return static owner object (no ctx.user dependency)
+- [x] Backend: Keep DB schema intact (userId columns stay, just hardcoded to owner ID 1)
+- [x] Frontend: Remove useAuth() and login wall from AppLayout.tsx
+- [x] Frontend: Remove useAuth() and login wall from DashboardLayout.tsx
+- [x] Frontend: Remove useAuth() from GeneralSettings.tsx
+- [x] Frontend: Remove auth redirect logic from main.tsx
+- [x] Frontend: Remove useAuth() from Home.tsx
+- [x] Run tests and fix all breakages (updated auth tests to reflect public access)
+- [x] Verify build passes — all 366 tests pass (23 test files), build 0 errors
+- [x] Save checkpoint

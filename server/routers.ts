@@ -154,6 +154,40 @@ function splitSentences(text: string): string[] {
 }
 
 /**
+ * Pre-processes LLM HTML output to fix common malformations before further processing:
+ * 1. Removes spaces inside URLs in href attributes (e.g. "https://www. example.com" → "https://www.example.com")
+ * 2. Rejoins <a href> tags that were split across newlines by the LLM
+ * 3. Repairs orphaned URL fragments (e.g. bare `com/path/">anchor text</a>` with missing opening tag)
+ */
+function fixBrokenAnchors(content: string): string {
+  // Step 1: Remove spaces inside href URLs (LLM sometimes adds spaces in long URLs)
+  // Matches href="..." and removes any spaces within the URL value
+  let fixed = content.replace(/href="([^"]*)"/gi, (_match, url: string) => {
+    return `href="${url.replace(/\s+/g, '')}"`;
+  });
+
+  // Step 2: Rejoin <a href> tags split across </p>\n<p> or \n boundaries
+  // Pattern: href="https://www.example.</p>\n<p>com/path/" → href="https://www.example.com/path/"
+  fixed = fixed.replace(/href="([^"]*)<\/p>\s*<p>([^"]*)"/gi, (_match, before: string, after: string) => {
+    return `href="${before}${after}"`;
+  });
+  // Also handle split across bare newlines (without </p><p>)
+  fixed = fixed.replace(/href="([^"]*)\n([^"]*)"/gi, (_match, before: string, after: string) => {
+    return `href="${before}${after}"`;
+  });
+
+  // Step 3: Repair orphaned URL fragments that lost their <a href= opening
+  // Pattern: \n<p>com/path/">anchor text</a> more text</p>
+  // These occur when the <a href="https://www.domain. was on the previous line and got swallowed
+  // We can't recover the URL, so strip the broken fragment and keep the rest of the paragraph
+  fixed = fixed.replace(/\n<p>([a-z][^<>\s]*\/">)([\s\S]*?)<\/p>/g, (_match, _fragment, rest) => {
+    return `\n<p>${rest}</p>`;
+  });
+
+  return fixed;
+}
+
+/**
  * Wraps bare text lines (not inside HTML tags) in <p> tags.
  * The LLM often outputs HTML headings but plain text paragraphs separated by newlines.
  * TipTap needs <p> tags to render separate paragraphs.
@@ -1915,7 +1949,7 @@ RULES:
         const rawSectionContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
 
         // --- Post-process the regenerated section ---
-        let newSectionContent = wrapBareTextInPTags(rawSectionContent);
+        let newSectionContent = wrapBareTextInPTags(fixBrokenAnchors(rawSectionContent));
         newSectionContent = splitLongParagraphs(newSectionContent, maxSentences, "html");
 
         // Apply template styles if the outline section had a template type
@@ -2396,9 +2430,10 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         if (!rawContent) throw new Error("No response from AI");
         const rawArticleContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
 
-        // Post-process: first wrap bare text in <p> tags, then split long paragraphs, then apply background colors
+        // Post-process: first fix broken anchors, then wrap bare text in <p> tags, then split long paragraphs, then apply background colors
         const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
-        const wrappedContent = effectiveFormat === "html" ? wrapBareTextInPTags(rawArticleContent) : rawArticleContent;
+        const fixedContent = effectiveFormat === "html" ? fixBrokenAnchors(rawArticleContent) : rawArticleContent;
+        const wrappedContent = effectiveFormat === "html" ? wrapBareTextInPTags(fixedContent) : fixedContent;
         const splitContent = splitLongParagraphs(wrappedContent, maxSentences, effectiveFormat);
         // Apply background colors from outline sections as a reliable post-processing step
         const bgColoredContent = effectiveFormat === "html"

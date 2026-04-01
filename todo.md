@@ -781,4 +781,9 @@
 
 ## Auth Guard Removal
 - [x] Remove auth guard from App.tsx so app loads without login
+- [x] Save checkpoint
+
+## FAQ Rendering Bug Fixes
+- [x] Fix raw HTML anchor tags leaking into visible article text
+- [x] Fix broken/incomplete sentences caused by mid-sentence paragraph breaks
 - [ ] Save checkpoint

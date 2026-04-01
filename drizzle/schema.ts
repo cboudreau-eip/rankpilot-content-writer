@@ -363,3 +363,26 @@ export interface GscCannibalizationGroup {
   /** Queries that overlap on this topic */
   queries: GscQueryRow[];
 }
+
+/**
+ * App Users — custom email/password authentication (independent of Manus OAuth).
+ * This table stores users who can log into RankPilot with their own credentials.
+ */
+export const appUsers = mysqlTable("app_users", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  /** bcrypt hash of the user's password */
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** Whether the account is active (admins can disable accounts) */
+  isActive: int("isActive").default(1).notNull(),
+  /** Whether the user must change their password on next login */
+  mustChangePassword: int("mustChangePassword").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastLoginAt: timestamp("lastLoginAt"),
+});
+
+export type AppUser = typeof appUsers.$inferSelect;
+export type InsertAppUser = typeof appUsers.$inferInsert;

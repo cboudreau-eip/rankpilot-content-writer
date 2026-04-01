@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
+import { Users } from "lucide-react";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -36,7 +37,7 @@ import {
   PanelLeft,
 } from "lucide-react";
 import { useLocation, Link } from "wouter";
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import type { Project } from "../../../drizzle/schema";
 
 // ---- Active Project Context ----
@@ -102,6 +103,15 @@ const navSections = [
 // ---- Main Layout ----
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const utils = trpc.useUtils();
+  const { data: currentUser } = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.setData(undefined, null);
+      window.location.href = "/login";
+    },
+  });
+  const handleLogout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
 
   // Active project state persisted in localStorage
   const [activeProjectId, setActiveProjectId] = useState<number | null>(() => {
@@ -172,13 +182,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <button className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-accent/50 transition-colors w-full text-left focus:outline-none ${sidebarCollapsed ? "justify-center px-0" : ""}`}>
                   <Avatar className="h-9 w-9 border shrink-0">
                     <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary to-purple-500 text-white">
-                      {"R"}
+                      {currentUser?.name?.charAt(0).toUpperCase() ?? "U"}
                     </AvatarFallback>
                   </Avatar>
                   {!sidebarCollapsed && (
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate leading-none">RankPilot</p>
-                      <p className="text-xs text-muted-foreground truncate mt-1">Admin</p>
+                      <p className="text-sm font-semibold truncate leading-none">{currentUser?.name ?? "User"}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-1">{currentUser?.role === "admin" ? "Admin" : "Member"}</p>
                     </div>
                   )}
                   {!sidebarCollapsed && <MoreHorizontal className="w-4 h-4 text-muted-foreground shrink-0" />}
@@ -189,9 +199,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
                 </DropdownMenuItem>
+                {currentUser?.role === "admin" && (
+                  <DropdownMenuItem onClick={() => window.location.href = "/admin/users"} className="cursor-pointer">
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>User Management</span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => {}}
+                  onClick={handleLogout}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />

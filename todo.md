@@ -747,3 +747,34 @@
 - [x] Run tests and fix all breakages (updated auth tests to reflect public access)
 - [x] Verify build passes — all 366 tests pass (23 test files), build 0 errors
 - [x] Save checkpoint
+
+## Custom Email/Password Authentication System
+- [ ] Review existing schema and JWT setup
+- [ ] Add appUsers table to drizzle schema (id, name, email, passwordHash, role, isActive, createdAt)
+- [ ] Run db:push to apply migration
+- [ ] Build backend: login mutation (email+password → JWT cookie)
+- [ ] Build backend: logout mutation (clear cookie)
+- [ ] Build backend: me query (return current user from JWT cookie)
+- [ ] Build backend: changePassword mutation
+- [ ] Build backend: admin.listUsers, admin.createUser, admin.updateUser, admin.deleteUser procedures
+- [ ] Add auth middleware to protect all non-auth routes (redirect to /login if no valid session)
+- [ ] Seed admin account (cboudreau@teameip.com) with temporary password
+- [ ] Build frontend: Login page (/login) with email/password form
+- [ ] Build frontend: Logout button in sidebar
+- [ ] Build frontend: Change Password page or modal
+- [ ] Build frontend: Admin Users page (/admin/users) — create/view/disable/delete users
+- [ ] Wire auth guard in App.tsx to redirect unauthenticated users to /login
+- [ ] Write tests for auth procedures
+- [ ] Run build and save checkpoint
+
+## Custom Auth Frontend
+- [x] Build Login page (email/password form, branded, clean)
+- [x] Add auth guard to App.tsx — redirect to /login if not authenticated
+- [x] Wire logout in AppLayout sidebar user menu
+- [x] Show logged-in user name/role in sidebar footer
+- [x] Build Admin Users page (/admin/users) — list, create, disable, delete users
+- [x] Add Admin Users link to sidebar (admin only)
+- [x] Build Change Password page/modal (current password + new password)
+- [x] Force change password on first login (mustChangePassword flag)
+- [x] Write vitest tests for auth procedures
+- [ ] Save checkpoint

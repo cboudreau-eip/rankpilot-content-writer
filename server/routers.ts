@@ -2,6 +2,15 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import {
+  clearSessionCookie,
+  getSessionToken,
+  hashPassword,
+  setSessionCookie,
+  signAppSession,
+  verifyAppSession,
+  verifyPassword,
+} from "./customAuth";
 import { z } from "zod";
 import {
   getProjectsByUserId, getProjectById, createProject, updateProject, deleteProject,
@@ -23,7 +32,7 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
@@ -217,8 +226,171 @@ function splitLongParagraphs(content: string, maxSentences: number, format: stri
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(() => null),
-    logout: publicProcedure.mutation(() => ({ success: true } as const)),
+    /** Return the currently logged-in app user (from JWT cookie), or null */
+    me: publicProcedure.query(async ({ ctx }) => {
+      const token = getSessionToken(ctx.req);
+      const session = await verifyAppSession(token);
+      if (!session) return null;
+      const db = await getDb();
+      if (!db) return null;
+      const [user] = await db
+        .select({ id: appUsers.id, name: appUsers.name, email: appUsers.email, role: appUsers.role, mustChangePassword: appUsers.mustChangePassword })
+        .from(appUsers)
+        .where(eq(appUsers.id, session.userId));
+      return user ?? null;
+    }),
+
+    /** Login with email + password */
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const [user] = await db
+          .select()
+          .from(appUsers)
+          .where(eq(appUsers.email, input.email.toLowerCase().trim()));
+        if (!user) {
+          throw new Error("Invalid email or password");
+        }
+        if (!user.isActive) {
+          throw new Error("Account is disabled. Please contact an administrator.");
+        }
+        const valid = await verifyPassword(input.password, user.passwordHash);
+        if (!valid) {
+          throw new Error("Invalid email or password");
+        }
+        // Update lastLoginAt
+        await db.update(appUsers).set({ lastLoginAt: new Date() }).where(eq(appUsers.id, user.id));
+        const token = await signAppSession({ userId: user.id, email: user.email, role: user.role });
+        setSessionCookie(ctx.res, ctx.req, token);
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          mustChangePassword: user.mustChangePassword,
+        };
+      }),
+
+    /** Logout — clear the session cookie */
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      clearSessionCookie(ctx.res, ctx.req);
+      return { success: true } as const;
+    }),
+
+    /** Change password for the currently logged-in user */
+    changePassword: publicProcedure
+      .input(z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(8, "Password must be at least 8 characters"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new Error("Not authenticated");
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const [user] = await db.select().from(appUsers).where(eq(appUsers.id, session.userId));
+        if (!user) throw new Error("User not found");
+        const valid = await verifyPassword(input.currentPassword, user.passwordHash);
+        if (!valid) throw new Error("Current password is incorrect");
+        const newHash = await hashPassword(input.newPassword);
+        await db.update(appUsers)
+          .set({ passwordHash: newHash, mustChangePassword: 0 })
+          .where(eq(appUsers.id, user.id));
+        return { success: true } as const;
+      }),
+  }),
+
+  /** Admin-only user management */
+  adminUsers: router({
+    /** List all app users (admin only) */
+    list: publicProcedure.query(async ({ ctx }) => {
+      const token = getSessionToken(ctx.req);
+      const session = await verifyAppSession(token);
+      if (!session || session.role !== "admin") throw new Error("Admin access required");
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      return db
+        .select({ id: appUsers.id, name: appUsers.name, email: appUsers.email, role: appUsers.role, isActive: appUsers.isActive, mustChangePassword: appUsers.mustChangePassword, createdAt: appUsers.createdAt, lastLoginAt: appUsers.lastLoginAt })
+        .from(appUsers)
+        .orderBy(desc(appUsers.createdAt));
+    }),
+
+    /** Create a new user (admin only) */
+    create: publicProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        email: z.string().email(),
+        password: z.string().min(8, "Password must be at least 8 characters"),
+        role: z.enum(["user", "admin"]).default("user"),
+        mustChangePassword: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session || session.role !== "admin") throw new Error("Admin access required");
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        // Check for duplicate email
+        const [existing] = await db.select({ id: appUsers.id }).from(appUsers).where(eq(appUsers.email, input.email.toLowerCase().trim()));
+        if (existing) throw new Error("An account with this email already exists");
+        const passwordHash = await hashPassword(input.password);
+        const [result] = await db.insert(appUsers).values({
+          name: input.name,
+          email: input.email.toLowerCase().trim(),
+          passwordHash,
+          role: input.role,
+          mustChangePassword: input.mustChangePassword ? 1 : 0,
+        });
+        return { id: (result as { insertId: number }).insertId, success: true };
+      }),
+
+    /** Update a user's name, role, or active status (admin only) */
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255).optional(),
+        role: z.enum(["user", "admin"]).optional(),
+        isActive: z.boolean().optional(),
+        resetPassword: z.string().min(8).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session || session.role !== "admin") throw new Error("Admin access required");
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const updates: Record<string, unknown> = {};
+        if (input.name !== undefined) updates.name = input.name;
+        if (input.role !== undefined) updates.role = input.role;
+        if (input.isActive !== undefined) updates.isActive = input.isActive ? 1 : 0;
+        if (input.resetPassword !== undefined) {
+          updates.passwordHash = await hashPassword(input.resetPassword);
+          updates.mustChangePassword = 1;
+        }
+        if (Object.keys(updates).length === 0) return { success: true };
+        await db.update(appUsers).set(updates).where(eq(appUsers.id, input.id));
+        return { success: true };
+      }),
+
+    /** Delete a user (admin only) — cannot delete yourself */
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session || session.role !== "admin") throw new Error("Admin access required");
+        if (session.userId === input.id) throw new Error("You cannot delete your own account");
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        await db.delete(appUsers).where(eq(appUsers.id, input.id));
+        return { success: true };
+      }),
   }),
 
   projects: router({

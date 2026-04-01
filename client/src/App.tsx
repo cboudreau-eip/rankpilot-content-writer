@@ -1,7 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AppLayout from "./components/AppLayout";
@@ -17,9 +19,46 @@ import ThinContent from "./pages/ThinContent";
 import GradeContent from "./pages/GradeContent";
 import EntityAnalyzer from "./pages/EntityAnalyzer";
 import GscAnalyzer from "./pages/GscAnalyzer";
+import Login from "./pages/Login";
+import ChangePassword from "./pages/ChangePassword";
+import AdminUsers from "./pages/AdminUsers";
+
+/** Auth guard: redirects to /login if not authenticated */
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const [location, navigate] = useLocation();
+  const { data: user, isLoading } = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate("/login");
+    }
+  }, [isLoading, user, navigate]);
+
+  useEffect(() => {
+    if (!isLoading && user && user.mustChangePassword && location !== "/change-password") {
+      navigate("/change-password");
+    }
+  }, [isLoading, user, location, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return <>{children}</>;
+}
 
 function AppRoutes() {
   return (
+    <AuthGuard>
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
@@ -29,6 +68,7 @@ function AppRoutes() {
         <Route path="/generate" component={GenerateArticle} />
         <Route path="/project-settings" component={ProjectSettings} />
         <Route path="/settings" component={GeneralSettings} />
+        <Route path="/admin/users" component={AdminUsers} />
         <Route path="/calendar">{() => <ComingSoon title="Calendar" description="Plan and schedule your content pipeline with a visual calendar." />}</Route>
         <Route path="/keywords">{() => <ComingSoon title="Keyword Research" description="Discover high-value keywords and search opportunities for your content." />}</Route>
         <Route path="/audit">{() => <ComingSoon title="Keyword Auditor" description="Audit your existing keywords for performance and optimization opportunities." />}</Route>
@@ -45,6 +85,7 @@ function AppRoutes() {
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
+    </AuthGuard>
   );
 }
 
@@ -54,7 +95,13 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <AppRoutes />
+          <Switch>
+            {/* Public routes — no auth guard */}
+            <Route path="/login" component={Login} />
+            <Route path="/change-password" component={ChangePassword} />
+            {/* All other routes require authentication */}
+            <Route component={AppRoutes} />
+          </Switch>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

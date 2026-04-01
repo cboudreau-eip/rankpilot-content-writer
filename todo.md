@@ -786,4 +786,9 @@
 ## FAQ Rendering Bug Fixes
 - [x] Fix raw HTML anchor tags leaking into visible article text
 - [x] Fix broken/incomplete sentences caused by mid-sentence paragraph breaks
+- [x] Save checkpoint
+
+## URL Integrity Rule in System Prompt
+- [x] Add URL integrity rule to article generation system prompt (no line breaks/spaces in href URLs)
+- [x] Add same rule to section regeneration system prompt
 - [ ] Save checkpoint

@@ -1930,6 +1930,7 @@ RULES:
 - Include relevant statistics, examples, and details
 - Do NOT include content from other sections — only write this one section
 - ANCHOR TEXT LENGTH: All links must use 2-7 word anchor text, never full sentences
+- URL INTEGRITY RULE (CRITICAL): When writing any <a href="..."> tag, the ENTIRE href value MUST be on a single line with NO line breaks, spaces, or newlines inside the URL. Never split a URL across lines or insert spaces between URL characters.
 - NEVER use em dashes (—). Use commas, semicolons, or periods instead.
 - Return ONLY the HTML for this section (from <h2> to the end of the section content, before the next <h2>)`;
 
@@ -2399,7 +2400,7 @@ ${formatInstructions}
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
   * The anchor text MUST be the actual claim or fact being cited, kept to 2-7 words (e.g., <a href="...">covers outpatient services</a>)
   * NEVER link to a homepage URL — always use the most specific deep page URL relevant to the claim
-
+- URL INTEGRITY RULE (CRITICAL): When writing any <a href="..."> tag, the ENTIRE href value MUST be on a single line with NO line breaks, spaces, or newlines inside the URL. A URL like "https://www.example.com/path/" must be written exactly as-is — never split across lines, never insert spaces between characters. Breaking a URL across lines corrupts the link and causes raw text to appear in the article.
 ${effectiveLocation ? `- Target location: ${effectiveLocation} — include location-specific information, examples, regulations, or references relevant to this area` : ""}
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language, examples, and depth to this specific audience` : ""}
 ${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}

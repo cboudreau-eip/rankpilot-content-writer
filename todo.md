@@ -777,4 +777,8 @@
 - [x] Build Change Password page/modal (current password + new password)
 - [x] Force change password on first login (mustChangePassword flag)
 - [x] Write vitest tests for auth procedures
+- [x] Save checkpoint
+
+## Auth Guard Removal
+- [x] Remove auth guard from App.tsx so app loads without login
 - [ ] Save checkpoint

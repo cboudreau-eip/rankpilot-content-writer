@@ -94,7 +94,7 @@ describe("auth.login", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.login({
       email: "cboudreau@teameip.com",
-      password: "caboudr2",
+      password: "Purplepoptart7480!",
     });
     expect(result).toMatchObject({
       email: "cboudreau@teameip.com",

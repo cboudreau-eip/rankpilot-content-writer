@@ -722,3 +722,14 @@
 - [x] Fixed prompt: changed 'approximately N links' to 'EXACTLY N links (no more, no fewer)' + added TOTAL LINK LIMIT rule covering internal + external combined
 - [x] Added post-processing link count enforcement: strips excess <a> tags after generation, preserves anchor text
 - [x] Added 11 tests for link count enforcement (server/link-count-enforcement.test.ts), all 351 tests pass, build succeeds
+
+## GSC Analyzer Feature
+- [x] Add gscExports table to drizzle schema and run db:push
+- [x] Build Excel parser utility (server-side: xlsx package, reads Queries + Pages sheets)
+- [x] Build backend tRPC procedures: upload, list, getById, getNearJump, delete
+- [x] Build keyword categorization engine: near-jump, high-impression/low-CTR, quick wins, zero-click pages, cannibalization
+- [x] Build GSC Analyzer frontend page with upload flow (drag-and-drop + click-to-upload)
+- [x] Build results dashboard: overview stats, tabbed categories, priority threshold filter (Page 1/High Only/Medium+/All)
+- [x] Build per-keyword action buttons (generate article, add to outline)
+- [x] Write tests for the Excel parser and categorization engine (14 tests in gsc-parser.test.ts)
+- [x] Run build and save checkpoint — all 365 tests pass (23 test files), build succeeds

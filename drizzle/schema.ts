@@ -294,3 +294,72 @@ export const citationSources = mysqlTable("citation_sources", {
 
 export type CitationSource = typeof citationSources.$inferSelect;
 export type InsertCitationSource = typeof citationSources.$inferInsert;
+
+/**
+ * GSC Exports — uploaded Google Search Console Excel exports with parsed and categorized keyword data.
+ */
+export const gscExports = mysqlTable("gsc_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Original filename of the uploaded Excel file */
+  fileName: varchar("fileName", { length: 512 }).notNull(),
+  /** Date range from the Filters sheet (e.g., "Last 3 months") */
+  dateRange: varchar("dateRange", { length: 128 }),
+  /** Total number of queries parsed from the Queries sheet */
+  totalQueries: int("totalQueries").default(0).notNull(),
+  /** Total number of pages parsed from the Pages sheet */
+  totalPages: int("totalPages").default(0).notNull(),
+  /** All raw query rows: { query, clicks, impressions, ctr, position }[] */
+  queries: json("queries").$type<GscQueryRow[]>().notNull(),
+  /** All raw page rows: { page, clicks, impressions, ctr, position }[] */
+  pages: json("pages").$type<GscPageRow[]>().notNull(),
+  /** Chart/trend data: { date, clicks, impressions, ctr, position }[] */
+  chartData: json("chartData").$type<GscChartRow[]>(),
+  /** Near-jump keywords (pos 5–30 depending on threshold) — pre-computed */
+  nearJumpKeywords: json("nearJumpKeywords").$type<GscQueryRow[]>(),
+  /** High impression / low CTR keywords — pre-computed */
+  highImpressionLowCtr: json("highImpressionLowCtr").$type<GscQueryRow[]>(),
+  /** Quick win keywords — pre-computed */
+  quickWinKeywords: json("quickWinKeywords").$type<GscQueryRow[]>(),
+  /** Zero-click pages — pre-computed */
+  zeroClickPages: json("zeroClickPages").$type<GscPageRow[]>(),
+  /** Cannibalization groups — pre-computed */
+  cannibalizationGroups: json("cannibalizationGroups").$type<GscCannibalizationGroup[]>(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GscExport = typeof gscExports.$inferSelect;
+export type InsertGscExport = typeof gscExports.$inferInsert;
+
+export interface GscQueryRow {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface GscPageRow {
+  page: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface GscChartRow {
+  date: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface GscCannibalizationGroup {
+  /** The shared keyword stem / topic */
+  topic: string;
+  /** Queries that overlap on this topic */
+  queries: GscQueryRow[];
+}

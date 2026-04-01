@@ -78,6 +78,13 @@
       "when": 1774890587468,
       "tag": "0010_puzzling_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1775044749643,
+      "tag": "0011_stale_kinsey_walden",
+      "breakpoints": true
     }
   ]
 }

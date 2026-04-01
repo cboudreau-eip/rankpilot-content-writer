@@ -16,6 +16,7 @@ import GeneralSettings from "./pages/GeneralSettings";
 import ThinContent from "./pages/ThinContent";
 import GradeContent from "./pages/GradeContent";
 import EntityAnalyzer from "./pages/EntityAnalyzer";
+import GscAnalyzer from "./pages/GscAnalyzer";
 
 function AppRoutes() {
   return (
@@ -33,7 +34,7 @@ function AppRoutes() {
         <Route path="/audit">{() => <ComingSoon title="Keyword Auditor" description="Audit your existing keywords for performance and optimization opportunities." />}</Route>
         <Route path="/competitor-analyzer">{() => <ComingSoon title="Competitor Analyzer" description="Analyze competitor content strategies and find gaps to exploit." />}</Route>
         <Route path="/kpt">{() => <ComingSoon title="Position Tracker" description="Track your keyword rankings and monitor position changes over time." />}</Route>
-        <Route path="/gsc-analyzer">{() => <ComingSoon title="GSC Analyzer" description="Deep analysis of your Google Search Console data for actionable insights." />}</Route>
+        <Route path="/gsc-analyzer" component={GscAnalyzer} />
         <Route path="/seo-intelligence">{() => <ComingSoon title="Keyword Insights" description="AI-powered keyword clustering and strategic intelligence." />}</Route>
         <Route path="/thin-content" component={ThinContent} />
         <Route path="/outlines">{() => <ComingSoon title="Outlines" description="Create and manage structured article outlines before writing." />}</Route>

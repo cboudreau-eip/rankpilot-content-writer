@@ -23,12 +23,13 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { articles, projects, brandVoices, citationSources, gscExports } from "../drizzle/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
 import type { EntityAnalysisResult, SemanticAnalysisResult } from "../shared/entity-types";
 import type { ResearchFindings } from "../shared/research-types";
+import { parseGscExcel, computeNearJump } from "./gsc-parser";
 
 /** Build a research section string to inject into the outline prompt */
 function buildResearchSection(research: any): string {
@@ -3437,6 +3438,113 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           appliedCount,
           category: input.categoryLabel,
         };
+      }),
+  }),
+
+  // ─── GSC Analyzer ─────────────────────────────────────────────────────────
+  gsc: router({
+    /**
+     * Upload and parse a GSC Excel file. Stores parsed data and computed categories in DB.
+     * Accepts base64-encoded file content.
+     */
+    upload: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        fileName: z.string(),
+        fileBase64: z.string(), // base64-encoded xlsx file
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const buffer = Buffer.from(input.fileBase64, "base64");
+        const parsed = parseGscExcel(buffer, input.fileName);
+
+        const [result] = await db.insert(gscExports).values({
+          fileName: parsed.fileName,
+          dateRange: parsed.dateRange || null,
+          totalQueries: parsed.totalQueries,
+          totalPages: parsed.totalPages,
+          queries: parsed.queries,
+          pages: parsed.pages,
+          chartData: parsed.chartData,
+          nearJumpKeywords: parsed.nearJumpKeywords,
+          highImpressionLowCtr: parsed.highImpressionLowCtr,
+          quickWinKeywords: parsed.quickWinKeywords,
+          zeroClickPages: parsed.zeroClickPages,
+          cannibalizationGroups: parsed.cannibalizationGroups,
+          projectId: input.projectId,
+          userId: ctx.user.id,
+        });
+
+        const insertId = (result as any).insertId as number;
+        const [created] = await db.select().from(gscExports).where(eq(gscExports.id, insertId));
+        return created;
+      }),
+
+    /**
+     * List all GSC exports for a project, newest first.
+     */
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        return db
+          .select({
+            id: gscExports.id,
+            fileName: gscExports.fileName,
+            dateRange: gscExports.dateRange,
+            totalQueries: gscExports.totalQueries,
+            totalPages: gscExports.totalPages,
+            projectId: gscExports.projectId,
+            createdAt: gscExports.createdAt,
+          })
+          .from(gscExports)
+          .where(eq(gscExports.projectId, input.projectId))
+          .orderBy(desc(gscExports.createdAt));
+      }),
+
+    /**
+     * Get a single GSC export with full data.
+     */
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [row] = await db.select().from(gscExports).where(eq(gscExports.id, input.id));
+        if (!row) throw new Error("GSC export not found");
+        return row;
+      }),
+
+    /**
+     * Delete a GSC export.
+     */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.delete(gscExports).where(eq(gscExports.id, input.id));
+        return { success: true };
+      }),
+
+    /**
+     * Get near-jump keywords with a custom position threshold.
+     * Re-computes from the stored raw queries so the threshold can be changed client-side.
+     */
+    getNearJump: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        minPos: z.number().default(5),
+        maxPos: z.number().default(30),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [row] = await db.select({ queries: gscExports.queries }).from(gscExports).where(eq(gscExports.id, input.id));
+        if (!row) throw new Error("GSC export not found");
+        return computeNearJump(row.queries ?? [], input.minPos, input.maxPos);
       }),
   }),
 });

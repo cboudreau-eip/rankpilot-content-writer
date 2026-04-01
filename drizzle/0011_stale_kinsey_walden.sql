@@ -1,0 +1,20 @@
+CREATE TABLE `gsc_exports` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`fileName` varchar(512) NOT NULL,
+	`dateRange` varchar(128),
+	`totalQueries` int NOT NULL DEFAULT 0,
+	`totalPages` int NOT NULL DEFAULT 0,
+	`queries` json NOT NULL,
+	`pages` json NOT NULL,
+	`chartData` json,
+	`nearJumpKeywords` json,
+	`highImpressionLowCtr` json,
+	`quickWinKeywords` json,
+	`zeroClickPages` json,
+	`cannibalizationGroups` json,
+	`projectId` int NOT NULL,
+	`userId` int NOT NULL,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `gsc_exports_id` PRIMARY KEY(`id`)
+);

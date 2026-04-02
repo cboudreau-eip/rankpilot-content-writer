@@ -94,8 +94,8 @@ export interface OutlineSection {
   subSections?: OutlineSection[];
   aiInstructions?: string;
   backgroundColor?: string;
-  /** Template type for special rendering (e.g., 'pro-tip', 'summary', 'use-cases') */
-  templateType?: "pro-tip" | "summary" | "use-cases";
+  /** Template type for special rendering (e.g., 'pro-tip', 'summary', 'use-cases', 'coverage-card') */
+  templateType?: "pro-tip" | "summary" | "use-cases" | "coverage-card";
 }
 
 export interface OutlineSettings {

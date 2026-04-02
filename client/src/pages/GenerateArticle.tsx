@@ -10,7 +10,7 @@ import {
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
   BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate, Palette,
-  CheckCircle2, Key, Tag, Search, ExternalLink, GraduationCap, TrendingUp, Building2,
+  CheckCircle2, Key, Tag, Search, ExternalLink, GraduationCap, TrendingUp, Building2, Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,6 +185,38 @@ const SECTION_TEMPLATES = [
   ]},
   { category: "Content Blocks", items: [
     {
+      icon: Shield,
+      label: "Coverage Card",
+      description: "Styled card with covers/doesn't cover lists and cost callout",
+      section: {
+        heading: "Coverage Overview",
+        type: "h2" as const,
+        points: [
+          "Brief summary of what this plan/policy/service covers",
+          "List of what it covers (green bullets)",
+          "List of what it doesn't cover (red bullets)",
+          "Cost note or pricing info (optional callout box)",
+        ],
+        subSections: [
+          {
+            heading: "What It Covers",
+            type: "h3" as const,
+            points: ["List specific items that are covered"],
+            aiInstructions: "Write 3-6 items as a <ul> list. Each <li> should be a concise phrase (not a full sentence). Be specific \u2014 name actual services, benefits, or features.",
+          },
+          {
+            heading: "What It Doesn't Cover",
+            type: "h3" as const,
+            points: ["List specific items that are NOT covered"],
+            aiInstructions: "Write 3-6 items as a <ul> list. Each <li> should be a concise phrase. Be specific about exclusions.",
+          },
+        ],
+        aiInstructions: "Start with a 1-2 sentence summary paragraph describing the coverage. Then write the two sub-sections (What It Covers / What It Doesn't Cover) as <h3> headings each followed by a <ul> list. End with a single <p> starting with 'Cost:' that summarizes the key cost/pricing info (premiums, deductibles, copays). The cost paragraph is required.",
+        backgroundColor: "#F0F9FF",
+        templateType: "coverage-card" as const,
+      },
+    },
+    {
       icon: ThumbsUp,
       label: "Pros & Cons",
       description: "Balanced advantages and disadvantages",
@@ -320,7 +352,7 @@ interface OutlineSection {
   subSections?: OutlineSection[];
   aiInstructions?: string;
   backgroundColor?: string;
-  templateType?: "pro-tip" | "summary";
+  templateType?: "pro-tip" | "summary" | "use-cases" | "coverage-card";
 }
 
 const SECTION_BG_COLORS = [

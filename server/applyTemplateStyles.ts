@@ -1,6 +1,6 @@
 /**
  * Post-process generated article HTML to wrap sections that have a
- * templateType set (e.g., "pro-tip", "summary", "use-cases") with styled HTML containers.
+ * templateType set (e.g., "pro-tip", "summary", "use-cases", "coverage-card") with styled HTML containers.
  *
  * This runs AFTER applyBackgroundColors and adds template-specific styling
  * (icons, borders, etc.) that goes beyond simple background colors.
@@ -8,6 +8,7 @@
  * Pro Tip: Green left border, light green background, inline SVG checkmark icon
  * Summary: Gray left border, light gray background, clean box layout
  * Use Cases: Stacked cards with slate left border, light background per card
+ * Coverage Card: Blue header bar, summary paragraph, two-column covers/doesn't-cover lists, cost callout box
  *
  * Heading matching uses a 3-pass approach (all done on the ORIGINAL html before any replacements):
  *   Pass 1: Exact heading text match (normalized)
@@ -114,6 +115,154 @@ ${card.body}
 }
 
 /**
+ * Inline SVGs for the Coverage Card template.
+ */
+const COVERAGE_DOC_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:10px;flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
+
+const COVERAGE_CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
+
+const COVERAGE_X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+
+const COVERAGE_DOLLAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:8px;flex-shrink:0;"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+
+/**
+ * Parse coverage card body content into structured parts.
+ * Expects the LLM to output:
+ * - A summary paragraph
+ * - A "What It Covers" list (items with green bullets)
+ * - A "What It Doesn't Cover" list (items with red bullets)
+ * - An optional cost note paragraph (starts with "Cost:" or contains cost/price info)
+ */
+function parseCoverageCardContent(bodyContent: string): {
+  summary: string;
+  covers: string[];
+  doesNotCover: string[];
+  costNote: string;
+} {
+  const summary: string[] = [];
+  const covers: string[] = [];
+  const doesNotCover: string[] = [];
+  let costNote = "";
+  let currentList: "covers" | "doesNotCover" | null = null;
+
+  // Split into meaningful chunks by HTML tags
+  const parts = bodyContent.split(/(?=<(?:p|ul|ol|h3|li)[\s>])/i).filter(p => p.trim());
+
+  for (const part of parts) {
+    const stripped = part.replace(/<[^>]*>/g, "").trim();
+    if (!stripped) continue;
+
+    // Detect "What It Covers" heading
+    if (/<h3[^>]*>/i.test(part) && /what\s+it\s+covers/i.test(stripped)) {
+      currentList = "covers";
+      continue;
+    }
+    // Detect "What It Doesn't Cover" heading
+    if (/<h3[^>]*>/i.test(part) && /what\s+it\s+(doesn.?t|does\s+not)\s+cover/i.test(stripped)) {
+      currentList = "doesNotCover";
+      continue;
+    }
+    // Detect cost note
+    if (/^\s*<p[^>]*>/i.test(part) && /^\$?\s*cost/i.test(stripped)) {
+      costNote = stripped;
+      continue;
+    }
+
+    // List items
+    if (/<li[^>]*>/i.test(part)) {
+      const items = part.match(/<li[^>]*>(.*?)<\/li>/gi) || [];
+      for (const item of items) {
+        const text = item.replace(/<[^>]*>/g, "").trim();
+        if (!text) continue;
+        if (currentList === "covers") covers.push(text);
+        else if (currentList === "doesNotCover") doesNotCover.push(text);
+      }
+      continue;
+    }
+
+    // If we're in a list context and see a paragraph, treat as list item
+    if (currentList && /<p[^>]*>/i.test(part)) {
+      const text = stripped;
+      if (currentList === "covers") covers.push(text);
+      else doesNotCover.push(text);
+      continue;
+    }
+
+    // Otherwise it's summary text (before any list starts)
+    if (!currentList) {
+      summary.push(stripped);
+    }
+  }
+
+  return {
+    summary: summary.join(" "),
+    covers,
+    doesNotCover,
+    costNote,
+  };
+}
+
+/**
+ * The styled HTML wrapper for a Coverage Card section.
+ * Blue gradient header bar with icon, summary paragraph, two-column covers/doesn't-cover
+ * with green/red bullet icons, and an optional light blue cost callout box.
+ */
+function wrapCoverageCard(innerContent: string, headingText: string): string {
+  const cleanHeading = headingText.replace(/<[^>]*>/g, "").trim();
+  const { summary, covers, doesNotCover, costNote } = parseCoverageCardContent(innerContent);
+
+  let html = `<div style="border-radius: 12px; overflow: hidden; margin: 24px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08);" data-template="coverage-card">`;
+
+  // Blue header bar
+  html += `\n<div style="background: linear-gradient(135deg, #3B82F6, #2563EB); padding: 16px 24px; display: flex; align-items: center;">`;
+  html += `${COVERAGE_DOC_SVG}<strong style="color: white; font-size: 1.15em;">${cleanHeading}</strong>`;
+  html += `</div>`;
+
+  // Body content area
+  html += `\n<div style="padding: 24px 28px; background: white;">`;
+
+  // Summary paragraph
+  if (summary) {
+    html += `\n<p style="margin: 0 0 20px 0; color: #374151; line-height: 1.6;">${summary}</p>`;
+  }
+
+  // Two-column covers / doesn't cover
+  if (covers.length > 0 || doesNotCover.length > 0) {
+    html += `\n<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px;">`;
+
+    // What It Covers column
+    html += `\n<div>`;
+    html += `\n<p style="margin: 0 0 12px 0; display: flex; align-items: center;">${COVERAGE_CHECK_SVG}<strong style="color: #374151;">What It Covers</strong></p>`;
+    for (const item of covers) {
+      html += `\n<p style="margin: 0 0 8px 0; padding-left: 4px; color: #374151; line-height: 1.5; display: flex; align-items: flex-start;"><span style="color: #16A34A; margin-right: 8px; font-size: 1.2em; line-height: 1;">&#8226;</span>${item}</p>`;
+    }
+    html += `\n</div>`;
+
+    // What It Doesn't Cover column
+    html += `\n<div>`;
+    html += `\n<p style="margin: 0 0 12px 0; display: flex; align-items: center;">${COVERAGE_X_SVG}<strong style="color: #374151;">What It Doesn't Cover</strong></p>`;
+    for (const item of doesNotCover) {
+      html += `\n<p style="margin: 0 0 8px 0; padding-left: 4px; color: #374151; line-height: 1.5; display: flex; align-items: flex-start;"><span style="color: #DC2626; margin-right: 8px; font-size: 1.2em; line-height: 1;">&#8226;</span>${item}</p>`;
+    }
+    html += `\n</div>`;
+
+    html += `\n</div>`; // close grid
+  }
+
+  // Cost callout box
+  if (costNote) {
+    html += `\n<div style="background-color: #EFF6FF; border-radius: 8px; padding: 14px 20px; margin-top: 4px; display: flex; align-items: flex-start;">`;
+    html += `${COVERAGE_DOLLAR_SVG}<p style="margin: 0; color: #1E40AF; line-height: 1.5;"><strong style="color: #1E40AF;">Cost:</strong> ${costNote.replace(/^\$?\s*cost:?\s*/i, "")}</p>`;
+    html += `</div>`;
+  }
+
+  html += `\n</div>`; // close body
+  html += `\n</div>`; // close outer
+
+  return html;
+}
+
+/**
  * Normalize a heading string for comparison.
  */
 function normalizeHeading(text: string): string {
@@ -137,12 +286,13 @@ const HEADING_ALIASES: Record<string, string[]> = {
   "summary": ["summary", "conclusion", "final thoughts", "in summary", "wrapping up", "key takeaways summary", "to sum up", "article summary"],
   "pro-tip": ["pro tip", "expert tip", "quick tip", "insider tip", "bonus tip", "helpful tip"],
   "use-cases": ["use cases", "common scenarios", "who this applies to", "when to use this", "common use cases", "typical scenarios", "who should consider this", "who benefits", "scenarios"],
+  "coverage-card": ["coverage", "what it covers", "coverage overview", "plan coverage", "benefits coverage", "coverage details", "hospital insurance", "medical insurance"],
 };
 
 interface TemplateSectionInfo {
   heading: string;
   level: "h2" | "h3";
-  templateType: "pro-tip" | "summary" | "use-cases";
+  templateType: "pro-tip" | "summary" | "use-cases" | "coverage-card";
   /** The 0-based index of this section among all same-level sections in the outline */
   outlineIndex: number;
 }
@@ -356,6 +506,8 @@ export function applyTemplateStyles(html: string, sections: OutlineSection[]): s
       wrappedSection = wrapSummary(bodyContent);
     } else if (section.templateType === "use-cases") {
       wrappedSection = wrapUseCases(bodyContent);
+    } else if (section.templateType === "coverage-card") {
+      wrappedSection = wrapCoverageCard(bodyContent, matchedHeading.text);
     } else {
       continue;
     }

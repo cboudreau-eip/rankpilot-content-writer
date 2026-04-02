@@ -791,4 +791,12 @@
 ## URL Integrity Rule in System Prompt
 - [x] Add URL integrity rule to article generation system prompt (no line breaks/spaces in href URLs)
 - [x] Add same rule to section regeneration system prompt
+- [x] Save checkpoint
+
+## Coverage Card Template Type
+- [x] Investigate existing template type system (how templates are defined, prompted, post-processed)
+- [x] Add coverage-card to outline generator template type options
+- [x] Add coverage-card prompt instructions to article generation system prompt
+- [x] Build coverage-card post-processor (styled HTML: blue header, summary, two-column covers/doesn't-cover, cost callout)
+- [x] Write tests for coverage-card template (12 tests passing)
 - [ ] Save checkpoint

@@ -2273,8 +2273,13 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
             text += `[AI INSTRUCTIONS FOR THIS SECTION: ${section.aiInstructions.trim()}]\n`;
           }
           if (section.templateType) {
-            text += `[TEMPLATE TYPE: ${section.templateType}] — You MUST output the <h2> heading for this section as normal (e.g., <h2>${section.heading}</h2>), then write ONLY clean body content (1-3 concise paragraphs). Do NOT add any special formatting, icons, borders, or wrapper divs. The styled container will be added automatically in post-processing.
+            if (section.templateType === "coverage-card") {
+              text += `[TEMPLATE TYPE: coverage-card] — You MUST output the <h2> heading for this section as normal (e.g., <h2>${section.heading}</h2>). Then write a 1-2 sentence summary paragraph. Then write <h3>What It Covers</h3> followed by a <ul> list of 3-6 covered items. Then write <h3>What It Doesn't Cover</h3> followed by a <ul> list of 3-6 excluded items. End with a <p> starting with "Cost:" summarizing pricing. Do NOT add any special formatting, icons, borders, or wrapper divs — the styled card is added automatically in post-processing.
 `;
+            } else {
+              text += `[TEMPLATE TYPE: ${section.templateType}] — You MUST output the <h2> heading for this section as normal (e.g., <h2>${section.heading}</h2>), then write ONLY clean body content (1-3 concise paragraphs). Do NOT add any special formatting, icons, borders, or wrapper divs. The styled container will be added automatically in post-processing.
+`;
+            }
           }
           if (section.backgroundColor && !section.templateType) {
             text += `[BACKGROUND COLOR: Wrap this entire section (heading + content) in a <div> with style="background-color: ${section.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]
@@ -2385,6 +2390,7 @@ ${formatInstructions}
 - TEMPLATE SECTIONS: Some sections may include a [TEMPLATE TYPE: ...] directive. For ALL template sections, you MUST output the <h2> heading as normal. Do NOT add any special formatting, icons, borders, or wrapper divs — styled containers are added automatically in post-processing.
   * [TEMPLATE TYPE: pro-tip] or [TEMPLATE TYPE: summary]: Write ONLY clean body content (1-3 concise paragraphs) after the heading.
   * [TEMPLATE TYPE: use-cases]: Write a brief intro paragraph (1-2 sentences), then 3-5 use cases. Each use case MUST be formatted as: <p><strong>Use Case Title</strong></p><p>Description in 1-2 sentences.</p>. Do NOT use bullet points, numbered lists, or <h3> sub-headings for use cases. Each use case must be a separate <strong>-paragraph pair.
+  * [TEMPLATE TYPE: coverage-card]: Write a 1-2 sentence summary paragraph first. Then write <h3>What It Covers</h3> followed by a <ul> list of 3-6 covered items (concise phrases, not full sentences). Then write <h3>What It Doesn't Cover</h3> followed by a <ul> list of 3-6 excluded items. End with a <p> that starts with "Cost:" summarizing key pricing info (premiums, deductibles, copays). The styled card with blue header, two-column layout, and cost callout box is added automatically in post-processing.
 - BACKGROUND COLOR SECTIONS: Some sections may include a [BACKGROUND COLOR: ...] directive. When present, you MUST wrap the entire section content (including the heading) inside a <div> with the exact inline style specified. The heading should be INSIDE the div. This creates a visually highlighted box for that section. Example: <div style="background-color: #EFF6FF; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"><h2>Key Takeaways</h2><ul><li>Point 1</li><li>Point 2</li></ul></div>
 - TABLE FORMAT RULES: When AI instructions request a table or comparison table, you MUST output a proper HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags. NEVER use markdown table syntax (pipes |). The table must have a <thead> with <th> header cells and a <tbody> with <td> data cells. Always include at least 3 data rows. Example format:
   <table><thead><tr><th>Feature</th><th>Option A</th><th>Option B</th></tr></thead><tbody><tr><td>Price</td><td>$10</td><td>$20</td></tr></tbody></table>

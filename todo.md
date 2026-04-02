@@ -799,4 +799,8 @@
 - [x] Add coverage-card prompt instructions to article generation system prompt
 - [x] Build coverage-card post-processor (styled HTML: blue header, summary, two-column covers/doesn't-cover, cost callout)
 - [x] Write tests for coverage-card template (12 tests passing)
+- [x] Save checkpoint
+
+## Logo Navigation
+- [x] Make RankPilot logo in sidebar clickable to navigate to dashboard
 - [ ] Save checkpoint

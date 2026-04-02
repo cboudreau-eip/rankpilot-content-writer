@@ -149,14 +149,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           className={`fixed top-0 left-0 bottom-0 z-50 bg-card border-r border-sidebar-border flex flex-col transition-all duration-200 ${sidebarCollapsed ? "w-[68px]" : "w-[205px]"}`}
         >
           {/* Logo */}
-          <div className={`flex items-center gap-3 px-5 py-6 ${sidebarCollapsed ? "justify-center px-0" : ""}`}>
+          <Link href="/" className={`flex items-center gap-3 px-5 py-6 cursor-pointer hover:opacity-80 transition-opacity no-underline ${sidebarCollapsed ? "justify-center px-0" : ""}`}>
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-md shrink-0">
               <Rocket className="w-5 h-5 text-white" />
             </div>
             {!sidebarCollapsed && (
               <span className="text-xl font-extrabold tracking-tight text-foreground">RankPilot</span>
             )}
-          </div>
+          </Link>
 
           {/* Nav */}
           <nav className="flex-1 overflow-y-auto px-3 pb-4">

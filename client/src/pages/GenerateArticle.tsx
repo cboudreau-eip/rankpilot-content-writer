@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { ResearchFindings } from "@shared/research-types";
 import { useLocation } from "wouter";
 import { useActiveProject } from "@/components/AppLayout";
@@ -425,6 +425,33 @@ export default function GenerateArticle() {
 
   const { activeProject } = useActiveProject();
   const activeProjectId = activeProject?.id ?? null;
+
+  // Check for entity analysis outline data passed via sessionStorage
+  useEffect(() => {
+    const raw = sessionStorage.getItem("entityOutlineData");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      sessionStorage.removeItem("entityOutlineData");
+      if (data.title && data.sections) {
+        setOutlineTitle(data.title);
+        setSections(data.sections);
+        if (data.outlineId) setOutlineId(data.outlineId);
+        if (data.keyword) setKeyword(data.keyword);
+        setStep("outline");
+        // Expand all sections
+        const allIds = new Set<string>();
+        data.sections.forEach((s: OutlineSection) => {
+          allIds.add(s.id);
+          s.subSections?.forEach((sub: OutlineSection) => allIds.add(sub.id));
+        });
+        setExpandedSections(allIds);
+        toast.success("Outline loaded from entity analysis!");
+      }
+    } catch {
+      sessionStorage.removeItem("entityOutlineData");
+    }
+  }, []);
 
   // Fetch ICP profiles for the active project
   const { data: icpProfiles = [] } = trpc.icpProfiles.list.useQuery(

@@ -24,6 +24,7 @@ import {
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
   FileCheck, Info, ExternalLink, Repeat2, MoreVertical, Download, Scan, Image, ImagePlus, Trash2, RefreshCw, Palette,
+  ListTree, FolderKanban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,10 @@ import type { EntityAnalysisResult } from "@shared/entity-types";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { useActiveProject } from "@/components/AppLayout";
 
 /**
  * Robust find-and-replace in HTML content.
@@ -1185,6 +1190,8 @@ export default function ArticleEditor() {
               });
             }}
             isApplying={applyEntityFixesMutation.isPending}
+            articleKeyword={article?.keyword || keyword}
+            articleProjectId={article?.projectId}
           />
         )}
 
@@ -2078,11 +2085,15 @@ function EntityPanel({
   onClose,
   onApplyFixes,
   isApplying,
+  articleKeyword,
+  articleProjectId,
 }: {
   result: EntityAnalysisResult;
   onClose: () => void;
   onApplyFixes?: (selectedFixes: string[], primaryEntity: string) => void;
   isApplying?: boolean;
+  articleKeyword?: string;
+  articleProjectId?: number;
 }) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     entities: true,
@@ -2090,6 +2101,7 @@ function EntityPanel({
     fixes: true,
   });
   const [selectedFixes, setSelectedFixes] = useState<Set<number>>(new Set());
+  const [showOutlineDialog, setShowOutlineDialog] = useState(false);
 
   const toggleFix = (index: number) => {
     setSelectedFixes((prev) => {
@@ -2398,7 +2410,7 @@ function EntityPanel({
 
       {/* GEO Extractability */}
       {result.geoExtractability && (
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 border-b border-border/40">
           <p className="text-[10px] font-bold text-foreground mb-1.5 flex items-center gap-1">
             <Bot className="w-3 h-3 text-purple-600" />
             GEO/AI Extractability
@@ -2424,6 +2436,30 @@ function EntityPanel({
           </div>
           <p className="text-[10px] text-muted-foreground">{result.geoExtractability.evaluation}</p>
         </div>
+      )}
+
+      {/* Generate Outline from Analysis */}
+      <div className="px-4 py-3">
+        <button
+          onClick={() => setShowOutlineDialog(true)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-semibold hover:from-indigo-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md"
+        >
+          <ListTree className="w-4 h-4" />
+          Generate Outline from Analysis
+        </button>
+        <p className="text-[9px] text-muted-foreground mt-1.5 text-center">
+          Create a new, optimized outline based on these findings
+        </p>
+      </div>
+
+      {/* Outline Generation Dialog */}
+      {showOutlineDialog && (
+        <GenerateOutlineFromAnalysisDialog
+          result={result}
+          articleKeyword={articleKeyword}
+          articleProjectId={articleProjectId}
+          onClose={() => setShowOutlineDialog(false)}
+        />
       )}
     </div>
   );
@@ -2605,3 +2641,270 @@ function ScanPanelSkeleton({
   );
 }
 
+
+
+/** Dialog for generating an outline from entity analysis results */
+function GenerateOutlineFromAnalysisDialog({
+  result,
+  articleKeyword,
+  articleProjectId,
+  onClose,
+}: {
+  result: EntityAnalysisResult;
+  articleKeyword?: string;
+  articleProjectId?: number;
+  onClose: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const { projects } = useActiveProject();
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(articleProjectId ?? null);
+  const [keyword, setKeyword] = useState(articleKeyword || result.primaryEntity?.name || "");
+  const [targetWordCount, setTargetWordCount] = useState("2000");
+  const [numSections, setNumSections] = useState("8");
+  const [numFaqs, setNumFaqs] = useState("5");
+
+  // Fetch brand voices and ICP profiles for the selected project
+  const { data: brandVoices = [] } = trpc.brandVoices.list.useQuery(
+    { projectId: selectedProjectId! },
+    { enabled: !!selectedProjectId }
+  );
+  const { data: icpProfiles = [] } = trpc.icpProfiles.list.useQuery(
+    { projectId: selectedProjectId! },
+    { enabled: !!selectedProjectId }
+  );
+
+  const [selectedBrandVoiceId, setSelectedBrandVoiceId] = useState<number | null>(null);
+  const [selectedIcpId, setSelectedIcpId] = useState<number | null>(null);
+
+  // Auto-select defaults when brand voices / ICPs load
+  useEffect(() => {
+    if (brandVoices.length > 0 && !selectedBrandVoiceId) {
+      const defaultVoice = brandVoices.find((v: any) => v.isDefault === 1) || brandVoices[0];
+      if (defaultVoice) setSelectedBrandVoiceId(defaultVoice.id);
+    }
+  }, [brandVoices, selectedBrandVoiceId]);
+
+  useEffect(() => {
+    if (icpProfiles.length > 0 && !selectedIcpId) {
+      const defaultIcp = icpProfiles.find((p: any) => p.isDefault === 1) || icpProfiles[0];
+      if (defaultIcp) setSelectedIcpId(defaultIcp.id);
+    }
+  }, [icpProfiles, selectedIcpId]);
+
+  const generateMutation = trpc.entity.generateOutlineFromAnalysis.useMutation({
+    onSuccess: (data: any) => {
+      if (data) {
+        toast.success("Outline generated from analysis! Redirecting to review...");
+        // Navigate to GenerateArticle page with the outline data stored in sessionStorage
+        sessionStorage.setItem("entityOutlineData", JSON.stringify({
+          outlineId: data.id,
+          title: data.title,
+          sections: data.sections,
+          keyword,
+          projectId: selectedProjectId,
+        }));
+        navigate("/generate?fromEntityAnalysis=1");
+        onClose();
+      }
+    },
+    onError: (err: any) => {
+      const msg = err.message || "";
+      if (/overloaded|529|rate.?limit|too many|capacity/i.test(msg)) {
+        toast.error("The AI service is currently overloaded. Please wait a moment and try again.");
+      } else {
+        toast.error(msg || "Failed to generate outline from analysis");
+      }
+    },
+  });
+
+  const handleGenerate = () => {
+    if (!selectedProjectId) {
+      toast.error("Please select a project");
+      return;
+    }
+    if (!keyword.trim()) {
+      toast.error("Please enter a keyword");
+      return;
+    }
+
+    generateMutation.mutate({
+      entityAnalysis: result,
+      keyword: keyword.trim(),
+      projectId: selectedProjectId,
+      brandVoiceId: selectedBrandVoiceId ?? undefined,
+      icpProfileId: selectedIcpId ?? undefined,
+      targetWordCount: parseInt(targetWordCount) || 2000,
+      numSections: parseInt(numSections) || 8,
+      numFaqs: parseInt(numFaqs) || 5,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ListTree className="w-5 h-5 text-indigo-600" />
+            Generate Outline from Analysis
+          </DialogTitle>
+          <DialogDescription>
+            Create a fresh, optimized outline based on the entity and salience analysis findings. The outline will address every weakness identified.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Project Selector */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold flex items-center gap-1.5">
+              <FolderKanban className="w-3.5 h-3.5 text-muted-foreground" />
+              Project
+            </Label>
+            <Select
+              value={selectedProjectId?.toString() || ""}
+              onValueChange={(v) => {
+                setSelectedProjectId(parseInt(v));
+                setSelectedBrandVoiceId(null);
+                setSelectedIcpId(null);
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a project..." />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Keyword */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Target Keyword</Label>
+            <Input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="e.g., Medicare Supplement Plans"
+              className="h-9"
+            />
+          </div>
+
+          {/* Brand Voice & ICP row */}
+          {selectedProjectId && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Brand Voice</Label>
+                <Select
+                  value={selectedBrandVoiceId?.toString() || ""}
+                  onValueChange={(v) => setSelectedBrandVoiceId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {brandVoices.map((v: any) => (
+                      <SelectItem key={v.id} value={v.id.toString()}>
+                        {v.name} {v.isDefault === 1 ? "(default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">ICP Profile</Label>
+                <Select
+                  value={selectedIcpId?.toString() || ""}
+                  onValueChange={(v) => setSelectedIcpId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {icpProfiles.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.name} {p.isDefault === 1 ? "(default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Settings row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Word Count</Label>
+              <Input
+                type="number"
+                value={targetWordCount}
+                onChange={(e) => setTargetWordCount(e.target.value)}
+                className="h-9"
+                min={500}
+                max={10000}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Sections</Label>
+              <Input
+                type="number"
+                value={numSections}
+                onChange={(e) => setNumSections(e.target.value)}
+                className="h-9"
+                min={3}
+                max={20}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">FAQs</Label>
+              <Input
+                type="number"
+                value={numFaqs}
+                onChange={(e) => setNumFaqs(e.target.value)}
+                className="h-9"
+                min={0}
+                max={15}
+              />
+            </div>
+          </div>
+
+          {/* Analysis summary */}
+          <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-3">
+            <p className="text-[11px] font-semibold text-indigo-800 mb-1">Analysis Summary</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-indigo-700">
+              <span>Primary Entity: <strong>{result.advancedRecommendations?.refinedPrimaryEntity || result.primaryEntity?.name}</strong></span>
+              <span>Overall Score: <strong>{result.scores?.overallScore}/100</strong></span>
+              <span>Entities Found: <strong>{result.entities?.length || 0}</strong></span>
+              <span>Fixes to Address: <strong>{result.actionableFixes?.length || 0}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={generateMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleGenerate}
+            disabled={generateMutation.isPending || !selectedProjectId || !keyword.trim()}
+            className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600"
+          >
+            {generateMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                Generating Outline...
+              </>
+            ) : (
+              <>
+                <ListTree className="w-4 h-4 mr-1.5" />
+                Generate Outline
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -819,3 +819,13 @@
 - [x] Generate blue/purple RankPilot favicon
 - [x] Upload and update favicon in project
 - [x] Save checkpoint
+
+## Generate Outline from Entity Analysis
+- [x] Review existing entity analyzer panel and outline generation code
+- [x] Create backend tRPC procedure: entity.generateOutlineFromAnalysis (takes entity/salience analysis data, project ID, generates fresh outline via LLM)
+- [x] Include project Brand Voice and ICP in the outline generation prompt
+- [x] Build frontend: "Generate Outline from Analysis" button in Entity Analyzer panel (Article Editor)
+- [x] Build frontend: Project selector dialog with Brand Voice/ICP auto-populated
+- [x] Navigate user directly to Outline Review (Step 2) with pre-built outline
+- [x] Write vitest tests for the new procedure
+- [ ] Save checkpoint

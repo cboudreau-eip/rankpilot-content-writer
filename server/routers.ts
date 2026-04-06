@@ -3032,6 +3032,364 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           totalFixes: input.selectedFixes.length,
         };
       }),
+
+    /** Generate a fresh outline from entity/salience analysis results */
+    generateOutlineFromAnalysis: publicProcedure
+      .input(z.object({
+        /** The entity analysis result data */
+        entityAnalysis: z.object({
+          primaryEntity: z.object({
+            name: z.string(),
+            type: z.string(),
+            justification: z.string(),
+          }),
+          entities: z.array(z.object({
+            name: z.string(),
+            type: z.string(),
+            prominence: z.enum(["High", "Medium", "Low"]),
+            rationale: z.string(),
+          })),
+          salienceStructure: z.object({
+            dominanceGap: z.object({ grade: z.string(), description: z.string() }),
+            earlyReinforcement: z.object({
+              inFirstParagraph: z.boolean(),
+              inHeading: z.boolean(),
+              withinFirst120Words: z.boolean(),
+              summary: z.string(),
+            }),
+            entityDrift: z.object({ level: z.string(), description: z.string() }),
+          }),
+          supportingCoverage: z.object({
+            grade: z.string(),
+            relatedSubEntities: z.array(z.string()),
+            missingComponents: z.array(z.string()),
+            evaluation: z.string(),
+          }),
+          geoExtractability: z.object({
+            grade: z.string(),
+            hasConcisenDefinitions: z.boolean(),
+            hasClearQuestionAnswering: z.boolean(),
+            hasShortAnswerSummary: z.boolean(),
+            hasCleanHeadings: z.boolean(),
+            evaluation: z.string(),
+          }),
+          scores: z.object({
+            primaryEntityClarity: z.number(),
+            entityFocus: z.number(),
+            supportingCoverage: z.number(),
+            geoExtractability: z.number(),
+            overallScore: z.number(),
+          }),
+          actionableFixes: z.array(z.string()),
+          advancedRecommendations: z.object({
+            refinedPrimaryEntity: z.string(),
+            refinedEntityRationale: z.string(),
+            suggestedTitleRewrite: z.string(),
+            missingSupportingEntities: z.array(z.string()),
+          }),
+        }),
+        /** Optional semantic analysis result */
+        semanticAnalysis: z.object({
+          targetKeyword: z.string(),
+          coverage: z.object({
+            coveredTopics: z.array(z.string()),
+            missingTopics: z.array(z.string()),
+            expectedTopics: z.array(z.string()),
+            evaluation: z.string(),
+          }),
+          semanticFixes: z.array(z.string()),
+        }).optional(),
+        /** The keyword to build the outline around */
+        keyword: z.string().min(1),
+        /** Project to pull Brand Voice and ICP from */
+        projectId: z.number(),
+        /** Optional brand voice override */
+        brandVoiceId: z.number().optional(),
+        /** Optional ICP profile override */
+        icpProfileId: z.number().optional(),
+        /** Target word count for the planned article */
+        targetWordCount: z.number().optional(),
+        /** Number of main sections */
+        numSections: z.number().optional(),
+        /** Number of FAQ items */
+        numFaqs: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const ea = input.entityAnalysis;
+        const sa = input.semanticAnalysis;
+
+        // ---- Build Entity Analysis Context ----
+        const entityContext = `
+=== ENTITY & SALIENCE ANALYSIS RESULTS ===
+This outline must be built from scratch to address every weakness found below.
+
+PRIMARY ENTITY: "${ea.advancedRecommendations.refinedPrimaryEntity || ea.primaryEntity.name}" (${ea.primaryEntity.type})
+Justification: ${ea.primaryEntity.justification}
+${ea.advancedRecommendations.refinedPrimaryEntity !== ea.primaryEntity.name ? `Refined Entity Rationale: ${ea.advancedRecommendations.refinedEntityRationale}` : ''}
+
+SUGGESTED TITLE: ${ea.advancedRecommendations.suggestedTitleRewrite}
+
+SCORES (out of 100):
+- Primary Entity Clarity: ${ea.scores.primaryEntityClarity}
+- Entity Focus: ${ea.scores.entityFocus}
+- Supporting Coverage: ${ea.scores.supportingCoverage}
+- GEO Extractability: ${ea.scores.geoExtractability}
+- Overall: ${ea.scores.overallScore}
+
+SALIENCE ISSUES TO FIX:
+- Dominance Gap: ${ea.salienceStructure.dominanceGap.grade} — ${ea.salienceStructure.dominanceGap.description}
+- Early Reinforcement: ${ea.salienceStructure.earlyReinforcement.summary}
+  (In first paragraph: ${ea.salienceStructure.earlyReinforcement.inFirstParagraph}, In heading: ${ea.salienceStructure.earlyReinforcement.inHeading}, Within first 120 words: ${ea.salienceStructure.earlyReinforcement.withinFirst120Words})
+- Entity Drift: ${ea.salienceStructure.entityDrift.level} — ${ea.salienceStructure.entityDrift.description}
+
+SUPPORTING COVERAGE: ${ea.supportingCoverage.grade}
+- Existing sub-entities: ${ea.supportingCoverage.relatedSubEntities.join(', ') || 'None identified'}
+- Missing components: ${ea.supportingCoverage.missingComponents.join(', ') || 'None'}
+- Missing supporting entities to ADD: ${ea.advancedRecommendations.missingSupportingEntities.join(', ')}
+
+GEO/AI EXTRACTABILITY: ${ea.geoExtractability.grade}
+- ${ea.geoExtractability.evaluation}
+- Needs concise definitions: ${!ea.geoExtractability.hasConcisenDefinitions}
+- Needs clear Q&A format: ${!ea.geoExtractability.hasClearQuestionAnswering}
+- Needs short answer summary: ${!ea.geoExtractability.hasShortAnswerSummary}
+- Needs clean headings: ${!ea.geoExtractability.hasCleanHeadings}
+
+ALL ENTITIES DETECTED:
+${ea.entities.map(e => `- ${e.name} (${e.type}, ${e.prominence}): ${e.rationale}`).join('\n')}
+
+ACTIONABLE FIXES THE OUTLINE MUST ADDRESS:
+${ea.actionableFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+`;
+
+        // ---- Build Semantic Analysis Context (if available) ----
+        let semanticContext = '';
+        if (sa) {
+          semanticContext = `
+=== SEMANTIC ANALYSIS RESULTS ===
+Target Keyword: ${sa.targetKeyword}
+
+TOPIC COVERAGE GAPS — the new outline MUST cover these missing topics:
+${sa.coverage.missingTopics.map(t => `- ${t}`).join('\n') || '- No missing topics identified'}
+
+EXPECTED TOPICS for comprehensive coverage:
+${sa.coverage.expectedTopics.map(t => `- ${t}`).join('\n')}
+
+SEMANTIC FIXES TO ADDRESS:
+${sa.semanticFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+`;
+        }
+
+        // ---- Fetch Brand Voice & ICP (reuse existing logic) ----
+        const project = await getProjectById(input.projectId);
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = input.brandVoiceId
+          ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
+          : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+        let icpSection = "";
+        const formatList = (items: string[] | null | undefined, label: string): string => {
+          if (!items?.length) return '';
+          return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+        };
+
+        if (input.icpProfileId) {
+          const icpProfile = await getICPById(input.icpProfileId);
+          if (icpProfile) {
+            const demographics = icpProfile.demographics;
+            const demoLines = demographics ? [
+              demographics.ageRange ? `Age Range: ${demographics.ageRange}` : '',
+              demographics.location ? `Location: ${demographics.location}` : '',
+              demographics.income ? `Income: ${demographics.income}` : '',
+              demographics.education ? `Education: ${demographics.education}` : '',
+              demographics.occupation ? `Occupation: ${demographics.occupation}` : '',
+              demographics.other ? `Other: ${demographics.other}` : '',
+            ].filter(Boolean).join('\n') : '';
+
+            icpSection = `
+=== IDEAL CUSTOMER PROFILE (ICP) ===
+TARGET AUDIENCE: ${icpProfile.name}
+${icpProfile.description ? `Who They Are: ${icpProfile.description}` : ''}
+${demoLines ? `\nDEMOGRAPHICS:\n${demoLines}` : ''}
+
+${formatList(icpProfile.painPoints, 'PAIN POINTS (structure H2 headings around these)')}
+${formatList(icpProfile.goals, 'GOALS (address these in content sections)')}
+${formatList(icpProfile.objections, 'OBJECTIONS (create FAQ questions from these)')}
+${icpProfile.searchBehavior ? `SEARCH BEHAVIOR: ${icpProfile.searchBehavior}\n` : ''}
+${formatList(icpProfile.contentPreferences, 'CONTENT PREFERENCES')}
+`;
+          }
+        } else if (project?.icpPrimaryName) {
+          icpSection = `
+=== IDEAL CUSTOMER PROFILE (ICP) ===
+TARGET AUDIENCE: ${project.icpPrimaryName}
+${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}
+
+${formatList(project.icpPains as string[] | null, 'PAIN POINTS (structure H2 headings around these)')}
+${formatList(project.icpGoals as string[] | null, 'GOALS (address these in content sections)')}
+${formatList(project.icpObjections as string[] | null, 'OBJECTIONS (create FAQ questions from these)')}
+${formatList(project.icpDecisionTriggers as string[] | null, 'DECISION TRIGGERS')}
+${formatList(project.icpTrustSignals as string[] | null, 'TRUST SIGNALS')}
+`;
+        }
+
+        let brandVoiceSection = "";
+        if (brandVoice) {
+          const perspectiveMap: Record<string, string> = {
+            first: "First person (we/our/us)",
+            second: "Second person (you/your)",
+            third: "Third person (they/their)",
+          };
+          const styleMap: Record<string, string> = {
+            short: "Concise, punchy sentences. Paragraphs of 1-3 sentences only.",
+            mixed: "Varied sentence lengths with natural rhythm. Paragraphs of 2-5 sentences only.",
+            detailed: "Detailed, explanatory sentences. Paragraphs of 3-6 sentences maximum.",
+          };
+
+          const AVOID_LABELS: Record<string, string> = {
+            jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+            fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+            cliches: "Industry clichés", passive: "Passive voice",
+            buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+            unverified: "Unverified statistics", competitor: "Competitor comparisons",
+          };
+          let avoidItems: string[] = [];
+          const avoidList = brandVoice.avoidList || "";
+          if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+            const parts = avoidList.split("|");
+            for (const part of parts) {
+              if (part.startsWith("PRESETS:")) {
+                const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+                avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+              } else if (part.startsWith("CUSTOM:")) {
+                const custom = part.replace("CUSTOM:", "").trim();
+                if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+              }
+            }
+          } else if (avoidList) {
+            avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+          }
+
+          brandVoiceSection = `
+=== BRAND VOICE GUIDELINES ===
+Voice Name: ${brandVoice.name}
+TONE TRAITS: ${brandVoice.toneTraits || 'Professional'}
+WRITING PERSPECTIVE: ${perspectiveMap[brandVoice.perspective] || brandVoice.perspective}
+SENTENCE STYLE: ${styleMap[brandVoice.sentenceStyle] || brandVoice.sentenceStyle}
+${avoidItems.length > 0 ? `AVOID:\n${avoidItems.map(item => `- ${item}`).join('\n')}` : ''}
+`;
+        }
+
+        const currentYear = new Date().getFullYear();
+        const numSections = input.numSections ?? 8;
+        const numFaqs = input.numFaqs ?? 5;
+        const targetWordCount = input.targetWordCount ?? 2000;
+
+        const systemPrompt = `You are an expert SEO content strategist. You are given the results of an entity/salience analysis (and optionally a semantic analysis) of an existing article. Your job is to create a BRAND NEW outline from scratch that would produce a significantly better article — one that fixes every weakness identified in the analysis.
+
+IMPORTANT — CURRENT DATE CONTEXT: The current year is ${currentYear}. All references to dates, years, regulations, trends, and time-sensitive topics MUST treat ${currentYear} as the present year.
+
+${entityContext}
+${semanticContext}
+${icpSection}
+${brandVoiceSection}
+
+OUTLINE REQUIREMENTS:
+1. Build the outline PURELY from the analysis findings — do NOT replicate the original article's structure
+2. The primary entity "${ea.advancedRecommendations.refinedPrimaryEntity || ea.primaryEntity.name}" MUST be dominant: appear in the title, first section, and reinforced throughout
+3. Create ${numSections} main H2 sections plus a FAQ section with ${numFaqs} questions
+4. Include an introduction that establishes the primary entity within the first 120 words
+5. Every missing supporting entity and missing component from the analysis MUST have a dedicated section or subsection
+6. Address ALL actionable fixes from the analysis through the outline structure
+7. If GEO extractability was weak, include sections with concise definitions, clear Q&A format, and short answer summaries
+8. If semantic coverage had gaps, ensure the missing topics are covered
+9. Target word count: ${targetWordCount} words
+10. Include a conclusion section last
+11. Each section should have 2-4 specific, actionable key points — not generic filler
+
+Return a JSON object with:
+- "title": A compelling, SEO-optimized article title featuring the primary entity
+- "sections": An array of sections, each with:
+  - "id": A unique string ID (format "s1", "s2", etc.)
+  - "heading": The section heading text
+  - "type": "h2" for main sections
+  - "points": Array of 2-4 key points to cover
+  - "subSections": Array of sub-sections with same structure but type "h3"
+
+Return ONLY valid JSON, no markdown code blocks.`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate a new, improved outline for the keyword: "${input.keyword}" based on the entity/salience analysis findings provided.` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "article_outline_from_analysis",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "SEO-optimized article title" },
+                  sections: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        heading: { type: "string" },
+                        type: { type: "string", enum: ["h2", "h3"] },
+                        points: { type: "array", items: { type: "string" } },
+                        subSections: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string" },
+                              heading: { type: "string" },
+                              type: { type: "string", enum: ["h2", "h3"] },
+                              points: { type: "array", items: { type: "string" } },
+                            },
+                            required: ["id", "heading", "type", "points"],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ["id", "heading", "type", "points", "subSections"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["title", "sections"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const content = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const parsed = JSON.parse(content);
+
+        // Save the outline to the database
+        const outline = await createOutline({
+          title: parsed.title,
+          keyword: input.keyword,
+          sections: parsed.sections as OutlineSection[],
+          settings: {
+            contentType: "blog",
+            targetWordCount: input.targetWordCount,
+            numSections: input.numSections,
+            numFaqs: input.numFaqs,
+            additionalInstructions: `Generated from entity/salience analysis. Primary entity: ${ea.advancedRecommendations.refinedPrimaryEntity || ea.primaryEntity.name}`,
+          },
+          projectId: input.projectId,
+          userId: 1,
+        });
+
+        return outline;
+      }),
   }),
 
   grading: router({

@@ -813,4 +813,9 @@
 ## Login Bug Fix
 - [x] Debug why clicking Sign in does nothing on the login page (missing cookie-parser middleware)
 - [x] Fix the login form submission (added cookie-parser to Express server)
+- [x] Save checkpoint
+
+## Favicon Update
+- [x] Generate blue/purple RankPilot favicon
+- [x] Upload and update favicon in project
 - [ ] Save checkpoint

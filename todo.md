@@ -808,4 +808,9 @@
 ## Re-enable Custom Login
 - [x] Re-enable auth guard in App.tsx (redirect unauthenticated users to /login)
 - [x] Re-enable /login and /change-password routes
+- [x] Save checkpoint
+
+## Login Bug Fix
+- [x] Debug why clicking Sign in does nothing on the login page (missing cookie-parser middleware)
+- [x] Fix the login form submission (added cookie-parser to Express server)
 - [ ] Save checkpoint

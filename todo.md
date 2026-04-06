@@ -803,4 +803,9 @@
 
 ## Logo Navigation
 - [x] Make RankPilot logo in sidebar clickable to navigate to dashboard
+- [x] Save checkpoint
+
+## Re-enable Custom Login
+- [x] Re-enable auth guard in App.tsx (redirect unauthenticated users to /login)
+- [x] Re-enable /login and /change-password routes
 - [ ] Save checkpoint

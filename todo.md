@@ -921,3 +921,11 @@
 - [x] Add "Enable Grading" section to ContentScheduler Create Job form (toggle + Target Grade + Max Iterations)
 - [x] All 429 tests pass, 0 TypeScript errors
 - [x] Save checkpoint
+
+## Edit Scheduled Job
+- [x] Build EditJobDialog component pre-populated with all current job settings (schedule, article settings, auto-grade, keywords)
+- [x] Wire to scheduler.updateJob tRPC mutation
+- [x] Add "Edit" item to job list row dropdown menu (⋯) — appears on hover
+- [x] Add "Edit" button to job detail view header (alongside Run Now / Pause / Delete)
+- [x] 429 tests pass, 0 TypeScript errors
+- [x] Save checkpoint

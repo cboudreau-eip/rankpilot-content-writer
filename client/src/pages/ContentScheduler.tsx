@@ -32,6 +32,8 @@ import {
   ArrowRight,
   Settings2,
   History,
+  Pencil,
+  Save,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -87,6 +89,7 @@ export function SchedulerTab({ projectId }: { projectId: number }) {
 
 function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJob: (id: number) => void }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingJob, setEditingJob] = useState<any | null>(null);
   const utils = trpc.useUtils();
 
   const { data: jobs, isLoading } = trpc.scheduler.listJobs.useQuery({ projectId });
@@ -249,6 +252,10 @@ function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJo
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={() => setEditingJob(job)}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => runNowMutation.mutate({ jobId: job.id })}>
                           <Zap className="w-4 h-4 mr-2" />
                           Run Now
@@ -285,6 +292,16 @@ function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJo
             </Card>
           ))}
         </div>
+      )}
+      {/* Edit Job Dialog */}
+      {editingJob && (
+        <Dialog open={!!editingJob} onOpenChange={(open) => { if (!open) setEditingJob(null); }}>
+          <EditJobDialog
+            job={editingJob}
+            projectId={projectId}
+            onClose={() => setEditingJob(null)}
+          />
+        </Dialog>
       )}
     </div>
   );
@@ -365,7 +382,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
         targetLocation: targetLocation.trim() || undefined,
         targetAudience: targetAudience.trim() || undefined,
         secondaryKeywords: secondaryKeywordsText.trim()
-          ? secondaryKeywordsText.split(",").map(k => k.trim()).filter(Boolean)
+          ? secondaryKeywordsText.split(",").map((k: string) => k.trim()).filter(Boolean)
           : undefined,
         autoLinkCount: autoLinkCount > 0 ? autoLinkCount : undefined,
         researchEnabled,
@@ -775,6 +792,365 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
 }
 
 // ============================================================
+// EDIT JOB DIALOG
+// ============================================================
+
+function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: number; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const settings = (job.articleSettings as any) ?? {};
+
+  const [name, setName] = useState(job.name ?? "");
+  const [keywordSource, setKeywordSource] = useState<"queue" | "ai">(job.keywordSource ?? "queue");
+  const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">(job.frequency ?? "weekly");
+  const [dayOfWeek, setDayOfWeek] = useState(job.dayOfWeek ?? 1);
+  const [dayOfMonth, setDayOfMonth] = useState(job.dayOfMonth ?? 1);
+  const [hourUtc, setHourUtc] = useState(job.hourUtc ?? 8);
+  const [targetWordCount, setTargetWordCount] = useState(settings.targetWordCount ?? 2000);
+  const [numSections, setNumSections] = useState(settings.numSections ?? 8);
+  const [numFaqs, setNumFaqs] = useState(settings.numFaqs ?? 5);
+  const [contentType, setContentType] = useState(settings.contentType ?? "blog");
+  const [outputFormat, setOutputFormat] = useState<"html" | "plaintext">(settings.outputFormat ?? "html");
+  const [additionalInstructions, setAdditionalInstructions] = useState(settings.additionalInstructions ?? "");
+  const [tone, setTone] = useState(settings.tone ?? "professional");
+  const [targetLocation, setTargetLocation] = useState(settings.targetLocation ?? "");
+  const [targetAudience, setTargetAudience] = useState(settings.targetAudience ?? "");
+  const [secondaryKeywordsText, setSecondaryKeywordsText] = useState(
+    (settings.secondaryKeywords ?? []).join(", ")
+  );
+  const [autoLinkCount, setAutoLinkCount] = useState(settings.autoLinkCount ?? 5);
+  const [researchEnabled, setResearchEnabled] = useState(settings.researchEnabled !== false);
+  const [autoGradeEnabled, setAutoGradeEnabled] = useState(!!settings.autoGradeEnabled);
+  const [targetGrade, setTargetGrade] = useState(settings.targetGrade ?? "A-");
+  const [maxGradeIterations, setMaxGradeIterations] = useState(settings.maxGradeIterations ?? 2);
+
+  const { data: brandVoices } = trpc.brandVoices.list.useQuery({ projectId });
+  const { data: icpProfiles } = trpc.icpProfiles.list.useQuery({ projectId });
+  const [brandVoiceId, setBrandVoiceId] = useState<number | undefined>(settings.brandVoiceId);
+  const [icpProfileId, setIcpProfileId] = useState<number | undefined>(settings.icpProfileId);
+
+  const updateMutation = trpc.scheduler.updateJob.useMutation({
+    onSuccess: () => {
+      utils.scheduler.getJob.invalidate({ id: job.id });
+      utils.scheduler.listJobs.invalidate({ projectId });
+      toast.success("Job updated!");
+      onClose();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      toast.error("Please enter a job name");
+      return;
+    }
+    updateMutation.mutate({
+      id: job.id,
+      name: name.trim(),
+      keywordSource,
+      frequency,
+      dayOfWeek: frequency === "weekly" ? dayOfWeek : null,
+      dayOfMonth: frequency === "monthly" ? dayOfMonth : null,
+      hourUtc,
+      articleSettings: {
+        targetWordCount,
+        numSections,
+        numFaqs,
+        contentType,
+        outputFormat,
+        additionalInstructions: additionalInstructions.trim() || undefined,
+        tone,
+        targetLocation: targetLocation.trim() || undefined,
+        targetAudience: targetAudience.trim() || undefined,
+        secondaryKeywords: secondaryKeywordsText.trim()
+          ? secondaryKeywordsText.split(",").map((k: string) => k.trim()).filter(Boolean)
+          : undefined,
+        autoLinkCount: autoLinkCount > 0 ? autoLinkCount : undefined,
+        researchEnabled,
+        autoGradeEnabled: autoGradeEnabled || undefined,
+        targetGrade: autoGradeEnabled ? targetGrade : undefined,
+        maxGradeIterations: autoGradeEnabled ? maxGradeIterations : undefined,
+        brandVoiceId,
+        icpProfileId,
+      },
+    });
+  };
+
+  return (
+    <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle className="text-xl">Edit Scheduled Job</DialogTitle>
+        <DialogDescription>Update the settings for "{job.name}".</DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-6 py-4">
+        {/* Job Name */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Job Name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+
+        {/* Keyword Source */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Keyword Source</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setKeywordSource("queue")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                keywordSource === "queue" ? "border-indigo-500 bg-indigo-50" : "border-border hover:border-indigo-200"
+              }`}
+            >
+              <ListOrdered className={`w-5 h-5 mb-2 ${keywordSource === "queue" ? "text-indigo-600" : "text-muted-foreground"}`} />
+              <p className="font-medium text-sm">Keyword Queue</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Pre-load keywords, picks next one each run</p>
+            </button>
+            <button
+              onClick={() => setKeywordSource("ai")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                keywordSource === "ai" ? "border-indigo-500 bg-indigo-50" : "border-border hover:border-indigo-200"
+              }`}
+            >
+              <Sparkles className={`w-5 h-5 mb-2 ${keywordSource === "ai" ? "text-indigo-600" : "text-muted-foreground"}`} />
+              <p className="font-medium text-sm">AI-Suggested</p>
+              <p className="text-xs text-muted-foreground mt-0.5">AI picks the best topic based on your ICP</p>
+            </button>
+          </div>
+        </div>
+
+        {/* Schedule */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Schedule</Label>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Frequency</Label>
+              <Select value={frequency} onValueChange={(v) => setFrequency(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {frequency === "weekly" && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Day</Label>
+                <Select value={String(dayOfWeek)} onValueChange={(v) => setDayOfWeek(parseInt(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DAYS_OF_WEEK.map((day, i) => (
+                      <SelectItem key={i} value={String(i)}>{day}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {frequency === "monthly" && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Day of Month</Label>
+                <Select value={String(dayOfMonth)} onValueChange={(v) => setDayOfMonth(parseInt(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                      <SelectItem key={d} value={String(d)}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Time (UTC)</Label>
+              <Select value={String(hourUtc)} onValueChange={(v) => setHourUtc(parseInt(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {HOURS.map((h) => (
+                    <SelectItem key={h} value={String(h)}>{`${h.toString().padStart(2, "0")}:00`}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Article Settings */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Article Settings</Label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Word Count</Label>
+              <Input type="number" value={targetWordCount} onChange={(e) => setTargetWordCount(parseInt(e.target.value) || 2000)} min={500} max={10000} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Sections</Label>
+              <Input type="number" value={numSections} onChange={(e) => setNumSections(parseInt(e.target.value) || 8)} min={3} max={20} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">FAQs</Label>
+              <Input type="number" value={numFaqs} onChange={(e) => setNumFaqs(parseInt(e.target.value) || 5)} min={0} max={15} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Content Type</Label>
+              <Select value={contentType} onValueChange={setContentType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="blog">Blog Post</SelectItem>
+                  <SelectItem value="guide">Guide</SelectItem>
+                  <SelectItem value="comparison">Comparison</SelectItem>
+                  <SelectItem value="listicle">Listicle</SelectItem>
+                  <SelectItem value="how-to">How-To</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Output Format & Tone */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Output Format</Label>
+            <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="html">HTML</SelectItem>
+                <SelectItem value="plaintext">Plain Text</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tone</Label>
+            <Select value={tone} onValueChange={setTone}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="professional">Professional</SelectItem>
+                <SelectItem value="casual">Casual</SelectItem>
+                <SelectItem value="authoritative">Authoritative</SelectItem>
+                <SelectItem value="conversational">Conversational</SelectItem>
+                <SelectItem value="friendly">Friendly</SelectItem>
+                <SelectItem value="educational">Educational</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Target Location & Audience */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Target Location <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input placeholder="e.g., New York, NY" value={targetLocation} onChange={(e) => setTargetLocation(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Target Audience <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input placeholder="e.g., seniors 65+" value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} />
+          </div>
+        </div>
+
+        {/* Secondary Keywords */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Secondary Keywords <span className="text-muted-foreground font-normal">(optional, comma-separated)</span></Label>
+          <Input placeholder="e.g., medicare advantage, part d, supplement" value={secondaryKeywordsText} onChange={(e) => setSecondaryKeywordsText(e.target.value)} />
+        </div>
+
+        {/* Auto-Link Count & Research */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Auto-Link Count</Label>
+            <Input type="number" value={autoLinkCount} onChange={(e) => setAutoLinkCount(parseInt(e.target.value) || 0)} min={0} max={20} />
+            <p className="text-xs text-muted-foreground">Internal links to auto-insert from sitemap</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Research Mode</Label>
+            <div className="flex items-center gap-3 pt-2">
+              <button type="button" onClick={() => setResearchEnabled(!researchEnabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${researchEnabled ? "bg-indigo-600" : "bg-muted"}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${researchEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+              <span className="text-sm text-muted-foreground">{researchEnabled ? "Enabled" : "Disabled"}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Run web research before generating</p>
+          </div>
+        </div>
+
+        {/* Brand Voice & ICP */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Brand Voice</Label>
+            <Select value={brandVoiceId ? String(brandVoiceId) : "default"} onValueChange={(v) => setBrandVoiceId(v === "default" ? undefined : parseInt(v))}>
+              <SelectTrigger><SelectValue placeholder="Default" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default</SelectItem>
+                {brandVoices?.map((bv: any) => (
+                  <SelectItem key={bv.id} value={String(bv.id)}>{bv.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">ICP Profile</Label>
+            <Select value={icpProfileId ? String(icpProfileId) : "default"} onValueChange={(v) => setIcpProfileId(v === "default" ? undefined : parseInt(v))}>
+              <SelectTrigger><SelectValue placeholder="Default" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Project Default</SelectItem>
+                {icpProfiles?.map((icp: any) => (
+                  <SelectItem key={icp.id} value={String(icp.id)}>{icp.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Enable Grading */}
+        <div className="rounded-lg border border-border/60 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">Enable Grading</p>
+              <p className="text-xs text-muted-foreground">Grade and iteratively improve the article after generation.</p>
+            </div>
+            <button type="button" onClick={() => setAutoGradeEnabled(!autoGradeEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGradeEnabled ? "bg-indigo-600" : "bg-muted"}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoGradeEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+          {autoGradeEnabled && (
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Target Grade</Label>
+                <Select value={targetGrade} onValueChange={setTargetGrade}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["A", "A-", "B+", "B", "B-", "C+", "C"].map(g => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Max Iterations</Label>
+                <Input type="number" min={1} max={5} value={maxGradeIterations}
+                  onChange={(e) => setMaxGradeIterations(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Additional Instructions */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Additional Instructions (optional)</Label>
+          <Textarea placeholder="Any specific instructions for the AI writer..." value={additionalInstructions}
+            onChange={(e) => setAdditionalInstructions(e.target.value)} rows={3} />
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={handleSave} disabled={updateMutation.isPending}>
+          {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Save Changes
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+// ============================================================
 // JOB DETAIL VIEW
 // ============================================================
 
@@ -782,6 +1158,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
   const utils = trpc.useUtils();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const { data: job, isLoading } = trpc.scheduler.getJob.useQuery({ id: jobId });
   const { data: keywords } = trpc.scheduler.listKeywords.useQuery({ jobId });
@@ -879,6 +1256,13 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
+            onClick={() => setShowEditDialog(true)}
+          >
+            <Pencil className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => runNowMutation.mutate({ jobId: job.id })}
             disabled={runNowMutation.isPending || !!job.isRunning}
           >
@@ -909,6 +1293,17 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
           </Button>
         </div>
       </div>
+
+      {/* Edit Job Dialog */}
+      {showEditDialog && (
+        <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) setShowEditDialog(false); }}>
+          <EditJobDialog
+            job={job}
+            projectId={projectId}
+            onClose={() => setShowEditDialog(false)}
+          />
+        </Dialog>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

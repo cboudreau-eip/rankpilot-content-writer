@@ -886,4 +886,8 @@
 - [x] Investigate server logs and scheduler execution code
 - [x] Fix the scheduler execution pipeline (callLLM argument order + response extraction)
 - [x] Test Run Now end-to-end (423 tests pass)
+- [x] Save checkpoint
+
+## Bug Fix: Strip Markdown Code Fences from Article Content
+- [x] Find all article generation points (scheduler, regular generate) and strip ```html/``` fences
 - [ ] Save checkpoint

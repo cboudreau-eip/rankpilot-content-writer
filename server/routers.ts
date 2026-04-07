@@ -157,6 +157,18 @@ function splitSentences(text: string): string[] {
 }
 
 /**
+ * Strips markdown code fences from LLM output.
+ * Handles: ```html\n...\n```, ```\n...\n```, and bare trailing ```
+ */
+function stripMarkdownFences(content: string): string {
+  // Remove opening fence: ```html or ``` (with optional whitespace/newline)
+  let stripped = content.replace(/^```(?:html|markdown|md)?\s*\n?/i, '');
+  // Remove closing fence: trailing ``` (with optional whitespace)
+  stripped = stripped.replace(/\n?```\s*$/i, '');
+  return stripped.trim();
+}
+
+/**
  * Pre-processes LLM HTML output to fix common malformations before further processing:
  * 1. Removes spaces inside URLs in href attributes (e.g. "https://www. example.com" → "https://www.example.com")
  * 2. Rejoins <a href> tags that were split across newlines by the LLM
@@ -1950,7 +1962,7 @@ RULES:
 
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
-        const rawSectionContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const rawSectionContent = stripMarkdownFences(typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "");
 
         // --- Post-process the regenerated section ---
         let newSectionContent = wrapBareTextInPTags(fixBrokenAnchors(rawSectionContent));
@@ -2438,7 +2450,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
 
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
-        const rawArticleContent = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const rawArticleContent = stripMarkdownFences(typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "");
 
         // Post-process: first fix broken anchors, then wrap bare text in <p> tags, then split long paragraphs, then apply background colors
         const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
@@ -4760,7 +4772,7 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
   }, job.projectId);
 
   const rawArticleContent = articleResult.choices[0]?.message?.content;
-  const content = typeof rawArticleContent === "string" ? rawArticleContent : (rawArticleContent as any)?.[0]?.text ?? "";
+  const content = stripMarkdownFences(typeof rawArticleContent === "string" ? rawArticleContent : (rawArticleContent as any)?.[0]?.text ?? "");
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

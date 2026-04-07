@@ -456,6 +456,12 @@ export interface ScheduledJobSettings {
   tone?: string;
   /** Whether to run pre-generation web research */
   researchEnabled?: boolean;
+  /** Whether to automatically grade and iteratively improve the article after generation */
+  autoGradeEnabled?: boolean;
+  /** Target grade to reach before stopping iterations (e.g. 'A', 'A-', 'B+') */
+  targetGrade?: string;
+  /** Maximum number of grade-and-improve iterations (default 2) */
+  maxGradeIterations?: number;
 }
 
 /**

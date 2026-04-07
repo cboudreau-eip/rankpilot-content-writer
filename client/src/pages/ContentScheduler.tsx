@@ -316,6 +316,9 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
   const [secondaryKeywordsText, setSecondaryKeywordsText] = useState("");
   const [autoLinkCount, setAutoLinkCount] = useState(5);
   const [researchEnabled, setResearchEnabled] = useState(true);
+  const [autoGradeEnabled, setAutoGradeEnabled] = useState(false);
+  const [targetGrade, setTargetGrade] = useState("A-");
+  const [maxGradeIterations, setMaxGradeIterations] = useState(2);
 
   // Load brand voices and ICP profiles for the project
   const { data: brandVoices } = trpc.brandVoices.list.useQuery({ projectId });
@@ -366,6 +369,9 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
           : undefined,
         autoLinkCount: autoLinkCount > 0 ? autoLinkCount : undefined,
         researchEnabled,
+        autoGradeEnabled: autoGradeEnabled || undefined,
+        targetGrade: autoGradeEnabled ? targetGrade : undefined,
+        maxGradeIterations: autoGradeEnabled ? maxGradeIterations : undefined,
         brandVoiceId,
         icpProfileId,
       },
@@ -691,6 +697,50 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        {/* Enable Grading */}
+        <div className="rounded-lg border border-border/60 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">Enable Grading</p>
+              <p className="text-xs text-muted-foreground">Grade and iteratively improve the article after generation.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoGradeEnabled(!autoGradeEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGradeEnabled ? "bg-indigo-600" : "bg-muted"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoGradeEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+          {autoGradeEnabled && (
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Target Grade</Label>
+                <Select value={targetGrade} onValueChange={setTargetGrade}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["A", "A-", "B+", "B", "B-", "C+", "C"].map(g => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Max Iterations</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={maxGradeIterations}
+                  onChange={(e) => setMaxGradeIterations(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Additional Instructions */}

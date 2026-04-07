@@ -909,3 +909,15 @@
 - [x] Reduce page header vertical spacing (back link + title merged into compact header)
 - [x] Project name inlined into title row ("Content Scheduler — Medicare FAQ")
 - [x] Save checkpoint
+
+## Auto-Grade & Improve After Generation
+- [x] Add autoGradeEnabled, targetGrade, maxGradeIterations to ScheduledJobSettings type (schema.ts)
+- [x] Add same 3 fields to generateArticle Zod input schema (routers.ts)
+- [x] Add same 3 fields to createJob/updateJob Zod articleSettings schemas (routers.ts)
+- [x] Build runAutoGradeLoop helper: grade article → check score vs target → apply improvements → repeat up to maxIterations
+- [x] Wire runAutoGradeLoop into generateArticle procedure (manual generation)
+- [x] Wire runAutoGradeLoop into generateArticleForScheduler (scheduler pipeline)
+- [x] Add "Enable Grading" toggle + Target Grade dropdown + Max Iterations input to Generate Article form (outline step toolbar)
+- [x] Add "Enable Grading" section to ContentScheduler Create Job form (toggle + Target Grade + Max Iterations)
+- [x] All 429 tests pass, 0 TypeScript errors
+- [x] Save checkpoint

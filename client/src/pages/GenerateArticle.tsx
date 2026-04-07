@@ -416,6 +416,9 @@ export default function GenerateArticle() {
   const [researchEnabled, setResearchEnabled] = useState(true);
   const [researchFindings, setResearchFindings] = useState<ResearchFindings | null>(null);
   const [showResearchPanel, setShowResearchPanel] = useState(false);
+  const [autoGradeEnabled, setAutoGradeEnabled] = useState(false);
+  const [targetGrade, setTargetGrade] = useState("A-");
+  const [maxGradeIterations, setMaxGradeIterations] = useState(2);
 
   // Outline state
   const [outlineTitle, setOutlineTitle] = useState("");
@@ -808,6 +811,9 @@ export default function GenerateArticle() {
       brandVoiceId: selectedBrandVoice?.id ?? undefined,
       icpProfileId: selectedIcpProfile?.id ?? undefined,
       secondaryKeywords: secondaryKeywords.length > 0 ? secondaryKeywords : undefined,
+      autoGradeEnabled: autoGradeEnabled || undefined,
+      targetGrade: autoGradeEnabled ? targetGrade : undefined,
+      maxGradeIterations: autoGradeEnabled ? maxGradeIterations : undefined,
     });
   };
 
@@ -2425,6 +2431,43 @@ export default function GenerateArticle() {
               </DropdownMenu>
             </div>
             <div className="flex items-center gap-3">
+              {/* Auto-Grade controls */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-white">
+                <input
+                  type="checkbox"
+                  id="autoGradeToggle"
+                  checked={autoGradeEnabled}
+                  onChange={(e) => setAutoGradeEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <GraduationCap className="w-4 h-4 text-indigo-500" />
+                <label htmlFor="autoGradeToggle" className="text-sm font-medium cursor-pointer select-none">Auto-Grade</label>
+                {autoGradeEnabled && (
+                  <>
+                    <Select value={targetGrade} onValueChange={setTargetGrade}>
+                      <SelectTrigger className="h-7 w-16 text-xs border-border/60">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["A", "A-", "B+", "B", "B-", "C+", "C"].map(g => (
+                          <SelectItem key={g} value={g} className="text-xs">{g}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={maxGradeIterations}
+                      onChange={(e) => setMaxGradeIterations(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
+                      className="w-12 h-7 text-xs border border-border/60 rounded px-2 text-center"
+                      title="Max iterations"
+                    />
+                    <span className="text-xs text-muted-foreground">iter</span>
+                  </>
+                )}
+              </div>
+
               <Button variant="outline" onClick={() => setStep("settings")}>
                 Back to Settings
               </Button>

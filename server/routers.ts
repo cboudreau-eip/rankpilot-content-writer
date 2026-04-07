@@ -2038,6 +2038,9 @@ RULES:
         brandVoiceId: z.number().optional(),
         icpProfileId: z.number().optional(),
         secondaryKeywords: z.array(z.string()).optional(),
+        autoGradeEnabled: z.boolean().optional(),
+        targetGrade: z.string().optional(),
+        maxGradeIterations: z.number().min(1).max(5).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         console.log(`[ArticleGen] Starting article generation. outlineId=${input.outlineId}, projectId=${input.projectId}, outputFormat=${input.outputFormat}`);
@@ -2564,6 +2567,26 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
 
         // Mark outline as complete
         await updateOutline(input.outlineId, { status: "complete" });
+
+        // Auto-grade loop: if enabled, iteratively grade and improve the article
+        if (input.autoGradeEnabled && input.targetGrade && article?.id) {
+          const maxIter = input.maxGradeIterations ?? 2;
+          console.log(`[ArticleGen] Auto-grade enabled. Target: ${input.targetGrade}, Max iterations: ${maxIter}`);
+          try {
+            const { finalGrade, iterationsRun } = await runAutoGradeLoop({
+              articleId: article.id,
+              projectId: input.projectId,
+              targetGrade: input.targetGrade,
+              maxIterations: maxIter,
+            });
+            console.log(`[ArticleGen] Auto-grade complete. Final grade: ${finalGrade} after ${iterationsRun} iteration(s).`);
+            // Re-fetch the (possibly improved) article to return the latest content
+            const updatedArticle = await getArticleById(article.id);
+            return updatedArticle ?? article;
+          } catch (err) {
+            console.error("[ArticleGen] Auto-grade loop failed (non-fatal):", err);
+          }
+        }
 
         return article;
       }),
@@ -4287,6 +4310,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           sitemapUrls: z.array(z.string()).optional(),
           tone: z.string().optional(),
           researchEnabled: z.boolean().optional(),
+          autoGradeEnabled: z.boolean().optional(),
+          targetGrade: z.string().optional(),
+          maxGradeIterations: z.number().optional(),
         }),
         projectId: z.number(),
         keywords: z.array(z.string()).optional(), // Initial keywords for queue mode
@@ -4348,6 +4374,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           sitemapUrls: z.array(z.string()).optional(),
           tone: z.string().optional(),
           researchEnabled: z.boolean().optional(),
+          autoGradeEnabled: z.boolean().optional(),
+          targetGrade: z.string().optional(),
+          maxGradeIterations: z.number().optional(),
         }).optional(),
       }))
       .mutation(async ({ input }) => {
@@ -4810,7 +4839,181 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
     userId: job.userId,
   });
 
+  // Auto-grade loop for scheduler
+  if (settings.autoGradeEnabled && settings.targetGrade && article?.id) {
+    const maxIter = settings.maxGradeIterations ?? 2;
+    console.log(`[Scheduler] Auto-grade enabled. Target: ${settings.targetGrade}, Max iterations: ${maxIter}`);
+    try {
+      const { finalGrade, iterationsRun } = await runAutoGradeLoop({
+        articleId: article.id,
+        projectId: job.projectId,
+        targetGrade: settings.targetGrade,
+        maxIterations: maxIter,
+      });
+      console.log(`[Scheduler] Auto-grade complete. Final grade: ${finalGrade} after ${iterationsRun} iteration(s).`);
+      const updatedArticle = await getArticleById(article.id);
+      return updatedArticle ?? article;
+    } catch (err) {
+      console.error("[Scheduler] Auto-grade loop failed (non-fatal):", err);
+    }
+  }
+
   return article;
+}
+
+// ============================================================
+// AUTO-GRADE LOOP HELPER
+// ============================================================
+
+/** Grade band ordering — higher index = better grade */
+const GRADE_ORDER = ["F", "D", "C", "C+", "B-", "B", "B+", "A-", "A"];
+
+function gradeIndex(grade: string): number {
+  return GRADE_ORDER.indexOf(grade);
+}
+
+function gradeMetOrExceeds(actual: string, target: string): boolean {
+  const ai = gradeIndex(actual);
+  const ti = gradeIndex(target);
+  if (ai === -1 || ti === -1) return false;
+  return ai >= ti;
+}
+
+/**
+ * After an article is saved, optionally run grade-and-improve iterations.
+ * Grades the article, checks if it meets the targetGrade, and if not applies
+ * all improvements from all categories, then repeats up to maxIterations times.
+ * Returns the final grade band achieved.
+ */
+async function runAutoGradeLoop({
+  articleId,
+  projectId,
+  targetGrade,
+  maxIterations,
+}: {
+  articleId: number;
+  projectId: number;
+  targetGrade: string;
+  maxIterations: number;
+}): Promise<{ finalGrade: string; iterationsRun: number }> {
+  const db = await getDb();
+  if (!db) return { finalGrade: "?", iterationsRun: 0 };
+
+  // Fetch project context for grading
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  const allVoices = project ? await db.select().from(brandVoices).where(eq(brandVoices.projectId, project.id)) : [];
+  const defaultBrandVoice = allVoices.find((bv: any) => bv.isDefault === 1) || allVoices[0] || null;
+  const projectCitations = project ? await db.select().from(citationSources).where(eq(citationSources.projectId, project.id)) : [];
+
+  // Build citation sources section for grading prompt
+  let citationSourcesSection = "";
+  if (projectCitations.length > 0) {
+    const sourcesList = projectCitations.map((c: any, i: number) => {
+      let entry = `  ${i + 1}. ${c.name} — ${c.url}`;
+      if (c.description) entry += ` (${c.description})`;
+      return entry;
+    }).join("\n");
+    citationSourcesSection = `\nAVAILABLE CITATION SOURCES:\n${sourcesList}`;
+  }
+
+  // Build brand voice section for grading
+  let brandVoiceSection = "";
+  if (defaultBrandVoice) {
+    brandVoiceSection = `\nBRAND VOICE REFERENCE:\n- Voice Name: ${defaultBrandVoice.name}\n- Tone Traits: ${defaultBrandVoice.toneTraits}\n- Perspective: ${defaultBrandVoice.perspective}`;
+  }
+
+  const hasICP = !!(project?.icpPrimaryName && project?.icpPains);
+  const totalPoints = 100 + (defaultBrandVoice ? 10 : 0) + (hasICP ? 10 : 0);
+
+  let iterationsRun = 0;
+  let finalGrade = "?";
+
+  for (let i = 0; i < maxIterations; i++) {
+    const [article] = await db.select().from(articles).where(eq(articles.id, articleId)).limit(1);
+    if (!article) break;
+
+    // --- Grade the article ---
+    const gradeSystemPrompt = `You are the GEO Content Grader. Grade the article and return ONLY valid JSON.\n${citationSourcesSection}\n${brandVoiceSection}\n\nWEIGHTING: E-E-A-T Trust: 30pts, Accuracy: 25pts, AIO Readiness: 20pts, Readability: 10pts, SEO/Entity: 10pts, Risk Hygiene: 5pts${defaultBrandVoice ? ", Brand Voice: 10pts" : ""}${hasICP ? ", ICP Alignment: 10pts" : ""}.\n\nFor each category provide: score, maxScore, weight, label, analysis (2 sentences), improvements (3 specific actionable items).\nAlso provide: totalScore, gradeBand (A|A-|B+|B|B-|C+|C|D|F), keyStrengths (3 items), keyWeaknesses (2-3 items), penalties (array), prioritizedActions (top 3).\n\nRespond ONLY with valid JSON — no markdown fences.`;
+
+    const gradeResponse = await callLLM({
+      messages: [
+        { role: "system", content: gradeSystemPrompt },
+        { role: "user", content: `Grade this article:\n\nTitle: ${article.title}\nKeyword: ${article.keyword || "Not specified"}\n\nContent:\n${article.content}` },
+      ],
+    }, projectId);
+
+    const gradeRaw = (gradeResponse.choices?.[0]?.message?.content || "") as string;
+    const gradeJsonMatch = gradeRaw.match(/\{[\s\S]*\}/);
+    if (!gradeJsonMatch) break;
+
+    let gradeData: any;
+    try { gradeData = JSON.parse(gradeJsonMatch[0]); } catch { break; }
+
+    finalGrade = gradeData.gradeBand || "?";
+    iterationsRun++;
+
+    console.log(`[AutoGrade] Iteration ${i + 1}: grade=${finalGrade}, target=${targetGrade}`);
+
+    // Stop if target reached
+    if (gradeMetOrExceeds(finalGrade, targetGrade)) {
+      console.log(`[AutoGrade] Target grade ${targetGrade} reached after ${iterationsRun} iteration(s).`);
+      break;
+    }
+
+    // --- Apply all improvements from all categories ---
+    const categoryKeys = ["eeatTrust", "accuracy", "aioReadiness", "readabilityUx", "seoEntityCoverage", "riskHygiene", "brandVoiceAlignment", "icpAlignment"];
+    const allImprovements: string[] = [];
+    for (const key of categoryKeys) {
+      const cat = gradeData[key];
+      if (cat?.improvements?.length) {
+        allImprovements.push(...cat.improvements);
+      }
+    }
+
+    if (allImprovements.length === 0) break;
+
+    // Apply improvements via the same surgical edit approach
+    const improvementsList = allImprovements.slice(0, 12).map((imp: string, idx: number) => `${idx + 1}. ${imp}`).join("\n");
+    const applySystemPrompt = `You are an expert content editor. Apply the listed improvements to the article. For each improvement, identify the EXACT original text snippet (verbatim from the article) and the replacement text.\n${brandVoiceSection ? brandVoiceSection : ""}\n\nRules:\n- Select the SMALLEST possible text snippet — ideally a SINGLE SENTENCE.\n- The "original" field must be an EXACT substring of the article content.\n- If an improvement requires adding NEW content, set "original" to the sentence AFTER which new content should appear, and "replacement" to that sentence PLUS the new content.\n- NEVER rewrite text unrelated to the improvement.\n- Maintain original tone, perspective, and formatting.\n\nRespond ONLY with a JSON array (no markdown fences):\n[{"improvement": "...", "original": "...", "replacement": "..."}]`;
+
+    const applyResponse = await callLLM({
+      messages: [
+        { role: "system", content: applySystemPrompt },
+        { role: "user", content: `Apply these improvements:\n\n${improvementsList}\n\n===FULL ARTICLE===\n${article.content}\n===END ARTICLE===` },
+      ],
+    }, projectId);
+
+    const applyRaw = (applyResponse.choices?.[0]?.message?.content || "") as string;
+    const applyJsonMatch = applyRaw.match(/\[[\s\S]*\]/);
+    if (!applyJsonMatch) continue;
+
+    let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
+    try { edits = JSON.parse(applyJsonMatch[0]); } catch { continue; }
+
+    let improvedContent = article.content || "";
+    let appliedCount = 0;
+    for (const edit of edits) {
+      if (!edit.original || !edit.replacement) continue;
+      if (improvedContent.includes(edit.original)) {
+        improvedContent = improvedContent.replace(edit.original, edit.replacement);
+        appliedCount++;
+      } else {
+        const trimmed = edit.original.trim();
+        if (trimmed && improvedContent.includes(trimmed)) {
+          improvedContent = improvedContent.replace(trimmed, edit.replacement.trim());
+          appliedCount++;
+        }
+      }
+    }
+
+    if (appliedCount > 0) {
+      const newWordCount = improvedContent.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+      await db.update(articles).set({ content: improvedContent, wordCount: newWordCount }).where(eq(articles.id, articleId));
+      console.log(`[AutoGrade] Applied ${appliedCount} edits in iteration ${i + 1}.`);
+    }
+  }
+
+  return { finalGrade, iterationsRun };
 }
 
 export type AppRouter = typeof appRouter;

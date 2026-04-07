@@ -347,6 +347,12 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
   const [outputFormat, setOutputFormat] = useState<"html" | "plaintext">("html");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [keywordsText, setKeywordsText] = useState("");
+  const [tone, setTone] = useState("professional");
+  const [targetLocation, setTargetLocation] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [secondaryKeywordsText, setSecondaryKeywordsText] = useState("");
+  const [autoLinkCount, setAutoLinkCount] = useState(5);
+  const [researchEnabled, setResearchEnabled] = useState(true);
 
   // Load brand voices and ICP profiles for the project
   const { data: brandVoices } = trpc.brandVoices.list.useQuery({ projectId });
@@ -371,7 +377,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
     }
 
     const keywords = keywordSource === "queue"
-      ? keywordsText.split("\n").map(k => k.trim()).filter(Boolean).map(keyword => ({ keyword }))
+      ? keywordsText.split("\n").map(k => k.trim()).filter(Boolean)
       : undefined;
 
     createMutation.mutate({
@@ -389,10 +395,18 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
         contentType,
         outputFormat,
         additionalInstructions: additionalInstructions.trim() || undefined,
+        tone,
+        targetLocation: targetLocation.trim() || undefined,
+        targetAudience: targetAudience.trim() || undefined,
+        secondaryKeywords: secondaryKeywordsText.trim()
+          ? secondaryKeywordsText.split(",").map(k => k.trim()).filter(Boolean)
+          : undefined,
+        autoLinkCount: autoLinkCount > 0 ? autoLinkCount : undefined,
+        researchEnabled,
+        brandVoiceId,
+        icpProfileId,
       },
-      brandVoiceId,
-      icpProfileId,
-      initialKeywords: keywords,
+      keywords,
     });
   };
 
@@ -591,6 +605,91 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
               <SelectItem value="plaintext">Plain Text</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Tone */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Tone</Label>
+          <Select value={tone} onValueChange={setTone}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="professional">Professional</SelectItem>
+              <SelectItem value="casual">Casual</SelectItem>
+              <SelectItem value="authoritative">Authoritative</SelectItem>
+              <SelectItem value="conversational">Conversational</SelectItem>
+              <SelectItem value="friendly">Friendly</SelectItem>
+              <SelectItem value="educational">Educational</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Target Location & Audience */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Target Location <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input
+              placeholder="e.g., New York, NY"
+              value={targetLocation}
+              onChange={(e) => setTargetLocation(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Target Audience <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input
+              placeholder="e.g., seniors 65+"
+              value={targetAudience}
+              onChange={(e) => setTargetAudience(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Secondary Keywords */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Secondary Keywords <span className="text-muted-foreground font-normal">(optional, comma-separated)</span></Label>
+          <Input
+            placeholder="e.g., medicare advantage, part d, supplement"
+            value={secondaryKeywordsText}
+            onChange={(e) => setSecondaryKeywordsText(e.target.value)}
+          />
+        </div>
+
+        {/* Auto-Link Count & Research */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Auto-Link Count</Label>
+            <Input
+              type="number"
+              value={autoLinkCount}
+              onChange={(e) => setAutoLinkCount(parseInt(e.target.value) || 0)}
+              min={0}
+              max={20}
+            />
+            <p className="text-xs text-muted-foreground">Internal links to auto-insert from sitemap</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Research Mode</Label>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setResearchEnabled(!researchEnabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  researchEnabled ? "bg-indigo-600" : "bg-muted"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    researchEnabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+              <span className="text-sm text-muted-foreground">
+                {researchEnabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">Run web research before generating</p>
+          </div>
         </div>
 
         {/* Brand Voice & ICP */}

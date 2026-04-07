@@ -890,4 +890,15 @@
 
 ## Bug Fix: Strip Markdown Code Fences from Article Content
 - [x] Find all article generation points (scheduler, regular generate) and strip ```html/``` fences
-- [ ] Save checkpoint
+- [x] Save checkpoint
+
+## Scheduler: Add Missing Article Generation Options
+- [x] Add tone, targetLocation, targetAudience, secondaryKeywords, autoLinkCount, researchEnabled to ScheduledJobSettings type
+- [x] Add all 6 fields to the Create Job form UI
+- [x] Wire all 6 fields into the scheduler execution pipeline (generateOutlineForScheduler + generateArticleForScheduler)
+- [x] Fix createJob/updateJob Zod schemas to accept tone and researchEnabled
+- [x] Fix brandVoiceId/icpProfileId to be inside articleSettings (not top-level)
+- [x] Fix keywords to be string[] not {keyword: string}[]
+- [x] Add TRPCError import to routers.ts
+- [x] Add 6 new vitest tests for new scheduler fields (429 total passing)
+- [x] Save checkpoint

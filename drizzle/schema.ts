@@ -452,6 +452,10 @@ export interface ScheduledJobSettings {
   autoLinkCount?: number;
   /** Sitemap URLs for internal linking */
   sitemapUrls?: string[];
+  /** Tone: professional, casual, authoritative, conversational, etc. */
+  tone?: string;
+  /** Whether to run pre-generation web research */
+  researchEnabled?: boolean;
 }
 
 /**

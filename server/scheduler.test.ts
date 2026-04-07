@@ -521,3 +521,134 @@ describe("Content Scheduler — Job Creation Validation", () => {
     expect(settings.additionalInstructions).toContain("cost comparisons");
   });
 });
+
+describe("Content Scheduler — New Article Settings Fields", () => {
+  it("creates job with tone setting", async () => {
+    const result = await caller.scheduler.createJob({
+      name: "Tone Test Job",
+      keywordSource: "ai",
+      frequency: "daily",
+      hourUtc: 8,
+      articleSettings: {
+        tone: "conversational",
+        targetWordCount: 1500,
+      },
+      projectId: 1,
+    });
+
+    expect(result).toBeDefined();
+    const settings = result.articleSettings as any;
+    expect(settings.tone).toBe("conversational");
+  });
+
+  it("creates job with targetLocation and targetAudience", async () => {
+    const result = await caller.scheduler.createJob({
+      name: "Location Audience Job",
+      keywordSource: "queue",
+      frequency: "weekly",
+      hourUtc: 10,
+      articleSettings: {
+        targetLocation: "Florida",
+        targetAudience: "Seniors 65+",
+        targetWordCount: 2000,
+      },
+      projectId: 1,
+      keywords: ["medicare florida"],
+    });
+
+    expect(result).toBeDefined();
+    const settings = result.articleSettings as any;
+    expect(settings.targetLocation).toBe("Florida");
+    expect(settings.targetAudience).toBe("Seniors 65+");
+  });
+
+  it("creates job with secondaryKeywords array", async () => {
+    const result = await caller.scheduler.createJob({
+      name: "Secondary Keywords Job",
+      keywordSource: "ai",
+      frequency: "daily",
+      hourUtc: 9,
+      articleSettings: {
+        secondaryKeywords: ["medicare supplement", "medigap", "part B coverage"],
+        targetWordCount: 2500,
+      },
+      projectId: 1,
+    });
+
+    expect(result).toBeDefined();
+    const settings = result.articleSettings as any;
+    expect(settings.secondaryKeywords).toEqual(["medicare supplement", "medigap", "part B coverage"]);
+  });
+
+  it("creates job with autoLinkCount", async () => {
+    const result = await caller.scheduler.createJob({
+      name: "Auto Link Job",
+      keywordSource: "ai",
+      frequency: "daily",
+      hourUtc: 11,
+      articleSettings: {
+        autoLinkCount: 7,
+        targetWordCount: 2000,
+      },
+      projectId: 1,
+    });
+
+    expect(result).toBeDefined();
+    const settings = result.articleSettings as any;
+    expect(settings.autoLinkCount).toBe(7);
+  });
+
+  it("creates job with researchEnabled flag", async () => {
+    const result = await caller.scheduler.createJob({
+      name: "Research Mode Job",
+      keywordSource: "ai",
+      frequency: "weekly",
+      hourUtc: 8,
+      articleSettings: {
+        researchEnabled: false,
+        targetWordCount: 1800,
+      },
+      projectId: 1,
+    });
+
+    expect(result).toBeDefined();
+    const settings = result.articleSettings as any;
+    expect(settings.researchEnabled).toBe(false);
+  });
+
+  it("creates job with all 6 new fields combined", async () => {
+    const result = await caller.scheduler.createJob({
+      name: "Full New Fields Job",
+      keywordSource: "queue",
+      frequency: "monthly",
+      dayOfMonth: 1,
+      hourUtc: 8,
+      articleSettings: {
+        tone: "authoritative",
+        targetLocation: "Texas",
+        targetAudience: "Small business owners",
+        secondaryKeywords: ["health insurance", "group coverage"],
+        autoLinkCount: 5,
+        researchEnabled: true,
+        targetWordCount: 3000,
+        numSections: 10,
+        numFaqs: 6,
+        contentType: "guide",
+        outputFormat: "html",
+        additionalInstructions: "Include case studies",
+      },
+      projectId: 1,
+      keywords: ["small business health insurance texas"],
+    });
+
+    expect(result).toBeDefined();
+    const settings = result.articleSettings as any;
+    expect(settings.tone).toBe("authoritative");
+    expect(settings.targetLocation).toBe("Texas");
+    expect(settings.targetAudience).toBe("Small business owners");
+    expect(settings.secondaryKeywords).toEqual(["health insurance", "group coverage"]);
+    expect(settings.autoLinkCount).toBe(5);
+    expect(settings.researchEnabled).toBe(true);
+    expect(settings.targetWordCount).toBe(3000);
+  });
+});

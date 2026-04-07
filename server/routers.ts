@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   clearSessionCookie,
   getSessionToken,
@@ -4284,6 +4285,8 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           secondaryKeywords: z.array(z.string()).optional(),
           autoLinkCount: z.number().optional(),
           sitemapUrls: z.array(z.string()).optional(),
+          tone: z.string().optional(),
+          researchEnabled: z.boolean().optional(),
         }),
         projectId: z.number(),
         keywords: z.array(z.string()).optional(), // Initial keywords for queue mode
@@ -4343,6 +4346,8 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           secondaryKeywords: z.array(z.string()).optional(),
           autoLinkCount: z.number().optional(),
           sitemapUrls: z.array(z.string()).optional(),
+          tone: z.string().optional(),
+          researchEnabled: z.boolean().optional(),
         }).optional(),
       }))
       .mutation(async ({ input }) => {
@@ -4679,7 +4684,13 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
   const numFaqs = settings.numFaqs ?? 5;
   const targetWordCount = settings.targetWordCount ?? 2000;
 
-  const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".\n\nRequirements:\n- Create ${numSections} main H2 sections\n- Include a FAQ section with ${numFaqs} questions\n- Target ${targetWordCount} words\n- Each section should have 2-4 bullet points describing what to cover\n${settings.contentType ? `- Content type: ${settings.contentType}` : ''}\n${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ''}\n${icpSection}\n${voiceSection}\n\nReturn a JSON object with this structure:\n{\n  "title": "Article title",\n  "sections": [\n    {\n      "id": "s1",\n      "heading": "Section heading",\n      "type": "h2",\n      "points": ["Point 1", "Point 2"],\n      "subSections": [\n        { "id": "s1-1", "heading": "Sub heading", "type": "h3", "points": ["Sub point"] }\n      ]\n    }\n  ]\n}`;
+  const toneInstruction = settings.tone ? `- Tone: ${settings.tone}` : '';
+  const locationInstruction = settings.targetLocation ? `- Target location: ${settings.targetLocation} — tailor the outline to be relevant for this geographic area` : '';
+  const audienceInstruction = settings.targetAudience ? `- Target audience: ${settings.targetAudience} — structure the outline to address this audience's specific needs` : '';
+  const secondaryKwInstruction = settings.secondaryKeywords?.length ? `- Secondary keywords to weave in: ${settings.secondaryKeywords.join(', ')}` : '';
+  const researchInstruction = settings.researchEnabled !== false ? '- This article will be research-backed; structure sections to support in-depth coverage' : '';
+
+  const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".\n\nRequirements:\n- Create ${numSections} main H2 sections\n- Include a FAQ section with ${numFaqs} questions\n- Target ${targetWordCount} words\n- Each section should have 2-4 bullet points describing what to cover\n${settings.contentType ? `- Content type: ${settings.contentType}` : ''}\n${toneInstruction}\n${locationInstruction}\n${audienceInstruction}\n${secondaryKwInstruction}\n${researchInstruction}\n${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ''}\n${icpSection}\n${voiceSection}\n\nReturn a JSON object with this structure:\n{\n  "title": "Article title",\n  "sections": [\n    {\n      "id": "s1",\n      "heading": "Section heading",\n      "type": "h2",\n      "points": ["Point 1", "Point 2"],\n      "subSections": [\n        { "id": "s1-1", "heading": "Sub heading", "type": "h3", "points": ["Sub point"] }\n      ]\n    }\n  ]\n}`;
 
   const outlineResult = await callLLM({
     messages: [
@@ -4762,7 +4773,15 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
   const outputFormat = settings.outputFormat ?? "html";
   const targetWordCount = settings.targetWordCount ?? 2000;
 
-  const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h1, h2, h3), paragraphs, and lists' : 'Return plain text with markdown-style headings'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
+  // Build extra context lines for the 6 new fields
+  const toneNote = settings.tone ? `\nTone: ${settings.tone}` : '';
+  const locationNote = settings.targetLocation ? `\nTarget Location: ${settings.targetLocation} — tailor examples, references, and context to this geographic area` : '';
+  const audienceNote = settings.targetAudience ? `\nTarget Audience: ${settings.targetAudience} — write for this specific audience's knowledge level and concerns` : '';
+  const secondaryKwNote = settings.secondaryKeywords?.length ? `\nSecondary Keywords: ${settings.secondaryKeywords.join(', ')} — incorporate these naturally throughout the article` : '';
+  const autoLinkNote = settings.autoLinkCount ? `\nInternal Links: include approximately ${settings.autoLinkCount} internal link placeholders where relevant` : '';
+  const researchNote = settings.researchEnabled !== false ? '\nResearch Mode: provide thorough, well-supported content with statistics, examples, and expert insights where appropriate' : '';
+
+  const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}${toneNote}${locationNote}${audienceNote}${secondaryKwNote}${autoLinkNote}${researchNote}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h1, h2, h3), paragraphs, and lists' : 'Return plain text with markdown-style headings'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
 
   const articleResult = await callLLM({
     messages: [

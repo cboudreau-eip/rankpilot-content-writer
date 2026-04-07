@@ -20,7 +20,6 @@ import GscAnalyzer from "./pages/GscAnalyzer";
 import AdminUsers from "./pages/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
-import ContentScheduler from "./pages/ContentScheduler";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
 
@@ -93,8 +92,6 @@ function App() {
                       <Route path="/grade" component={GradeContent} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
                       <Route path="/ideas">{() => <ComingSoon title="Ideas" description="Capture and organize content ideas for future articles." />}</Route>
-                      <Route path="/scheduler" component={ContentScheduler} />
-                      <Route path="/scheduler/:jobId" component={ContentScheduler} />
                       <Route component={NotFound} />
                     </Switch>
                   </AppLayout>

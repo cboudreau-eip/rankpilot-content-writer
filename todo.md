@@ -863,4 +863,14 @@
 - [x] Build frontend: Run History log with links to generated articles
 - [x] Add Scheduler nav item to sidebar
 - [x] Write vitest tests for scheduler CRUD and engine
+- [x] Save checkpoint
+
+## Move Content Scheduler to Project Dashboard Tab
+- [x] Review existing Project Dashboard tab structure
+- [x] Refactor ContentScheduler into a reusable component that accepts projectId as prop
+- [x] Add "Scheduler" tab to the Project Dashboard alongside existing tabs
+- [x] Auto-scope all scheduler operations to the active project (no project selector needed)
+- [x] Remove standalone /scheduler route from App.tsx
+- [x] Remove Scheduler nav item from sidebar
+- [x] Verify build passes and tests still pass
 - [ ] Save checkpoint

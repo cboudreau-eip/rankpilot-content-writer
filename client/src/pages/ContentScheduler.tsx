@@ -1,7 +1,6 @@
-import { useState, useMemo } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useActiveProject } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +29,6 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
-  GripVertical,
   ArrowRight,
   Settings2,
   History,
@@ -64,39 +62,31 @@ function formatDuration(ms: number | null): string {
 }
 
 // ============================================================
-// MAIN COMPONENT
+// EXPORTED TAB COMPONENT — used inside ProjectSettings
 // ============================================================
 
-export default function ContentScheduler() {
-  const [, params] = useRoute("/scheduler/:jobId");
-  const [, navigate] = useLocation();
-  const { activeProject } = useActiveProject();
-  const jobId = params?.jobId ? parseInt(params.jobId) : null;
+export function SchedulerTab({ projectId }: { projectId: number }) {
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
-  if (!activeProject) {
+  if (selectedJobId) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <Timer className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-        <h2 className="text-xl font-semibold text-slate-700 mb-2">Select a Project</h2>
-        <p>Choose a project from the sidebar to manage scheduled content generation.</p>
-      </div>
+      <JobDetailView
+        jobId={selectedJobId}
+        projectId={projectId}
+        onBack={() => setSelectedJobId(null)}
+      />
     );
   }
 
-  if (jobId) {
-    return <JobDetailView jobId={jobId} projectId={activeProject.id} onBack={() => navigate("/scheduler")} />;
-  }
-
-  return <JobListView projectId={activeProject.id} />;
+  return <JobListView projectId={projectId} onSelectJob={(id) => setSelectedJobId(id)} />;
 }
 
 // ============================================================
 // JOB LIST VIEW
 // ============================================================
 
-function JobListView({ projectId }: { projectId: number }) {
+function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJob: (id: number) => void }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
   const { data: jobs, isLoading } = trpc.scheduler.listJobs.useQuery({ projectId });
@@ -135,15 +125,11 @@ function JobListView({ projectId }: { projectId: number }) {
   const completedJobs = jobs?.filter((j) => j.status === "completed") ?? [];
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Timer className="w-6 h-6 text-indigo-500" />
-            Content Scheduler
-          </h1>
-          <p className="text-slate-500 mt-1">Automate article generation on a schedule</p>
+          <p className="text-muted-foreground">Automate article generation on a schedule for this project.</p>
         </div>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
@@ -155,6 +141,7 @@ function JobListView({ projectId }: { projectId: number }) {
           <CreateJobDialog
             projectId={projectId}
             onClose={() => setShowCreateDialog(false)}
+            onCreated={(jobId) => onSelectJob(jobId)}
           />
         </Dialog>
       </div>
@@ -168,8 +155,8 @@ function JobListView({ projectId }: { projectId: number }) {
                 <Play className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">{activeJobs.length}</p>
-                <p className="text-xs text-slate-500">Active Jobs</p>
+                <p className="text-2xl font-bold">{activeJobs.length}</p>
+                <p className="text-xs text-muted-foreground">Active Jobs</p>
               </div>
             </div>
           </CardContent>
@@ -181,8 +168,8 @@ function JobListView({ projectId }: { projectId: number }) {
                 <Pause className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">{pausedJobs.length}</p>
-                <p className="text-xs text-slate-500">Paused</p>
+                <p className="text-2xl font-bold">{pausedJobs.length}</p>
+                <p className="text-xs text-muted-foreground">Paused</p>
               </div>
             </div>
           </CardContent>
@@ -194,10 +181,10 @@ function JobListView({ projectId }: { projectId: number }) {
                 <FileText className="w-5 h-5 text-indigo-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold">
                   {jobs?.reduce((sum, j) => sum + (j.totalGenerated ?? 0), 0) ?? 0}
                 </p>
-                <p className="text-xs text-slate-500">Articles Generated</p>
+                <p className="text-xs text-muted-foreground">Articles Generated</p>
               </div>
             </div>
           </CardContent>
@@ -205,12 +192,12 @@ function JobListView({ projectId }: { projectId: number }) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-50 rounded-lg">
-                <CheckCircle2 className="w-5 h-5 text-slate-600" />
+              <div className="p-2 bg-slate-100 rounded-lg">
+                <Clock className="w-5 h-5 text-slate-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">{completedJobs.length}</p>
-                <p className="text-xs text-slate-500">Completed</p>
+                <p className="text-2xl font-bold">{completedJobs.length}</p>
+                <p className="text-xs text-muted-foreground">Completed</p>
               </div>
             </div>
           </CardContent>
@@ -219,36 +206,32 @@ function JobListView({ projectId }: { projectId: number }) {
 
       {/* Job List */}
       {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 w-full rounded-xl" />
-          ))}
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
       ) : !jobs?.length ? (
         <Card className="border-dashed">
-          <CardContent className="p-12 text-center">
-            <Timer className="w-16 h-16 mx-auto mb-4 text-slate-200" />
-            <h3 className="text-lg font-semibold text-slate-700 mb-2">No Scheduled Jobs Yet</h3>
-            <p className="text-slate-500 mb-6 max-w-md mx-auto">
-              Create your first scheduled job to automatically generate articles on a recurring basis.
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+              <Timer className="w-8 h-8 text-indigo-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">No Scheduled Jobs</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-4">
+              Create your first scheduled job to automate article generation for this project.
             </p>
-            <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => setShowCreateDialog(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Your First Job
-            </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {jobs.map((job) => (
             <Card
               key={job.id}
-              className="hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate(`/scheduler/${job.id}`)}
+              className="cursor-pointer hover:shadow-md transition-all group"
+              onClick={() => onSelectJob(job.id)}
             >
-              <CardContent className="p-5">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <div className="flex items-center gap-4 min-w-0">
                     <div className={`p-2.5 rounded-xl ${
                       job.status === "active" ? "bg-green-50" :
                       job.status === "paused" ? "bg-amber-50" : "bg-slate-50"
@@ -267,7 +250,7 @@ function JobListView({ projectId }: { projectId: number }) {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-slate-900 truncate">{job.name}</h3>
+                        <h3 className="font-semibold truncate">{job.name}</h3>
                         <Badge variant={
                           job.status === "active" ? "default" :
                           job.status === "paused" ? "secondary" : "outline"
@@ -277,27 +260,13 @@ function JobListView({ projectId }: { projectId: number }) {
                         }`}>
                           {job.status}
                         </Badge>
-                        {job.isRunning ? (
-                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs">
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            Running
-                          </Badge>
-                        ) : null}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {job.frequency} at {job.hourUtc}:00 UTC
-                        </span>
-                        <span className="flex items-center gap-1">
-                          {job.keywordSource === "ai" ? (
-                            <><Sparkles className="w-3.5 h-3.5" /> AI-Suggested</>
-                          ) : (
-                            <><ListOrdered className="w-3.5 h-3.5" /> Keyword Queue</>
-                          )}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
+                        <span className="capitalize">{job.frequency}</span>
+                        <span>&middot;</span>
+                        <span>{job.keywordSource === "ai" ? "AI-Suggested" : "Keyword Queue"}</span>
+                        <span>&middot;</span>
+                        <span>
                           {job.totalGenerated ?? 0} generated
                         </span>
                       </div>
@@ -306,8 +275,8 @@ function JobListView({ projectId }: { projectId: number }) {
 
                   <div className="flex items-center gap-3">
                     <div className="text-right hidden sm:block">
-                      <p className="text-xs text-slate-400">Next run</p>
-                      <p className="text-sm font-medium text-slate-700">{formatNextRun(job.nextRunAt)}</p>
+                      <p className="text-xs text-muted-foreground">Next run</p>
+                      <p className="text-sm font-medium">{formatNextRun(job.nextRunAt)}</p>
                     </div>
 
                     <DropdownMenu>
@@ -346,7 +315,7 @@ function JobListView({ projectId }: { projectId: number }) {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-indigo-500 transition-colors" />
                   </div>
                 </div>
               </CardContent>
@@ -362,9 +331,8 @@ function JobListView({ projectId }: { projectId: number }) {
 // CREATE JOB DIALOG
 // ============================================================
 
-function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: () => void }) {
+function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number; onClose: () => void; onCreated: (jobId: number) => void }) {
   const utils = trpc.useUtils();
-  const [, navigate] = useLocation();
 
   const [name, setName] = useState("");
   const [keywordSource, setKeywordSource] = useState<"queue" | "ai">("queue");
@@ -381,8 +349,8 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
   const [keywordsText, setKeywordsText] = useState("");
 
   // Load brand voices and ICP profiles for the project
-  const { data: brandVoices } = trpc.brandVoice.list.useQuery({ projectId });
-  const { data: icpProfiles } = trpc.icp.list.useQuery({ projectId });
+  const { data: brandVoices } = trpc.brandVoices.list.useQuery({ projectId });
+  const { data: icpProfiles } = trpc.icpProfiles.list.useQuery({ projectId });
   const [brandVoiceId, setBrandVoiceId] = useState<number | undefined>();
   const [icpProfileId, setIcpProfileId] = useState<number | undefined>();
 
@@ -391,7 +359,7 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
       utils.scheduler.listJobs.invalidate({ projectId });
       toast.success("Scheduled job created!");
       onClose();
-      if (job) navigate(`/scheduler/${job.id}`);
+      if (job) onCreated(job.id);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -403,15 +371,11 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
     }
 
     const keywords = keywordSource === "queue"
-      ? keywordsText.split("\n").map(k => k.trim()).filter(Boolean)
+      ? keywordsText.split("\n").map(k => k.trim()).filter(Boolean).map(keyword => ({ keyword }))
       : undefined;
 
-    if (keywordSource === "queue" && (!keywords || keywords.length === 0)) {
-      toast.error("Please add at least one keyword to the queue");
-      return;
-    }
-
     createMutation.mutate({
+      projectId,
       name: name.trim(),
       keywordSource,
       frequency,
@@ -424,31 +388,27 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
         numFaqs,
         contentType,
         outputFormat,
-        brandVoiceId,
-        icpProfileId,
         additionalInstructions: additionalInstructions.trim() || undefined,
       },
-      projectId,
-      keywords,
+      brandVoiceId,
+      icpProfileId,
+      initialKeywords: keywords,
     });
   };
 
   return (
-    <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+    <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <Timer className="w-5 h-5 text-indigo-500" />
-          Create Scheduled Job
-        </DialogTitle>
+        <DialogTitle className="text-xl">Create Scheduled Job</DialogTitle>
         <DialogDescription>
-          Set up automated article generation on a recurring schedule.
+          Set up automated article generation. Articles will be generated as drafts for your review.
         </DialogDescription>
       </DialogHeader>
 
       <div className="space-y-6 py-4">
         {/* Job Name */}
         <div className="space-y-2">
-          <Label>Job Name</Label>
+          <Label className="text-sm font-medium">Job Name</Label>
           <Input
             placeholder="e.g., Weekly Medicare Blog Posts"
             value={name}
@@ -457,63 +417,59 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
         </div>
 
         {/* Keyword Source */}
-        <div className="space-y-2">
-          <Label>Keyword Source</Label>
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Keyword Source</Label>
           <div className="grid grid-cols-2 gap-3">
             <button
-              type="button"
               onClick={() => setKeywordSource("queue")}
               className={`p-4 rounded-xl border-2 text-left transition-all ${
                 keywordSource === "queue"
                   ? "border-indigo-500 bg-indigo-50"
-                  : "border-slate-200 hover:border-slate-300"
+                  : "border-border hover:border-indigo-200"
               }`}
             >
-              <ListOrdered className={`w-5 h-5 mb-2 ${keywordSource === "queue" ? "text-indigo-600" : "text-slate-400"}`} />
+              <ListOrdered className={`w-5 h-5 mb-2 ${keywordSource === "queue" ? "text-indigo-600" : "text-muted-foreground"}`} />
               <p className="font-medium text-sm">Keyword Queue</p>
-              <p className="text-xs text-slate-500 mt-1">Pre-load keywords; processes one per run</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Pre-load keywords, picks next one each run</p>
             </button>
             <button
-              type="button"
               onClick={() => setKeywordSource("ai")}
               className={`p-4 rounded-xl border-2 text-left transition-all ${
                 keywordSource === "ai"
                   ? "border-indigo-500 bg-indigo-50"
-                  : "border-slate-200 hover:border-slate-300"
+                  : "border-border hover:border-indigo-200"
               }`}
             >
-              <Sparkles className={`w-5 h-5 mb-2 ${keywordSource === "ai" ? "text-indigo-600" : "text-slate-400"}`} />
+              <Sparkles className={`w-5 h-5 mb-2 ${keywordSource === "ai" ? "text-indigo-600" : "text-muted-foreground"}`} />
               <p className="font-medium text-sm">AI-Suggested</p>
-              <p className="text-xs text-slate-500 mt-1">AI picks the best topic each run</p>
+              <p className="text-xs text-muted-foreground mt-0.5">AI picks the best topic based on your ICP</p>
             </button>
           </div>
         </div>
 
-        {/* Keywords (queue mode only) */}
+        {/* Initial Keywords (for queue mode) */}
         {keywordSource === "queue" && (
           <div className="space-y-2">
-            <Label>Keywords (one per line)</Label>
+            <Label className="text-sm font-medium">Initial Keywords (one per line)</Label>
             <Textarea
-              placeholder={"medicare advantage plans 2026\nmedicare part d coverage\nmedicare supplement insurance\n..."}
+              placeholder={"medicare advantage plans 2026\nmedicare part d coverage\nmedicare supplement insurance"}
               value={keywordsText}
               onChange={(e) => setKeywordsText(e.target.value)}
-              rows={5}
+              rows={4}
               className="font-mono text-sm"
             />
-            <p className="text-xs text-slate-500">
-              {keywordsText.split("\n").filter(k => k.trim()).length} keyword(s) added
+            <p className="text-xs text-muted-foreground">
+              You can add more keywords later from the job detail view.
             </p>
           </div>
         )}
 
-        <Separator />
-
         {/* Schedule */}
-        <div className="space-y-4">
-          <Label className="text-base font-semibold">Schedule</Label>
-          <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Schedule</Label>
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm">Frequency</Label>
+              <Label className="text-xs text-muted-foreground">Frequency</Label>
               <Select value={frequency} onValueChange={(v) => setFrequency(v as any)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -525,10 +481,9 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
                 </SelectContent>
               </Select>
             </div>
-
             {frequency === "weekly" && (
               <div className="space-y-2">
-                <Label className="text-sm">Day of Week</Label>
+                <Label className="text-xs text-muted-foreground">Day</Label>
                 <Select value={String(dayOfWeek)} onValueChange={(v) => setDayOfWeek(parseInt(v))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -541,10 +496,9 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
                 </Select>
               </div>
             )}
-
             {frequency === "monthly" && (
               <div className="space-y-2">
-                <Label className="text-sm">Day of Month</Label>
+                <Label className="text-xs text-muted-foreground">Day of Month</Label>
                 <Select value={String(dayOfMonth)} onValueChange={(v) => setDayOfMonth(parseInt(v))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -557,18 +511,15 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
                 </Select>
               </div>
             )}
-
             <div className="space-y-2">
-              <Label className="text-sm">Time (UTC)</Label>
+              <Label className="text-xs text-muted-foreground">Time (UTC)</Label>
               <Select value={String(hourUtc)} onValueChange={(v) => setHourUtc(parseInt(v))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {HOURS.map((h) => (
-                    <SelectItem key={h} value={String(h)}>
-                      {String(h).padStart(2, "0")}:00 UTC
-                    </SelectItem>
+                    <SelectItem key={h} value={String(h)}>{`${h.toString().padStart(2, "0")}:00`}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -576,14 +527,12 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
           </div>
         </div>
 
-        <Separator />
-
         {/* Article Settings */}
-        <div className="space-y-4">
-          <Label className="text-base font-semibold">Article Settings</Label>
-          <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Article Settings</Label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm">Word Count</Label>
+              <Label className="text-xs text-muted-foreground">Word Count</Label>
               <Input
                 type="number"
                 value={targetWordCount}
@@ -593,7 +542,7 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">Sections (H2)</Label>
+              <Label className="text-xs text-muted-foreground">Sections</Label>
               <Input
                 type="number"
                 value={numSections}
@@ -603,7 +552,7 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">FAQs</Label>
+              <Label className="text-xs text-muted-foreground">FAQs</Label>
               <Input
                 type="number"
                 value={numFaqs}
@@ -613,7 +562,7 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">Content Type</Label>
+              <Label className="text-xs text-muted-foreground">Content Type</Label>
               <Select value={contentType} onValueChange={setContentType}>
                 <SelectTrigger>
                   <SelectValue />
@@ -627,68 +576,70 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label className="text-sm">Output Format</Label>
-              <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="html">HTML</SelectItem>
-                  <SelectItem value="plaintext">Plain Text</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
+        </div>
 
-          {/* Brand Voice & ICP */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm">Brand Voice</Label>
-              <Select
-                value={brandVoiceId ? String(brandVoiceId) : "default"}
-                onValueChange={(v) => setBrandVoiceId(v === "default" ? undefined : parseInt(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Default" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  {brandVoices?.map((bv: any) => (
-                    <SelectItem key={bv.id} value={String(bv.id)}>{bv.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm">ICP Profile</Label>
-              <Select
-                value={icpProfileId ? String(icpProfileId) : "default"}
-                onValueChange={(v) => setIcpProfileId(v === "default" ? undefined : parseInt(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Default" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Project Default</SelectItem>
-                  {icpProfiles?.map((icp: any) => (
-                    <SelectItem key={icp.id} value={String(icp.id)}>{icp.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        {/* Output Format */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Output Format</Label>
+          <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as any)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="html">HTML</SelectItem>
+              <SelectItem value="plaintext">Plain Text</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          {/* Additional Instructions */}
+        {/* Brand Voice & ICP */}
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-sm">Additional Instructions (optional)</Label>
-            <Textarea
-              placeholder="Any specific instructions for the AI writer..."
-              value={additionalInstructions}
-              onChange={(e) => setAdditionalInstructions(e.target.value)}
-              rows={3}
-            />
+            <Label className="text-sm font-medium">Brand Voice</Label>
+            <Select
+              value={brandVoiceId ? String(brandVoiceId) : "default"}
+              onValueChange={(v) => setBrandVoiceId(v === "default" ? undefined : parseInt(v))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default</SelectItem>
+                {brandVoices?.map((bv: any) => (
+                  <SelectItem key={bv.id} value={String(bv.id)}>{bv.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">ICP Profile</Label>
+            <Select
+              value={icpProfileId ? String(icpProfileId) : "default"}
+              onValueChange={(v) => setIcpProfileId(v === "default" ? undefined : parseInt(v))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Project Default</SelectItem>
+                {icpProfiles?.map((icp: any) => (
+                  <SelectItem key={icp.id} value={String(icp.id)}>{icp.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Additional Instructions */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Additional Instructions (optional)</Label>
+          <Textarea
+            placeholder="Any specific instructions for the AI writer..."
+            value={additionalInstructions}
+            onChange={(e) => setAdditionalInstructions(e.target.value)}
+            rows={3}
+          />
         </div>
       </div>
 
@@ -700,10 +651,11 @@ function CreateJobDialog({ projectId, onClose }: { projectId: number; onClose: (
           disabled={createMutation.isPending}
         >
           {createMutation.isPending ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           ) : (
-            <><Plus className="w-4 h-4 mr-2" /> Create Job</>
+            <Plus className="w-4 h-4 mr-2" />
           )}
+          Create Job
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -754,7 +706,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -764,9 +716,9 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
 
   if (!job) {
     return (
-      <div className="p-8 text-center">
-        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-        <h2 className="text-xl font-semibold text-slate-700">Job Not Found</h2>
+      <div className="text-center py-12">
+        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Job Not Found</h2>
         <Button variant="outline" className="mt-4" onClick={onBack}>
           <ChevronLeft className="w-4 h-4 mr-2" />
           Back to Scheduler
@@ -780,7 +732,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
   const completedKeywords = keywords?.filter(k => k.status === "completed") ?? [];
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -789,7 +741,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900">{job.name}</h1>
+              <h2 className="text-xl font-bold">{job.name}</h2>
               <Badge variant={
                 job.status === "active" ? "default" :
                 job.status === "paused" ? "secondary" : "outline"
@@ -806,7 +758,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
                 </Badge>
               ) : null}
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               {job.frequency} at {job.hourUtc}:00 UTC &middot; {job.keywordSource === "ai" ? "AI-Suggested" : "Keyword Queue"} &middot; {job.totalGenerated ?? 0} articles generated
             </p>
           </div>
@@ -884,32 +836,32 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Frequency</span>
+                  <span className="text-sm text-muted-foreground">Frequency</span>
                   <span className="text-sm font-medium capitalize">{job.frequency}</span>
                 </div>
                 {job.frequency === "weekly" && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-slate-500">Day</span>
+                    <span className="text-sm text-muted-foreground">Day</span>
                     <span className="text-sm font-medium">{DAYS_OF_WEEK[job.dayOfWeek ?? 1]}</span>
                   </div>
                 )}
                 {job.frequency === "monthly" && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-slate-500">Day of Month</span>
+                    <span className="text-sm text-muted-foreground">Day of Month</span>
                     <span className="text-sm font-medium">{job.dayOfMonth ?? 1}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Time</span>
+                  <span className="text-sm text-muted-foreground">Time</span>
                   <span className="text-sm font-medium">{job.hourUtc}:00 UTC</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Next Run</span>
+                  <span className="text-sm text-muted-foreground">Next Run</span>
                   <span className="text-sm font-medium">{formatNextRun(job.nextRunAt)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Last Run</span>
+                  <span className="text-sm text-muted-foreground">Last Run</span>
                   <span className="text-sm font-medium">
                     {job.lastRunAt ? new Date(job.lastRunAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Never"}
                   </span>
@@ -927,31 +879,31 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Word Count</span>
+                  <span className="text-sm text-muted-foreground">Word Count</span>
                   <span className="text-sm font-medium">{settings.targetWordCount ?? 2000}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Sections</span>
+                  <span className="text-sm text-muted-foreground">Sections</span>
                   <span className="text-sm font-medium">{settings.numSections ?? 8}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">FAQs</span>
+                  <span className="text-sm text-muted-foreground">FAQs</span>
                   <span className="text-sm font-medium">{settings.numFaqs ?? 5}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Content Type</span>
+                  <span className="text-sm text-muted-foreground">Content Type</span>
                   <span className="text-sm font-medium capitalize">{settings.contentType ?? "blog"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Output Format</span>
+                  <span className="text-sm text-muted-foreground">Output Format</span>
                   <span className="text-sm font-medium uppercase">{settings.outputFormat ?? "html"}</span>
                 </div>
                 {settings.additionalInstructions && (
                   <>
                     <Separator />
                     <div>
-                      <span className="text-sm text-slate-500">Instructions</span>
-                      <p className="text-sm mt-1 text-slate-700">{settings.additionalInstructions}</p>
+                      <span className="text-sm text-muted-foreground">Instructions</span>
+                      <p className="text-sm mt-1">{settings.additionalInstructions}</p>
                     </div>
                   </>
                 )}
@@ -1052,8 +1004,8 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
       {/* Queue Status */}
       <div className="grid grid-cols-4 gap-3">
         <div className="p-3 bg-slate-50 rounded-lg text-center">
-          <p className="text-xl font-bold text-slate-900">{pendingKeywords.length}</p>
-          <p className="text-xs text-slate-500">Pending</p>
+          <p className="text-xl font-bold">{pendingKeywords.length}</p>
+          <p className="text-xs text-muted-foreground">Pending</p>
         </div>
         <div className="p-3 bg-blue-50 rounded-lg text-center">
           <p className="text-xl font-bold text-blue-700">{processingKeywords.length}</p>
@@ -1075,8 +1027,8 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
       ) : !keywords?.length ? (
-        <div className="text-center py-8 text-slate-500">
-          <ListOrdered className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+        <div className="text-center py-8 text-muted-foreground">
+          <ListOrdered className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p>No keywords in queue yet. Add some above.</p>
         </div>
       ) : (
@@ -1088,11 +1040,11 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
                 kw.status === "completed" ? "bg-green-50/50 border-green-100" :
                 kw.status === "failed" ? "bg-red-50/50 border-red-100" :
                 kw.status === "processing" ? "bg-blue-50/50 border-blue-100" :
-                "bg-white border-slate-100"
+                "bg-background border-border"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs text-slate-400 w-6 text-right">{index + 1}</span>
+                <span className="text-xs text-muted-foreground w-6 text-right">{index + 1}</span>
                 {kw.status === "completed" ? (
                   <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
                 ) : kw.status === "failed" ? (
@@ -1100,9 +1052,9 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
                 ) : kw.status === "processing" ? (
                   <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
                 ) : (
-                  <Clock className="w-4 h-4 text-slate-300 shrink-0" />
+                  <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
                 )}
-                <span className={`text-sm truncate ${kw.status === "completed" ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                <span className={`text-sm truncate ${kw.status === "completed" ? "text-muted-foreground line-through" : ""}`}>
                   {kw.keyword}
                 </span>
               </div>
@@ -1126,7 +1078,7 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-slate-400 hover:text-red-500"
+                    className="h-7 w-7 text-muted-foreground hover:text-red-500"
                     onClick={() => removeMutation.mutate({ id: kw.id })}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1150,8 +1102,8 @@ function RunHistoryView({ runs }: { runs: any[] }) {
 
   if (!runs.length) {
     return (
-      <div className="text-center py-12 text-slate-500">
-        <History className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+      <div className="text-center py-12 text-muted-foreground">
+        <History className="w-10 h-10 mx-auto mb-3 opacity-30" />
         <p>No runs yet. The first run will appear here after the job executes.</p>
       </div>
     );
@@ -1178,12 +1130,12 @@ function RunHistoryView({ runs }: { runs: any[] }) {
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-900 truncate">{run.keyword}</span>
+                <span className="text-sm font-medium truncate">{run.keyword}</span>
                 <Badge variant="outline" className="text-xs">
                   {run.keywordSource === "ai" ? "AI" : "Queue"}
                 </Badge>
               </div>
-              <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+              <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
                 <span>{new Date(run.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                 <span>{formatDuration(run.durationMs)}</span>
                 {run.status === "failed" && run.errorMessage && (

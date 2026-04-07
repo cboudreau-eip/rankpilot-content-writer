@@ -902,3 +902,10 @@
 - [x] Add TRPCError import to routers.ts
 - [x] Add 6 new vitest tests for new scheduler fields (429 total passing)
 - [x] Save checkpoint
+
+## Scheduler Page UI Tighten
+- [x] Remove redundant description text ("Automate article generation on a schedule...") — already in subtitle
+- [x] Compact stat cards: replaced 4 large cards with a single inline stats pill bar
+- [x] Reduce page header vertical spacing (back link + title merged into compact header)
+- [x] Project name inlined into title row ("Content Scheduler — Medicare FAQ")
+- [x] Save checkpoint

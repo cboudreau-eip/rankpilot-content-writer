@@ -125,15 +125,36 @@ function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJo
   const completedJobs = jobs?.filter((j) => j.status === "completed") ?? [];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground">Automate article generation on a schedule for this project.</p>
+    <div className="space-y-4">
+      {/* Header row: stats + action */}
+      <div className="flex items-center justify-between gap-4">
+        {/* Inline stats bar */}
+        <div className="flex items-center gap-1 text-sm">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-green-50 text-green-700">
+            <Play className="w-3.5 h-3.5" />
+            <span className="font-semibold">{activeJobs.length}</span>
+            <span className="text-green-600/70">active</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-50 text-amber-700">
+            <Pause className="w-3.5 h-3.5" />
+            <span className="font-semibold">{pausedJobs.length}</span>
+            <span className="text-amber-600/70">paused</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700">
+            <FileText className="w-3.5 h-3.5" />
+            <span className="font-semibold">{jobs?.reduce((sum, j) => sum + (j.totalGenerated ?? 0), 0) ?? 0}</span>
+            <span className="text-indigo-600/70">generated</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 text-slate-600">
+            <Clock className="w-3.5 h-3.5" />
+            <span className="font-semibold">{completedJobs.length}</span>
+            <span className="text-slate-500/70">completed</span>
+          </div>
         </div>
+
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
-            <Button className="bg-indigo-600 hover:bg-indigo-700">
+            <Button className="bg-indigo-600 hover:bg-indigo-700 shrink-0">
               <Plus className="w-4 h-4 mr-2" />
               New Scheduled Job
             </Button>
@@ -144,64 +165,6 @@ function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJo
             onCreated={(jobId) => onSelectJob(jobId)}
           />
         </Dialog>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <Play className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{activeJobs.length}</p>
-                <p className="text-xs text-muted-foreground">Active Jobs</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-50 rounded-lg">
-                <Pause className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pausedJobs.length}</p>
-                <p className="text-xs text-muted-foreground">Paused</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-50 rounded-lg">
-                <FileText className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {jobs?.reduce((sum, j) => sum + (j.totalGenerated ?? 0), 0) ?? 0}
-                </p>
-                <p className="text-xs text-muted-foreground">Articles Generated</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 rounded-lg">
-                <Clock className="w-5 h-5 text-slate-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{completedJobs.length}</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Job List */}

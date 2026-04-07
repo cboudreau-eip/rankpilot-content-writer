@@ -9,27 +9,20 @@ export default function ProjectScheduler() {
   return (
     <div>
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard">
-            <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Dashboard</span>
-            </button>
-          </Link>
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
+      <div className="mb-5">
+        <Link href="/dashboard">
+          <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
+          </button>
+        </Link>
+        <div className="flex items-center gap-2">
           <Timer className="w-5 h-5 text-indigo-500" />
-          <h1 className="text-2xl font-extrabold tracking-tight">Content Scheduler</h1>
+          <h1 className="text-xl font-bold tracking-tight">Content Scheduler</h1>
+          {activeProject && (
+            <span className="text-sm text-muted-foreground font-normal">— {activeProject.name}</span>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground">
-          {activeProject
-            ? `Automated article generation for ${activeProject.name}`
-            : "Select a project to manage scheduled content jobs."}
-        </p>
       </div>
 
       {activeProject ? (

@@ -3390,6 +3390,118 @@ Return ONLY valid JSON, no markdown code blocks.`;
 
         return outline;
       }),
+
+    /**
+     * Fetch a URL and extract the main article content.
+     * Uses @mozilla/readability + linkedom for robust content extraction.
+     * Strips nav, footer, sidebar, ads — returns clean article text.
+     */
+    fetchUrlContent: publicProcedure
+      .input(z.object({
+        url: z.string().url("Please enter a valid URL"),
+      }))
+      .mutation(async ({ input }) => {
+        const { Readability } = await import("@mozilla/readability");
+        const { parseHTML } = await import("linkedom");
+
+        // Fetch the page
+        let html: string;
+        try {
+          const resp = await fetch(input.url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (compatible; RankPilot/1.0; +https://rankpilot.app)",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.5",
+            },
+            signal: AbortSignal.timeout(15000),
+            redirect: "follow",
+          });
+          if (!resp.ok) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Failed to fetch URL: HTTP ${resp.status} ${resp.statusText}`,
+            });
+          }
+          const contentType = resp.headers.get("content-type") || "";
+          if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "URL does not point to an HTML page",
+            });
+          }
+          html = await resp.text();
+        } catch (e: any) {
+          if (e instanceof TRPCError) throw e;
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.name === "TimeoutError"
+              ? "Request timed out — the page took too long to respond"
+              : `Failed to fetch URL: ${e.message}`,
+          });
+        }
+
+        // Parse with linkedom + Readability
+        const { document } = parseHTML(html);
+
+        // Extract title and meta before Readability modifies the DOM
+        const pageTitle = document.querySelector("title")?.textContent?.trim() || "";
+        const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim() || "";
+        const metaKeywords = document.querySelector('meta[name="keywords"]')?.getAttribute("content")?.trim() || "";
+
+        // Use Readability to extract main article content
+        const reader = new Readability(document as any, {
+          charThreshold: 100,
+        });
+        const article = reader.parse();
+
+        if (!article || !article.textContent || article.textContent.trim().length < 50) {
+          // Fallback: strip HTML manually if Readability fails
+          const fallbackText = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
+            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+            .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&[a-z]+;/gi, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+          if (fallbackText.length < 50) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Could not extract meaningful content from this URL. The page may be behind a paywall, require JavaScript, or have very little text content.",
+            });
+          }
+
+          const wordCount = fallbackText.split(/\s+/).filter(w => w.length > 0).length;
+          return {
+            content: fallbackText.slice(0, 15000),
+            title: pageTitle,
+            wordCount,
+            url: input.url,
+            extractionMethod: "fallback" as const,
+            metaDescription,
+            metaKeywords,
+          };
+        }
+
+        const cleanText = article.textContent
+          .replace(/\s+/g, " ")
+          .trim();
+        const wordCount = cleanText.split(/\s+/).filter(w => w.length > 0).length;
+
+        return {
+          content: cleanText.slice(0, 15000),
+          title: article.title || pageTitle,
+          wordCount,
+          url: input.url,
+          extractionMethod: "readability" as const,
+          metaDescription,
+          metaKeywords,
+        };
+      }),
   }),
 
   grading: router({

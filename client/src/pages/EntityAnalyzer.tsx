@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveProject } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,11 +17,12 @@ import {
   Loader2, Sparkles, Target, TrendingUp, Layers, Compass, Activity,
   CheckCircle2, XCircle, AlertTriangle, Cpu, Lightbulb, Wrench, FileText,
   ChevronDown, ChevronUp, ArrowRight, Zap, BarChart3, Search, BookOpen,
-  Shield, Eye, Repeat2, LayoutGrid,
+  Shield, Eye, Repeat2, LayoutGrid, Globe, ListTree, FolderKanban,
 } from "lucide-react";
 import type {
   EntityAnalysisResult, SemanticAnalysisResult, EntityItem,
 } from "@shared/entity-types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // ---- Helpers ----
 
@@ -586,16 +588,18 @@ function SemanticFixes({ fixes }: { fixes: string[] }) {
 // ============================================================
 
 export default function EntityAnalyzer() {
-  const { activeProject } = useActiveProject();
+  const { activeProject, projects } = useActiveProject();
   const activeProjectId = activeProject?.id ?? null;
-  const [inputMode, setInputMode] = useState<"text" | "article">("text");
+  const [inputMode, setInputMode] = useState<"text" | "article" | "url">("text");
   const [textContent, setTextContent] = useState("");
   const [primaryKeyword, setPrimaryKeyword] = useState("");
   const [selectedArticleId, setSelectedArticleId] = useState<string>("");
+  const [urlInput, setUrlInput] = useState("");
+  const [fetchedUrlContent, setFetchedUrlContent] = useState<{ content: string; title: string; wordCount: number; url: string; extractionMethod: string } | null>(null);
   const [activeTab, setActiveTab] = useState<"entity" | "semantic">("entity");
-
   const [entityResult, setEntityResult] = useState<EntityAnalysisResult | null>(null);
   const [semanticResult, setSemanticResult] = useState<SemanticAnalysisResult | null>(null);
+  const [showOutlineDialog, setShowOutlineDialog] = useState(false);
 
   // Fetch articles for the active project
   const articlesQuery = trpc.articles.list.useQuery(
@@ -635,21 +639,48 @@ export default function EntityAnalyzer() {
     onError: (err) => toast.error(err.message || "Semantic analysis failed"),
   });
 
+  // URL fetch mutation
+  const fetchUrlMutation = trpc.entity.fetchUrlContent.useMutation({
+    onSuccess: (data: any) => {
+      setFetchedUrlContent(data);
+      setTextContent(data.content);
+      if (!primaryKeyword.trim() && data.title) {
+        // Don't auto-set keyword — let user decide
+      }
+      toast.success(`Extracted ${data.wordCount.toLocaleString()} words from ${data.extractionMethod === "readability" ? "article content" : "page fallback"}`);
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to fetch URL content"),
+  });
+
+  const isFetchingUrl = fetchUrlMutation.isPending;
   const isAnalyzing = entityMutation.isPending || articleEntityMutation.isPending;
   const isSemanticAnalyzing = semanticMutation.isPending || articleSemanticMutation.isPending;
+
+  const handleFetchUrl = () => {
+    if (!urlInput.trim()) {
+      toast.error("Please enter a URL");
+      return;
+    }
+    let url = urlInput.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    setFetchedUrlContent(null);
+    fetchUrlMutation.mutate({ url });
+  };
 
   const handleEntityAnalysis = () => {
     setEntityResult(null);
     if (inputMode === "article" && selectedArticleId) {
       articleEntityMutation.mutate({ articleId: Number(selectedArticleId) });
-    } else if (inputMode === "text" && textContent.trim().length >= 50) {
+    } else if ((inputMode === "text" || inputMode === "url") && textContent.trim().length >= 50) {
       entityMutation.mutate({
         content: textContent.trim(),
         primaryKeyword: primaryKeyword.trim() || undefined,
         projectId: activeProjectId || undefined,
       });
     } else {
-      toast.error("Please enter at least 50 characters of content");
+      toast.error(inputMode === "url" ? "Please fetch a URL first" : "Please enter at least 50 characters of content");
     }
   };
 
@@ -657,7 +688,7 @@ export default function EntityAnalyzer() {
     setSemanticResult(null);
     if (inputMode === "article" && selectedArticleId) {
       articleSemanticMutation.mutate({ articleId: Number(selectedArticleId) });
-    } else if (inputMode === "text" && textContent.trim().length >= 50) {
+    } else if ((inputMode === "text" || inputMode === "url") && textContent.trim().length >= 50) {
       if (!primaryKeyword.trim()) {
         toast.error("A target keyword is required for semantic analysis");
         return;
@@ -668,7 +699,7 @@ export default function EntityAnalyzer() {
         projectId: activeProjectId || undefined,
       });
     } else {
-      toast.error("Please enter at least 50 characters of content");
+      toast.error(inputMode === "url" ? "Please fetch a URL first" : "Please enter at least 50 characters of content");
     }
   };
 
@@ -693,16 +724,17 @@ export default function EntityAnalyzer() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
-            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "text" | "article")} className="w-auto">
+            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "text" | "article" | "url")} className="w-auto">
               <TabsList className="h-8">
                 <TabsTrigger value="text" className="text-xs px-3 h-7">Paste Text</TabsTrigger>
                 <TabsTrigger value="article" className="text-xs px-3 h-7">Select Article</TabsTrigger>
+                <TabsTrigger value="url" className="text-xs px-3 h-7">Fetch URL</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {inputMode === "text" ? (
+          {inputMode === "text" && (
             <>
               <div>
                 <Textarea
@@ -729,7 +761,9 @@ export default function EntityAnalyzer() {
                 </p>
               </div>
             </>
-          ) : (
+          )}
+
+          {inputMode === "article" && (
             <div>
               <Label className="text-sm font-medium mb-1.5 block">Choose an Article</Label>
               <Select value={selectedArticleId} onValueChange={setSelectedArticleId}>
@@ -750,10 +784,80 @@ export default function EntityAnalyzer() {
             </div>
           )}
 
+          {inputMode === "url" && (
+            <>
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Competitor URL</Label>
+                <div className="flex gap-2 max-w-2xl">
+                  <Input
+                    placeholder="https://example.com/their-article"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleFetchUrl(); }}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleFetchUrl}
+                    disabled={isFetchingUrl || !urlInput.trim()}
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    {isFetchingUrl ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Fetching...</>
+                    ) : (
+                      <><Globe className="w-4 h-4 mr-2" /> Fetch Content</>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Paste a competitor’s article URL. We’ll extract the main article content (stripping navigation, sidebars, and footers).
+                </p>
+              </div>
+
+              {fetchedUrlContent && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-sm font-medium text-emerald-800">Content extracted successfully</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Title:</span>{" "}
+                      <span className="font-medium">{fetchedUrlContent.title || "(no title)"}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Words:</span>{" "}
+                      <span className="font-medium">{fetchedUrlContent.wordCount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Preview extracted content</summary>
+                    <pre className="mt-2 p-3 bg-white rounded border text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                      {fetchedUrlContent.content.slice(0, 2000)}{fetchedUrlContent.content.length > 2000 ? "..." : ""}
+                    </pre>
+                  </details>
+                </div>
+              )}
+
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Primary Keyword (optional)</Label>
+                <Input
+                  placeholder="e.g., Medicare Advantage"
+                  value={primaryKeyword}
+                  onChange={(e) => setPrimaryKeyword(e.target.value)}
+                  className="max-w-md"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Used to evaluate entity clarity and as the target for semantic analysis. If blank, the auto-detected primary entity will be used.
+                </p>
+              </div>
+            </>
+          )}
+
           <div className="flex gap-3">
             <Button
               onClick={handleEntityAnalysis}
-              disabled={isAnalyzing || isSemanticAnalyzing}
+              disabled={isAnalyzing || isSemanticAnalyzing || isFetchingUrl || (inputMode === "url" && !fetchedUrlContent)}
               className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
             >
               {isAnalyzing ? (
@@ -765,7 +869,7 @@ export default function EntityAnalyzer() {
             <Button
               variant="outline"
               onClick={handleSemanticAnalysis}
-              disabled={isAnalyzing || isSemanticAnalyzing}
+              disabled={isAnalyzing || isSemanticAnalyzing || isFetchingUrl || (inputMode === "url" && !fetchedUrlContent)}
             >
               {isSemanticAnalyzing ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing Semantics...</>
@@ -899,6 +1003,45 @@ export default function EntityAnalyzer() {
         </Tabs>
       )}
 
+      {/* Generate Outline from Analysis CTA */}
+      {entityResult && (
+        <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                  <ListTree className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Generate Optimized Outline</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Build a fresh outline from scratch based on the entity and salience analysis findings.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setShowOutlineDialog(true)}
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 shrink-0"
+              >
+                <ListTree className="w-4 h-4 mr-2" />
+                Generate Outline
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Generate Outline Dialog */}
+      {showOutlineDialog && entityResult && (
+        <StandaloneOutlineDialog
+          result={entityResult}
+          keyword={primaryKeyword}
+          projectId={activeProjectId}
+          projects={projects}
+          onClose={() => setShowOutlineDialog(false)}
+        />
+      )}
+
       {/* Empty State */}
       {!entityResult && !semanticResult && !isAnalyzing && !isSemanticAnalyzing && (
         <Card className="border-dashed">
@@ -914,5 +1057,264 @@ export default function EntityAnalyzer() {
         </Card>
       )}
     </div>
+  );
+}
+
+// ---- Generate Outline from Analysis Dialog (Standalone page version) ----
+
+function StandaloneOutlineDialog({
+  result,
+  keyword: initialKeyword,
+  projectId: initialProjectId,
+  projects,
+  onClose,
+}: {
+  result: EntityAnalysisResult;
+  keyword?: string;
+  projectId?: number | null;
+  projects: Array<{ id: number; name: string }>;
+  onClose: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(initialProjectId ?? null);
+  const [keyword, setKeyword] = useState(initialKeyword || result.primaryEntity?.name || "");
+  const [targetWordCount, setTargetWordCount] = useState("2000");
+  const [numSections, setNumSections] = useState("8");
+  const [numFaqs, setNumFaqs] = useState("5");
+
+  const { data: brandVoices = [] } = trpc.brandVoices.list.useQuery(
+    { projectId: selectedProjectId! },
+    { enabled: !!selectedProjectId }
+  );
+  const { data: icpProfiles = [] } = trpc.icpProfiles.list.useQuery(
+    { projectId: selectedProjectId! },
+    { enabled: !!selectedProjectId }
+  );
+
+  const [selectedBrandVoiceId, setSelectedBrandVoiceId] = useState<number | null>(null);
+  const [selectedIcpId, setSelectedIcpId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (brandVoices.length > 0 && !selectedBrandVoiceId) {
+      const defaultVoice = (brandVoices as any[]).find((v) => v.isDefault === 1) || brandVoices[0];
+      if (defaultVoice) setSelectedBrandVoiceId((defaultVoice as any).id);
+    }
+  }, [brandVoices, selectedBrandVoiceId]);
+
+  useEffect(() => {
+    if (icpProfiles.length > 0 && !selectedIcpId) {
+      const defaultIcp = (icpProfiles as any[]).find((p) => p.isDefault === 1) || icpProfiles[0];
+      if (defaultIcp) setSelectedIcpId((defaultIcp as any).id);
+    }
+  }, [icpProfiles, selectedIcpId]);
+
+  const generateMutation = trpc.entity.generateOutlineFromAnalysis.useMutation({
+    onSuccess: (data: any) => {
+      if (data) {
+        toast.success("Outline generated from analysis! Redirecting to review...");
+        sessionStorage.setItem("entityOutlineData", JSON.stringify({
+          outlineId: data.id,
+          title: data.title,
+          sections: data.sections,
+          keyword,
+          projectId: selectedProjectId,
+        }));
+        navigate("/generate?fromEntityAnalysis=1");
+        onClose();
+      }
+    },
+    onError: (err: any) => {
+      const msg = err.message || "";
+      if (/overloaded|529|rate.?limit|too many|capacity/i.test(msg)) {
+        toast.error("The AI service is currently overloaded. Please wait a moment and try again.");
+      } else {
+        toast.error(msg || "Failed to generate outline from analysis");
+      }
+    },
+  });
+
+  const handleGenerate = () => {
+    if (!selectedProjectId) {
+      toast.error("Please select a project");
+      return;
+    }
+    if (!keyword.trim()) {
+      toast.error("Please enter a keyword");
+      return;
+    }
+    generateMutation.mutate({
+      entityAnalysis: result,
+      keyword: keyword.trim(),
+      projectId: selectedProjectId,
+      brandVoiceId: selectedBrandVoiceId ?? undefined,
+      icpProfileId: selectedIcpId ?? undefined,
+      targetWordCount: parseInt(targetWordCount) || 2000,
+      numSections: parseInt(numSections) || 8,
+      numFaqs: parseInt(numFaqs) || 5,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ListTree className="w-5 h-5 text-indigo-600" />
+            Generate Outline from Analysis
+          </DialogTitle>
+          <DialogDescription>
+            Create a fresh, optimized outline based on the entity and salience analysis findings. The outline will address every weakness identified.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold flex items-center gap-1.5">
+              <FolderKanban className="w-3.5 h-3.5 text-muted-foreground" />
+              Project
+            </Label>
+            <Select
+              value={selectedProjectId?.toString() || ""}
+              onValueChange={(v) => {
+                setSelectedProjectId(parseInt(v));
+                setSelectedBrandVoiceId(null);
+                setSelectedIcpId(null);
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a project..." />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Target Keyword</Label>
+            <Input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="e.g., Medicare Supplement Plans"
+              className="h-9"
+            />
+          </div>
+
+          {selectedProjectId && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Brand Voice</Label>
+                <Select
+                  value={selectedBrandVoiceId?.toString() || ""}
+                  onValueChange={(v) => setSelectedBrandVoiceId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(brandVoices as any[]).map((v) => (
+                      <SelectItem key={v.id} value={v.id.toString()}>
+                        {v.name} {v.isDefault === 1 ? "(default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">ICP Profile</Label>
+                <Select
+                  value={selectedIcpId?.toString() || ""}
+                  onValueChange={(v) => setSelectedIcpId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(icpProfiles as any[]).map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.name} {p.isDefault === 1 ? "(default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Word Count</Label>
+              <Input
+                type="number"
+                value={targetWordCount}
+                onChange={(e) => setTargetWordCount(e.target.value)}
+                className="h-9"
+                min={500}
+                max={10000}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Sections</Label>
+              <Input
+                type="number"
+                value={numSections}
+                onChange={(e) => setNumSections(e.target.value)}
+                className="h-9"
+                min={3}
+                max={20}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">FAQs</Label>
+              <Input
+                type="number"
+                value={numFaqs}
+                onChange={(e) => setNumFaqs(e.target.value)}
+                className="h-9"
+                min={0}
+                max={15}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-3">
+            <p className="text-[11px] font-semibold text-indigo-800 mb-1">Analysis Summary</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-indigo-700">
+              <span>Primary Entity: <strong>{result.advancedRecommendations?.refinedPrimaryEntity || result.primaryEntity?.name}</strong></span>
+              <span>Overall Score: <strong>{result.scores?.overallScore}/100</strong></span>
+              <span>Entities Found: <strong>{result.entities?.length || 0}</strong></span>
+              <span>Fixes to Address: <strong>{result.actionableFixes?.length || 0}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={generateMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleGenerate}
+            disabled={generateMutation.isPending || !selectedProjectId || !keyword.trim()}
+            className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600"
+          >
+            {generateMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                Generating Outline...
+              </>
+            ) : (
+              <>
+                <ListTree className="w-4 h-4 mr-1.5" />
+                Generate Outline
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

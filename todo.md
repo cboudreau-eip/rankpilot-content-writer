@@ -828,4 +828,13 @@
 - [x] Build frontend: Project selector dialog with Brand Voice/ICP auto-populated
 - [x] Navigate user directly to Outline Review (Step 2) with pre-built outline
 - [x] Write vitest tests for the new procedure
+- [x] Save checkpoint
+
+## External URL Scanning for Entity Analyzer
+- [x] Backend: Create tRPC procedure to fetch URL and extract main article content (strip nav/footer/sidebar)
+- [x] Backend: Wire URL content extraction into existing entity.analyzeContent flow
+- [x] Frontend: Add URL input tab alongside paste text / select article on standalone Entity Analyzer page
+- [x] Frontend: Show loading state while fetching URL content
+- [x] Frontend: Ensure "Generate Outline from Analysis" button works after URL scan
+- [x] Write vitest tests for URL fetch and content extraction
 - [ ] Save checkpoint

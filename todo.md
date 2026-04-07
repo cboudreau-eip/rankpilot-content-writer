@@ -880,4 +880,10 @@
 - [x] Add "Scheduler" button next to "Project Settings" button on project dashboard header
 - [x] Create a dedicated Scheduler page/route for each project
 - [x] Remove Scheduler tab from Project Settings page
+- [x] Save checkpoint
+
+## Bug Fix: Scheduler Run Now Produces No Article
+- [x] Investigate server logs and scheduler execution code
+- [x] Fix the scheduler execution pipeline (callLLM argument order + response extraction)
+- [x] Test Run Now end-to-end (423 tests pass)
 - [ ] Save checkpoint

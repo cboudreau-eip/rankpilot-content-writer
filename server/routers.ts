@@ -4630,8 +4630,10 @@ Rules:
 - Do NOT repeat existing keywords
 - Return ONLY the keyword phrase, nothing else (no quotes, no explanation)`;
 
-  const response = await callLLM(job.projectId, [{ role: "user", content: prompt }]);
-  return response.trim();
+  const result = await callLLM({ messages: [{ role: "user", content: prompt }] }, job.projectId);
+  const rawContent = result.choices[0]?.message?.content;
+  const text = typeof rawContent === "string" ? rawContent : (rawContent as any)?.[0]?.text ?? "";
+  return text.trim();
 }
 
 /** Generate an outline using the scheduler job's settings */
@@ -4667,14 +4669,20 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
 
   const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".\n\nRequirements:\n- Create ${numSections} main H2 sections\n- Include a FAQ section with ${numFaqs} questions\n- Target ${targetWordCount} words\n- Each section should have 2-4 bullet points describing what to cover\n${settings.contentType ? `- Content type: ${settings.contentType}` : ''}\n${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ''}\n${icpSection}\n${voiceSection}\n\nReturn a JSON object with this structure:\n{\n  "title": "Article title",\n  "sections": [\n    {\n      "id": "s1",\n      "heading": "Section heading",\n      "type": "h2",\n      "points": ["Point 1", "Point 2"],\n      "subSections": [\n        { "id": "s1-1", "heading": "Sub heading", "type": "h3", "points": ["Sub point"] }\n      ]\n    }\n  ]\n}`;
 
-  const response = await callLLM(job.projectId, [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: `Generate a comprehensive outline for: ${keyword}` },
-  ], { type: "json_object" });
+  const outlineResult = await callLLM({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Generate a comprehensive outline for: ${keyword}` },
+    ],
+    response_format: { type: "json_object" },
+  }, job.projectId);
+
+  const rawOutlineContent = outlineResult.choices[0]?.message?.content;
+  const outlineText = typeof rawOutlineContent === "string" ? rawOutlineContent : (rawOutlineContent as any)?.[0]?.text ?? "";
 
   let parsed: any;
   try {
-    parsed = JSON.parse(response);
+    parsed = JSON.parse(outlineText);
   } catch {
     throw new Error("Failed to parse outline from LLM response");
   }
@@ -4744,10 +4752,15 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
 
   const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h1, h2, h3), paragraphs, and lists' : 'Return plain text with markdown-style headings'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
 
-  const content = await callLLM(job.projectId, [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: `Write the full article for: ${outline.keyword}` },
-  ]);
+  const articleResult = await callLLM({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Write the full article for: ${outline.keyword}` },
+    ],
+  }, job.projectId);
+
+  const rawArticleContent = articleResult.choices[0]?.message?.content;
+  const content = typeof rawArticleContent === "string" ? rawArticleContent : (rawArticleContent as any)?.[0]?.text ?? "";
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

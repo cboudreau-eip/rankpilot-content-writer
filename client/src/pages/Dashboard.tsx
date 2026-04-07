@@ -3,7 +3,6 @@ import {
   FileText,
   CheckCircle2,
   PenLine,
-  Type,
   BarChart3,
   Network,
   Lightbulb,
@@ -14,9 +13,8 @@ import {
   Award,
   Flame,
   Plus,
-  ArrowUpRight,
-  ArrowDownRight,
   Settings,
+  Timer,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,21 +81,21 @@ export default function Dashboard() {
           </p>
         </div>
         {activeProject && (
-          <Link href="/project-settings">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground">
-              <Settings className="w-4 h-4" />
-              <span>Project Settings</span>
-            </button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/project-scheduler">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground">
+                <Timer className="w-4 h-4" />
+                <span>Scheduler</span>
+              </button>
+            </Link>
+            <Link href="/project-settings">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground">
+                <Settings className="w-4 h-4" />
+                <span>Project Settings</span>
+              </button>
+            </Link>
+          </div>
         )}
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-7">
-        <StatCard icon={FileText} iconClass="bg-indigo-50 text-indigo-500" value="15" label="Total Articles" trend="+12%" up />
-        <StatCard icon={CheckCircle2} iconClass="bg-emerald-50 text-emerald-500" value="8" label="Published" trend="+3" up />
-        <StatCard icon={PenLine} iconClass="bg-amber-50 text-amber-500" value="5" label="In Progress" trend="-2" />
-        <StatCard icon={Type} iconClass="bg-purple-50 text-purple-500" value="42.3k" label="Total Words" trend="+18%" up />
       </div>
 
       {/* Row 2: Chart + Clusters/Ideas */}
@@ -247,37 +245,4 @@ export default function Dashboard() {
   );
 }
 
-// ---- Stat Card ----
-function StatCard({
-  icon: Icon,
-  iconClass,
-  value,
-  label,
-  trend,
-  up,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  iconClass: string;
-  value: string;
-  label: string;
-  trend: string;
-  up?: boolean;
-}) {
-  return (
-    <Card className="shadow-sm">
-      <CardContent className="pt-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconClass}`}>
-            <Icon className="w-5 h-5" />
-          </div>
-          <span className={`text-xs font-bold flex items-center gap-0.5 ${up ? "text-emerald-600" : "text-rose-500"}`}>
-            {up ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-            {trend}
-          </span>
-        </div>
-        <div className="text-2xl font-extrabold tracking-tight">{value}</div>
-        <div className="text-sm text-muted-foreground mt-0.5">{label}</div>
-      </CardContent>
-    </Card>
-  );
-}
+

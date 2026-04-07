@@ -873,4 +873,11 @@
 - [x] Remove standalone /scheduler route from App.tsx
 - [x] Remove Scheduler nav item from sidebar
 - [x] Verify build passes and tests still pass
+- [x] Save checkpoint
+
+## Dashboard UI Cleanup & Scheduler Button
+- [x] Remove the four stat cards (Total Articles, Published, In Progress, Total Words) from project dashboard
+- [x] Add "Scheduler" button next to "Project Settings" button on project dashboard header
+- [x] Create a dedicated Scheduler page/route for each project
+- [x] Remove Scheduler tab from Project Settings page
 - [ ] Save checkpoint

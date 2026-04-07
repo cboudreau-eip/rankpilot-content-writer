@@ -7,7 +7,7 @@ import {
   Goal, ShieldAlert, BookOpen, Search, Star, X, Check, Loader2,
   Globe, Link2, FileCheck, RefreshCw, ExternalLink, Upload, FileText,
   CheckCircle2, XCircle, AlertTriangle, Info, Save, Zap, Shield, TrendingUp,
-  Crown, Sparkles, MessageSquareText, Bot, BrainCircuit, Timer
+  Crown, Sparkles, MessageSquareText, Bot, BrainCircuit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { SchedulerTab } from "./ContentScheduler";
 
-type Tab = "icp" | "voice" | "cta" | "sitemaps" | "citations" | "crosscheck" | "llm" | "scheduler";
+type Tab = "icp" | "voice" | "cta" | "sitemaps" | "citations" | "crosscheck" | "llm";
 
 // ---- Tag Input Component ----
 function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
@@ -1534,7 +1533,6 @@ export default function ProjectSettings() {
     { id: "citations" as Tab, label: "Citations", icon: Link2, count: citationList.length, color: "text-rose-500", bg: "bg-rose-50" },
     { id: "crosscheck" as Tab, label: "Cross Check", icon: FileCheck, count: 0, color: "text-violet-500", bg: "bg-violet-50" },
     { id: "llm" as Tab, label: "AI Model", icon: BrainCircuit, count: 0, color: "text-cyan-500", bg: "bg-cyan-50" },
-    { id: "scheduler" as Tab, label: "Scheduler", icon: Timer, count: 0, color: "text-indigo-500", bg: "bg-indigo-50" },
   ];
 
   const openCreate = () => { setEditItem(null); setDialogOpen(true); };
@@ -1845,8 +1843,6 @@ export default function ProjectSettings() {
       {/* AI Model Tab */}
       {activeTab === "llm" && <LLMSettingsTab projectId={activeProjectId} />}
 
-      {/* Scheduler Tab */}
-      {activeTab === "scheduler" && <SchedulerTab projectId={activeProjectId} />}
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

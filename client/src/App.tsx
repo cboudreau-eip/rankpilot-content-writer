@@ -17,6 +17,7 @@ import ThinContent from "./pages/ThinContent";
 import GradeContent from "./pages/GradeContent";
 import EntityAnalyzer from "./pages/EntityAnalyzer";
 import GscAnalyzer from "./pages/GscAnalyzer";
+import ProjectScheduler from "./pages/ProjectScheduler";
 import AdminUsers from "./pages/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
@@ -77,6 +78,7 @@ function App() {
                       <Route path="/articles/:id" component={ArticleEditor} />
                       <Route path="/generate" component={GenerateArticle} />
                       <Route path="/project-settings" component={ProjectSettings} />
+                      <Route path="/project-scheduler" component={ProjectScheduler} />
                       <Route path="/settings" component={GeneralSettings} />
                       <Route path="/admin/users" component={AdminUsers} />
                       <Route path="/calendar">{() => <ComingSoon title="Calendar" description="Plan and schedule your content pipeline with a visual calendar." />}</Route>

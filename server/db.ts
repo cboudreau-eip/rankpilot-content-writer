@@ -1,6 +1,6 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -434,4 +434,157 @@ export async function updateProjectReferenceDocMeta(projectId: number, s3Key: st
     referenceDocContent: docContent,
   }).where(eq(projects.id, projectId));
   return getProjectById(projectId);
+}
+
+
+// ---- Scheduled Jobs Helpers ----
+
+export async function getScheduledJobsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(scheduledJobs).where(eq(scheduledJobs.projectId, projectId)).orderBy(desc(scheduledJobs.createdAt));
+}
+
+export async function getScheduledJobsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(scheduledJobs).where(eq(scheduledJobs.userId, userId)).orderBy(desc(scheduledJobs.createdAt));
+}
+
+export async function getScheduledJobById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(scheduledJobs).where(eq(scheduledJobs.id, id));
+  return rows[0] ?? null;
+}
+
+export async function createScheduledJob(data: InsertScheduledJob) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(scheduledJobs).values(data);
+  const id = result[0].insertId;
+  return getScheduledJobById(id);
+}
+
+export async function updateScheduledJob(id: number, data: Partial<Pick<InsertScheduledJob, "name" | "keywordSource" | "frequency" | "dayOfWeek" | "dayOfMonth" | "hourUtc" | "articleSettings" | "status" | "totalGenerated" | "lastRunAt" | "nextRunAt" | "isRunning">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(scheduledJobs).set(data).where(eq(scheduledJobs.id, id));
+  return getScheduledJobById(id);
+}
+
+export async function deleteScheduledJob(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Delete associated keyword queue items and run history
+  await db.delete(keywordQueue).where(eq(keywordQueue.jobId, id));
+  await db.delete(jobRunHistory).where(eq(jobRunHistory.jobId, id));
+  await db.delete(scheduledJobs).where(eq(scheduledJobs.id, id));
+}
+
+/** Get all active jobs that are due to run (nextRunAt <= now and not currently running) */
+export async function getDueScheduledJobs() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(scheduledJobs).where(
+    and(
+      eq(scheduledJobs.status, "active"),
+      eq(scheduledJobs.isRunning, 0),
+      sql`${scheduledJobs.nextRunAt} <= NOW()`
+    )
+  );
+}
+
+// ---- Keyword Queue Helpers ----
+
+export async function getKeywordQueueByJob(jobId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(keywordQueue).where(eq(keywordQueue.jobId, jobId)).orderBy(keywordQueue.sortOrder);
+}
+
+export async function getKeywordQueueItemById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(keywordQueue).where(eq(keywordQueue.id, id));
+  return rows[0] ?? null;
+}
+
+export async function addKeywordToQueue(data: InsertKeywordQueueItem) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(keywordQueue).values(data);
+  const id = result[0].insertId;
+  return getKeywordQueueItemById(id);
+}
+
+export async function addKeywordsToQueue(items: InsertKeywordQueueItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (items.length === 0) return [];
+  await db.insert(keywordQueue).values(items);
+  return getKeywordQueueByJob(items[0].jobId);
+}
+
+export async function updateKeywordQueueItem(id: number, data: Partial<Pick<InsertKeywordQueueItem, "keyword" | "secondaryKeywords" | "sortOrder" | "status" | "generatedArticleId" | "errorMessage" | "processedAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(keywordQueue).set(data).where(eq(keywordQueue.id, id));
+  return getKeywordQueueItemById(id);
+}
+
+export async function deleteKeywordQueueItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(keywordQueue).where(eq(keywordQueue.id, id));
+}
+
+/** Get the next pending keyword in the queue for a job */
+export async function getNextPendingKeyword(jobId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(keywordQueue)
+    .where(and(eq(keywordQueue.jobId, jobId), eq(keywordQueue.status, "pending")))
+    .orderBy(keywordQueue.sortOrder)
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Count pending keywords in a job's queue */
+export async function countPendingKeywords(jobId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ count: sql<number>`COUNT(*)` }).from(keywordQueue)
+    .where(and(eq(keywordQueue.jobId, jobId), eq(keywordQueue.status, "pending")));
+  return rows[0]?.count ?? 0;
+}
+
+// ---- Job Run History Helpers ----
+
+export async function getJobRunHistory(jobId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobRunHistory).where(eq(jobRunHistory.jobId, jobId)).orderBy(desc(jobRunHistory.startedAt)).limit(limit);
+}
+
+export async function getJobRunHistoryById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(jobRunHistory).where(eq(jobRunHistory.id, id));
+  return rows[0] ?? null;
+}
+
+export async function createJobRunHistoryEntry(data: InsertJobRunHistoryEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(jobRunHistory).values(data);
+  const id = result[0].insertId;
+  return getJobRunHistoryById(id);
+}
+
+export async function updateJobRunHistoryEntry(id: number, data: Partial<Pick<InsertJobRunHistoryEntry, "status" | "articleId" | "outlineId" | "errorMessage" | "durationMs" | "completedAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(jobRunHistory).set(data).where(eq(jobRunHistory.id, id));
+  return getJobRunHistoryById(id);
 }

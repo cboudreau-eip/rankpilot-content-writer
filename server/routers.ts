@@ -23,6 +23,9 @@ import {
   getSitemapsByProject, getSitemapById, createSitemap, updateSitemap, deleteSitemap,
   getCitationsByProject, getCitationById, createCitation, updateCitation, deleteCitation,
   updateProjectReferenceDocMeta,
+  getScheduledJobsByProject, getScheduledJobsByUser, getScheduledJobById, createScheduledJob, updateScheduledJob, deleteScheduledJob, getDueScheduledJobs,
+  getKeywordQueueByJob, getKeywordQueueItemById, addKeywordToQueue, addKeywordsToQueue, updateKeywordQueueItem, deleteKeywordQueueItem, getNextPendingKeyword, countPendingKeywords,
+  getJobRunHistory, createJobRunHistoryEntry, updateJobRunHistoryEntry,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -32,7 +35,7 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports, appUsers } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
@@ -4227,6 +4230,543 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         return computeNearJump(row.queries ?? [], input.minPos, input.maxPos);
       }),
   }),
+
+  // ============================================================
+  // CONTENT SCHEDULER
+  // ============================================================
+  scheduler: router({
+    // ---- Scheduled Jobs CRUD ----
+    listJobs: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getScheduledJobsByProject(input.projectId);
+      }),
+
+    getJob: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const job = await getScheduledJobById(input.id);
+        if (!job) throw new Error("Scheduled job not found");
+        return job;
+      }),
+
+    createJob: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        keywordSource: z.enum(["queue", "ai"]),
+        frequency: z.enum(["daily", "weekly", "monthly"]),
+        dayOfWeek: z.number().min(0).max(6).optional(),
+        dayOfMonth: z.number().min(1).max(31).optional(),
+        hourUtc: z.number().min(0).max(23).default(8),
+        articleSettings: z.object({
+          targetWordCount: z.number().optional(),
+          numSections: z.number().optional(),
+          numFaqs: z.number().optional(),
+          contentType: z.string().optional(),
+          outputFormat: z.enum(["html", "plaintext"]).optional(),
+          brandVoiceId: z.number().optional(),
+          icpProfileId: z.number().optional(),
+          additionalInstructions: z.string().optional(),
+          targetLocation: z.string().optional(),
+          targetAudience: z.string().optional(),
+          secondaryKeywords: z.array(z.string()).optional(),
+          autoLinkCount: z.number().optional(),
+          sitemapUrls: z.array(z.string()).optional(),
+        }),
+        projectId: z.number(),
+        keywords: z.array(z.string()).optional(), // Initial keywords for queue mode
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.user?.id ?? 1;
+        const nextRunAt = calculateNextRunTime(input.frequency, input.hourUtc, input.dayOfWeek, input.dayOfMonth);
+
+        const job = await createScheduledJob({
+          name: input.name,
+          keywordSource: input.keywordSource,
+          frequency: input.frequency,
+          dayOfWeek: input.dayOfWeek ?? null,
+          dayOfMonth: input.dayOfMonth ?? null,
+          hourUtc: input.hourUtc,
+          articleSettings: input.articleSettings,
+          status: "active",
+          nextRunAt,
+          projectId: input.projectId,
+          userId,
+        });
+
+        // If keywords provided, add them to the queue
+        if (input.keywords?.length && job) {
+          const items = input.keywords.map((keyword, index) => ({
+            keyword,
+            sortOrder: index,
+            jobId: job.id,
+            status: "pending" as const,
+          }));
+          await addKeywordsToQueue(items);
+        }
+
+        return job;
+      }),
+
+    updateJob: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        keywordSource: z.enum(["queue", "ai"]).optional(),
+        frequency: z.enum(["daily", "weekly", "monthly"]).optional(),
+        dayOfWeek: z.number().min(0).max(6).nullable().optional(),
+        dayOfMonth: z.number().min(1).max(31).nullable().optional(),
+        hourUtc: z.number().min(0).max(23).optional(),
+        articleSettings: z.object({
+          targetWordCount: z.number().optional(),
+          numSections: z.number().optional(),
+          numFaqs: z.number().optional(),
+          contentType: z.string().optional(),
+          outputFormat: z.enum(["html", "plaintext"]).optional(),
+          brandVoiceId: z.number().optional(),
+          icpProfileId: z.number().optional(),
+          additionalInstructions: z.string().optional(),
+          targetLocation: z.string().optional(),
+          targetAudience: z.string().optional(),
+          secondaryKeywords: z.array(z.string()).optional(),
+          autoLinkCount: z.number().optional(),
+          sitemapUrls: z.array(z.string()).optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const updateData: any = { ...data };
+
+        // Recalculate next run time if frequency/timing changed
+        if (data.frequency || data.hourUtc !== undefined || data.dayOfWeek !== undefined || data.dayOfMonth !== undefined) {
+          const job = await getScheduledJobById(id);
+          if (job) {
+            updateData.nextRunAt = calculateNextRunTime(
+              data.frequency ?? job.frequency,
+              data.hourUtc ?? job.hourUtc,
+              data.dayOfWeek !== undefined ? data.dayOfWeek : job.dayOfWeek,
+              data.dayOfMonth !== undefined ? data.dayOfMonth : job.dayOfMonth,
+            );
+          }
+        }
+
+        return updateScheduledJob(id, updateData);
+      }),
+
+    pauseJob: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return updateScheduledJob(input.id, { status: "paused" });
+      }),
+
+    resumeJob: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const job = await getScheduledJobById(input.id);
+        if (!job) throw new Error("Job not found");
+        const nextRunAt = calculateNextRunTime(job.frequency, job.hourUtc, job.dayOfWeek, job.dayOfMonth);
+        return updateScheduledJob(input.id, { status: "active", nextRunAt });
+      }),
+
+    deleteJob: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteScheduledJob(input.id);
+        return { success: true };
+      }),
+
+    // ---- Keyword Queue ----
+    listKeywords: publicProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ input }) => {
+        return getKeywordQueueByJob(input.jobId);
+      }),
+
+    addKeywords: publicProcedure
+      .input(z.object({
+        jobId: z.number(),
+        keywords: z.array(z.object({
+          keyword: z.string().min(1),
+          secondaryKeywords: z.array(z.string()).optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        // Get current max sortOrder
+        const existing = await getKeywordQueueByJob(input.jobId);
+        const maxOrder = existing.length > 0 ? Math.max(...existing.map(k => k.sortOrder)) : -1;
+
+        const items = input.keywords.map((kw, index) => ({
+          keyword: kw.keyword,
+          secondaryKeywords: kw.secondaryKeywords ?? null,
+          sortOrder: maxOrder + 1 + index,
+          jobId: input.jobId,
+          status: "pending" as const,
+        }));
+
+        return addKeywordsToQueue(items);
+      }),
+
+    removeKeyword: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteKeywordQueueItem(input.id);
+        return { success: true };
+      }),
+
+    reorderKeywords: publicProcedure
+      .input(z.object({
+        jobId: z.number(),
+        orderedIds: z.array(z.number()),
+      }))
+      .mutation(async ({ input }) => {
+        for (let i = 0; i < input.orderedIds.length; i++) {
+          await updateKeywordQueueItem(input.orderedIds[i], { sortOrder: i });
+        }
+        return getKeywordQueueByJob(input.jobId);
+      }),
+
+    // ---- Run History ----
+    listRunHistory: publicProcedure
+      .input(z.object({ jobId: z.number(), limit: z.number().default(50) }))
+      .query(async ({ input }) => {
+        return getJobRunHistory(input.jobId, input.limit);
+      }),
+
+    // ---- Manual Trigger ----
+    runNow: publicProcedure
+      .input(z.object({ jobId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const job = await getScheduledJobById(input.jobId);
+        if (!job) throw new Error("Job not found");
+        if (job.isRunning) throw new Error("Job is already running");
+
+        // Mark as running
+        await updateScheduledJob(job.id, { isRunning: 1 });
+
+        // Run asynchronously — don't block the response
+        executeScheduledJob(job.id).catch(err => {
+          console.error(`[Scheduler] Manual run failed for job ${job.id}:`, err);
+        });
+
+        return { success: true, message: "Job execution started" };
+      }),
+  }),
 });
+
+// ============================================================
+// SCHEDULER HELPERS
+// ============================================================
+
+/** Calculate the next run time based on frequency and timing settings */
+function calculateNextRunTime(
+  frequency: string,
+  hourUtc: number,
+  dayOfWeek?: number | null,
+  dayOfMonth?: number | null,
+): Date {
+  const now = new Date();
+  const next = new Date();
+  next.setUTCHours(hourUtc, 0, 0, 0);
+
+  if (frequency === "daily") {
+    // Next occurrence at the specified hour
+    if (next <= now) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+  } else if (frequency === "weekly") {
+    const targetDay = dayOfWeek ?? 1; // Default Monday
+    const currentDay = next.getUTCDay();
+    let daysUntil = targetDay - currentDay;
+    if (daysUntil < 0 || (daysUntil === 0 && next <= now)) {
+      daysUntil += 7;
+    }
+    next.setUTCDate(next.getUTCDate() + daysUntil);
+  } else if (frequency === "monthly") {
+    const targetDate = dayOfMonth ?? 1;
+    next.setUTCDate(targetDate);
+    if (next <= now) {
+      next.setUTCMonth(next.getUTCMonth() + 1);
+    }
+  }
+
+  return next;
+}
+
+/** Execute a scheduled job — runs the full outline → article pipeline */
+export async function executeScheduledJob(jobId: number): Promise<void> {
+  const job = await getScheduledJobById(jobId);
+  if (!job) return;
+
+  const startTime = Date.now();
+  let keyword = "";
+  let keywordQueueItemId: number | null = null;
+  let runEntry: any = null;
+
+  try {
+    // Determine keyword
+    if (job.keywordSource === "queue") {
+      const nextItem = await getNextPendingKeyword(job.id);
+      if (!nextItem) {
+        // No more keywords — mark job as completed
+        await updateScheduledJob(job.id, { status: "completed", isRunning: 0 });
+        return;
+      }
+      keyword = nextItem.keyword;
+      keywordQueueItemId = nextItem.id;
+      await updateKeywordQueueItem(nextItem.id, { status: "processing" });
+    } else {
+      // AI-suggested mode — ask LLM to suggest the next keyword
+      keyword = await suggestNextKeyword(job);
+    }
+
+    // Create run history entry
+    runEntry = await createJobRunHistoryEntry({
+      keyword,
+      keywordSource: job.keywordSource,
+      status: "running",
+      jobId: job.id,
+    });
+
+    // Step 1: Generate outline
+    const outlineResult = await generateOutlineForScheduler(job, keyword);
+
+    // Step 2: Generate article from outline
+    const articleResult = await generateArticleForScheduler(job, outlineResult);
+
+    // Update run history
+    const duration = Date.now() - startTime;
+    if (runEntry) {
+      await updateJobRunHistoryEntry(runEntry.id, {
+        status: "completed",
+        articleId: articleResult.id,
+        outlineId: outlineResult.id,
+        durationMs: duration,
+        completedAt: new Date(),
+      });
+    }
+
+    // Update keyword queue item
+    if (keywordQueueItemId) {
+      await updateKeywordQueueItem(keywordQueueItemId, {
+        status: "completed",
+        generatedArticleId: articleResult.id,
+        processedAt: new Date(),
+      });
+    }
+
+    // Update job stats
+    const nextRunAt = calculateNextRunTime(job.frequency, job.hourUtc, job.dayOfWeek, job.dayOfMonth);
+    await updateScheduledJob(job.id, {
+      totalGenerated: (job.totalGenerated ?? 0) + 1,
+      lastRunAt: new Date(),
+      nextRunAt,
+      isRunning: 0,
+    });
+
+    // Check if queue is exhausted
+    if (job.keywordSource === "queue") {
+      const remaining = await countPendingKeywords(job.id);
+      if (remaining === 0) {
+        await updateScheduledJob(job.id, { status: "completed" });
+      }
+    }
+
+    // Send in-app notification
+    try {
+      const { notifyOwner } = await import("./_core/notification");
+      await notifyOwner({
+        title: `Article Generated: ${articleResult.title}`,
+        content: `Your scheduled job "${job.name}" generated a new article for keyword "${keyword}". Word count: ${articleResult.wordCount ?? "N/A"}. The article has been saved as a Draft and is ready for review.`,
+      });
+    } catch (notifErr) {
+      console.warn("[Scheduler] Failed to send notification:", notifErr);
+    }
+
+  } catch (error: any) {
+    console.error(`[Scheduler] Job ${jobId} failed:`, error);
+
+    // Update run history with error
+    if (runEntry) {
+      await updateJobRunHistoryEntry(runEntry.id, {
+        status: "failed",
+        errorMessage: error.message || "Unknown error",
+        durationMs: Date.now() - startTime,
+        completedAt: new Date(),
+      });
+    }
+
+    // Update keyword queue item with error
+    if (keywordQueueItemId) {
+      await updateKeywordQueueItem(keywordQueueItemId, {
+        status: "failed",
+        errorMessage: error.message || "Unknown error",
+      });
+    }
+
+    // Reset job running state
+    await updateScheduledJob(job.id, { isRunning: 0 });
+  }
+}
+
+/** AI-suggested keyword: analyze project context and suggest the next best topic */
+async function suggestNextKeyword(job: any): Promise<string> {
+  const project = await getProjectById(job.projectId);
+  const existingArticles = await getArticlesByProject(job.projectId);
+  const existingKeywords = existingArticles
+    .map((a: any) => a.keyword)
+    .filter(Boolean)
+    .join(", ");
+
+  const prompt = `You are an SEO content strategist. Based on the following project context, suggest the single best keyword/topic for the next blog article.
+
+Project: ${project?.name ?? "Unknown"}
+Domain: ${project?.domain ?? "Not specified"}
+ICP: ${project?.icpPrimaryName ?? "Not specified"} — ${project?.icpWhoTheyAre ?? ""}
+Existing article keywords: ${existingKeywords || "None yet"}
+
+Rules:
+- Suggest a keyword that fills a content gap
+- It should be relevant to the project's domain and ICP
+- Do NOT repeat existing keywords
+- Return ONLY the keyword phrase, nothing else (no quotes, no explanation)`;
+
+  const response = await callLLM(job.projectId, [{ role: "user", content: prompt }]);
+  return response.trim();
+}
+
+/** Generate an outline using the scheduler job's settings */
+async function generateOutlineForScheduler(job: any, keyword: string): Promise<any> {
+  const settings = job.articleSettings ?? {};
+  const project = await getProjectById(job.projectId);
+  const allVoices = await getBrandVoicesByProject(job.projectId);
+  const brandVoice = settings.brandVoiceId
+    ? allVoices.find((v: any) => v.id === settings.brandVoiceId) ?? allVoices[0] ?? null
+    : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+  // Build ICP section
+  let icpSection = "";
+  if (project) {
+    const formatList = (items: string[] | null | undefined, label: string): string => {
+      if (!items?.length) return '';
+      return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+    };
+    if (project.icpPrimaryName) {
+      icpSection = `\n=== IDEAL CUSTOMER PROFILE (ICP) ===\nTARGET AUDIENCE: ${project.icpPrimaryName}\n${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}\n${formatList(project.icpPains, 'PAIN POINTS')}${formatList(project.icpGoals, 'GOALS')}${formatList(project.icpObjections, 'OBJECTIONS')}${formatList(project.icpDecisionTriggers, 'DECISION TRIGGERS')}${formatList(project.icpTrustSignals, 'TRUST SIGNALS')}`;
+    }
+  }
+
+  // Build brand voice section
+  let voiceSection = "";
+  if (brandVoice) {
+    voiceSection = `\n=== BRAND VOICE ===\nVoice: ${brandVoice.name}\nTone: ${brandVoice.toneTraits || 'Professional'}\nPerspective: ${brandVoice.perspective}\nSentence Style: ${brandVoice.sentenceStyle}\n${brandVoice.avoidList ? `Avoid: ${brandVoice.avoidList}` : ''}\n${brandVoice.writingStyleSample ? `Style Sample: ${brandVoice.writingStyleSample}` : ''}`;
+  }
+
+  const numSections = settings.numSections ?? 8;
+  const numFaqs = settings.numFaqs ?? 5;
+  const targetWordCount = settings.targetWordCount ?? 2000;
+
+  const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".\n\nRequirements:\n- Create ${numSections} main H2 sections\n- Include a FAQ section with ${numFaqs} questions\n- Target ${targetWordCount} words\n- Each section should have 2-4 bullet points describing what to cover\n${settings.contentType ? `- Content type: ${settings.contentType}` : ''}\n${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ''}\n${icpSection}\n${voiceSection}\n\nReturn a JSON object with this structure:\n{\n  "title": "Article title",\n  "sections": [\n    {\n      "id": "s1",\n      "heading": "Section heading",\n      "type": "h2",\n      "points": ["Point 1", "Point 2"],\n      "subSections": [\n        { "id": "s1-1", "heading": "Sub heading", "type": "h3", "points": ["Sub point"] }\n      ]\n    }\n  ]\n}`;
+
+  const response = await callLLM(job.projectId, [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: `Generate a comprehensive outline for: ${keyword}` },
+  ], { type: "json_object" });
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(response);
+  } catch {
+    throw new Error("Failed to parse outline from LLM response");
+  }
+
+  // Save outline to DB
+  const outline = await createOutline({
+    title: parsed.title || `${keyword} - Generated Outline`,
+    keyword,
+    sections: parsed.sections || [],
+    settings: {
+      contentType: settings.contentType,
+      targetWordCount,
+      numSections,
+      numFaqs,
+      additionalInstructions: settings.additionalInstructions,
+      targetLocation: settings.targetLocation,
+      targetAudience: settings.targetAudience,
+      outputFormat: settings.outputFormat,
+      secondaryKeywords: settings.secondaryKeywords,
+      autoLinkCount: settings.autoLinkCount,
+      sitemapUrls: settings.sitemapUrls,
+    },
+    status: "approved",
+    projectId: job.projectId,
+    userId: job.userId,
+  });
+
+  return outline;
+}
+
+/** Generate an article from an outline using the scheduler job's settings */
+async function generateArticleForScheduler(job: any, outline: any): Promise<any> {
+  const settings = job.articleSettings ?? {};
+  const project = await getProjectById(job.projectId);
+  const allVoices = await getBrandVoicesByProject(job.projectId);
+  const brandVoice = settings.brandVoiceId
+    ? allVoices.find((v: any) => v.id === settings.brandVoiceId) ?? allVoices[0] ?? null
+    : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+  // Build the outline text for the prompt
+  const outlineText = (outline.sections || []).map((s: any) => {
+    let text = `## ${s.heading}\n`;
+    if (s.points?.length) text += s.points.map((p: string) => `- ${p}`).join('\n') + '\n';
+    if (s.subSections?.length) {
+      for (const sub of s.subSections) {
+        text += `### ${sub.heading}\n`;
+        if (sub.points?.length) text += sub.points.map((p: string) => `- ${p}`).join('\n') + '\n';
+      }
+    }
+    return text;
+  }).join('\n');
+
+  // Build ICP section
+  let icpSection = "";
+  if (project?.icpPrimaryName) {
+    icpSection = `\nTarget Audience: ${project.icpPrimaryName}\n${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}`;
+  }
+
+  // Build brand voice section
+  let voiceSection = "";
+  if (brandVoice) {
+    voiceSection = `\nBrand Voice: ${brandVoice.name}\nTone: ${brandVoice.toneTraits || 'Professional'}\nPerspective: ${brandVoice.perspective}\nSentence Style: ${brandVoice.sentenceStyle}`;
+  }
+
+  const outputFormat = settings.outputFormat ?? "html";
+  const targetWordCount = settings.targetWordCount ?? 2000;
+
+  const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h1, h2, h3), paragraphs, and lists' : 'Return plain text with markdown-style headings'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
+
+  const content = await callLLM(job.projectId, [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: `Write the full article for: ${outline.keyword}` },
+  ]);
+
+  // Count words
+  const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const wordCount = plainText.split(/\s+/).length;
+
+  // Save article to DB
+  const article = await createArticle({
+    title: outline.title,
+    content,
+    keyword: outline.keyword,
+    wordCount,
+    status: "draft",
+    contentType: settings.contentType,
+    outlineId: outline.id,
+    projectId: job.projectId,
+    userId: job.userId,
+  });
+
+  return article;
+}
 
 export type AppRouter = typeof appRouter;

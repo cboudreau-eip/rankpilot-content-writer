@@ -35,6 +35,7 @@ import {
   LogOut,
   ChevronDown,
   PanelLeft,
+  Timer,
 } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useState, useEffect, createContext, useContext, useCallback } from "react";
@@ -96,6 +97,7 @@ const navSections = [
     title: "Planning",
     items: [
       { icon: LampDesk, label: "Ideas", path: "/ideas" },
+      { icon: Timer, label: "Content Scheduler", path: "/scheduler" },
     ],
   },
 ];

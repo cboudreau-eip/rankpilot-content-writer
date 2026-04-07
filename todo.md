@@ -837,4 +837,30 @@
 - [x] Frontend: Show loading state while fetching URL content
 - [x] Frontend: Ensure "Generate Outline from Analysis" button works after URL scan
 - [x] Write vitest tests for URL fetch and content extraction
+- [x] Save checkpoint
+
+## Content Scheduler (Automated Article Generation)
+- [x] Design database schema for scheduled jobs, keyword queues, and run history
+- [x] Add scheduledJobs table (projectId, name, frequency, cronExpression, keywordSource, articleSettings, icpId, brandVoiceId, status, lastRunAt, nextRunAt)
+- [x] Add keywordQueue table (jobId, keyword, status, order, generatedArticleId)
+- [x] Add jobRunHistory table (jobId, keyword, articleId, status, startedAt, completedAt, error)
+- [x] Push database migrations
+- [x] Build DB helpers for scheduled jobs CRUD
+- [x] Build DB helpers for keyword queue CRUD
+- [x] Build DB helpers for run history
+- [x] Build tRPC procedures: scheduledJobs.list, create, update, delete, pause, resume
+- [x] Build tRPC procedures: keywordQueue.list, add, remove, reorder
+- [x] Build tRPC procedures: jobRunHistory.list
+- [x] Build tRPC procedure: scheduledJobs.runNow (manual trigger)
+- [x] Build backend scheduler engine (checks for due jobs on interval, runs full outline→article pipeline)
+- [x] Implement keyword queue mode (pick next unprocessed keyword)
+- [x] Implement AI-suggested mode (analyze project ICP, existing articles, suggest next keyword)
+- [x] Skip outline review — generate outline and article in one shot
+- [x] Send in-app notification when article is generated
+- [x] Build frontend: Scheduler page with job list dashboard (active/paused/completed jobs, next run times)
+- [x] Build frontend: Create/Edit Job form (name, keyword source, frequency, article settings, ICP, Brand Voice)
+- [x] Build frontend: Keyword Queue manager (add keywords, reorder, view status)
+- [x] Build frontend: Run History log with links to generated articles
+- [x] Add Scheduler nav item to sidebar
+- [x] Write vitest tests for scheduler CRUD and engine
 - [ ] Save checkpoint

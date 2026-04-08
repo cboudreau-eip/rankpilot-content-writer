@@ -929,3 +929,12 @@
 - [x] Add "Edit" button to job detail view header (alongside Run Now / Pause / Delete)
 - [x] 429 tests pass, 0 TypeScript errors
 - [x] Save checkpoint
+
+## Scheduler: UTC → US Eastern Time
+- [x] Add ET↔UTC conversion helpers (etHourToUtc, utcHourToEt, formatEtHour)
+- [x] Update Create Job form: hour picker shows ET hours (12:00 AM ET – 11:00 PM ET), converts to UTC before saving
+- [x] Update Edit Job form: pre-populates hour picker with ET equivalent of stored UTC hour
+- [x] Update job detail view subtitle: shows "Daily at 9:00 AM ET" instead of "09:00 UTC"
+- [x] Update job detail overview tab Time row: shows ET
+- [x] 429 tests pass, 0 TypeScript errors
+- [x] Save checkpoint

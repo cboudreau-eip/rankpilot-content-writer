@@ -44,7 +44,30 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+// US Eastern Time helpers
+// ET is UTC-5 (EST) or UTC-4 (EDT). We use a fixed -5 offset (EST) for storage simplicity.
+// This means during EDT (summer), stored times will be 1 hour off — acceptable for a daily scheduler.
+const ET_OFFSET_HOURS = 5; // ET = UTC - 5
+
+/** Convert an ET hour (0-23) to UTC hour (0-23) for storage */
+function etHourToUtc(etHour: number): number {
+  return (etHour + ET_OFFSET_HOURS) % 24;
+}
+
+/** Convert a stored UTC hour (0-23) to ET hour (0-23) for display */
+function utcHourToEt(utcHour: number): number {
+  return (utcHour - ET_OFFSET_HOURS + 24) % 24;
+}
+
+/** Format an ET hour as a human-readable 12-hour string, e.g. "9:00 AM ET" */
+function formatEtHour(etHour: number): string {
+  const period = etHour < 12 ? "AM" : "PM";
+  const h = etHour % 12 === 0 ? 12 : etHour % 12;
+  return `${h}:00 ${period} ET`;
+}
+
+const ET_HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function formatNextRun(date: Date | string | null): string {
   if (!date) return "Not scheduled";
@@ -319,7 +342,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
   const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [dayOfWeek, setDayOfWeek] = useState(1); // Monday
   const [dayOfMonth, setDayOfMonth] = useState(1);
-  const [hourUtc, setHourUtc] = useState(8);
+  const [hourEt, setHourEt] = useState(9); // 9 AM ET = 14:00 UTC
   const [targetWordCount, setTargetWordCount] = useState(2000);
   const [numSections, setNumSections] = useState(8);
   const [numFaqs, setNumFaqs] = useState(5);
@@ -370,7 +393,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
       frequency,
       dayOfWeek: frequency === "weekly" ? dayOfWeek : undefined,
       dayOfMonth: frequency === "monthly" ? dayOfMonth : undefined,
-      hourUtc,
+      hourUtc: etHourToUtc(hourEt),
       articleSettings: {
         targetWordCount,
         numSections,
@@ -512,14 +535,14 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
               </div>
             )}
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Time (UTC)</Label>
-              <Select value={String(hourUtc)} onValueChange={(v) => setHourUtc(parseInt(v))}>
+              <Label className="text-xs text-muted-foreground">Time (ET)</Label>
+              <Select value={String(hourEt)} onValueChange={(v) => setHourEt(parseInt(v))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {HOURS.map((h) => (
-                    <SelectItem key={h} value={String(h)}>{`${h.toString().padStart(2, "0")}:00`}</SelectItem>
+                  {ET_HOURS.map((h) => (
+                    <SelectItem key={h} value={String(h)}>{formatEtHour(h)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -804,7 +827,7 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
   const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">(job.frequency ?? "weekly");
   const [dayOfWeek, setDayOfWeek] = useState(job.dayOfWeek ?? 1);
   const [dayOfMonth, setDayOfMonth] = useState(job.dayOfMonth ?? 1);
-  const [hourUtc, setHourUtc] = useState(job.hourUtc ?? 8);
+  const [hourEt, setHourEt] = useState(utcHourToEt(job.hourUtc ?? 14)); // convert stored UTC to ET for display
   const [targetWordCount, setTargetWordCount] = useState(settings.targetWordCount ?? 2000);
   const [numSections, setNumSections] = useState(settings.numSections ?? 8);
   const [numFaqs, setNumFaqs] = useState(settings.numFaqs ?? 5);
@@ -850,7 +873,7 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
       frequency,
       dayOfWeek: frequency === "weekly" ? dayOfWeek : null,
       dayOfMonth: frequency === "monthly" ? dayOfMonth : null,
-      hourUtc,
+      hourUtc: etHourToUtc(hourEt),
       articleSettings: {
         targetWordCount,
         numSections,
@@ -958,12 +981,12 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
               </div>
             )}
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Time (UTC)</Label>
-              <Select value={String(hourUtc)} onValueChange={(v) => setHourUtc(parseInt(v))}>
+              <Label className="text-xs text-muted-foreground">Time (ET)</Label>
+              <Select value={String(hourEt)} onValueChange={(v) => setHourEt(parseInt(v))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {HOURS.map((h) => (
-                    <SelectItem key={h} value={String(h)}>{`${h.toString().padStart(2, "0")}:00`}</SelectItem>
+                  {ET_HOURS.map((h) => (
+                    <SelectItem key={h} value={String(h)}>{formatEtHour(h)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1248,7 +1271,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
               ) : null}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {job.frequency} at {job.hourUtc}:00 UTC &middot; {job.keywordSource === "ai" ? "AI-Suggested" : "Keyword Queue"} &middot; {job.totalGenerated ?? 0} articles generated
+              {job.frequency} at {formatEtHour(utcHourToEt(job.hourUtc ?? 0))} &middot; {job.keywordSource === "ai" ? "AI-Suggested" : "Keyword Queue"} &middot; {job.totalGenerated ?? 0} articles generated
             </p>
           </div>
         </div>
@@ -1360,7 +1383,7 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
                 )}
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Time</span>
-                  <span className="text-sm font-medium">{job.hourUtc}:00 UTC</span>
+                  <span className="text-sm font-medium">{formatEtHour(utcHourToEt(job.hourUtc ?? 0))}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between">

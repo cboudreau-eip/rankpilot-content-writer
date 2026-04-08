@@ -938,3 +938,11 @@
 - [x] Update job detail overview tab Time row: shows ET
 - [x] 429 tests pass, 0 TypeScript errors
 - [x] Save checkpoint
+
+## Scheduler Bug Fixes (ET label + nextRunAt)
+- [x] Root cause: "Time (UTC)" screenshot was the OLD deployed version — new code already shows "Time (ET)" with 12h format
+- [x] Root cause: 21-hour nextRunAt was because old version stored hourUtc=9 (raw, no ET conversion) — new version stores hourUtc=13 (9 AM EDT = UTC+4)
+- [x] Fixed ET offset: replaced hardcoded UTC-5 with dynamic Intl.DateTimeFormat-based offset (correctly handles EDT=UTC-4 vs EST=UTC-5)
+- [x] Added 60-second buffer to calculateNextRunTime so jobs created right at the target minute aren't pushed to tomorrow
+- [x] 429 tests pass, 0 TypeScript errors
+- [x] Save checkpoint — user must Publish to deploy, then delete/recreate the test job

@@ -4503,7 +4503,11 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
 // SCHEDULER HELPERS
 // ============================================================
 
-/** Calculate the next run time based on frequency and timing settings */
+/** Calculate the next run time based on frequency and timing settings.
+ * hourUtc is already converted from ET by the frontend (etHourToUtc).
+ * We add a 60-second buffer so a job created right at the target minute
+ * is not immediately pushed to tomorrow.
+ */
 function calculateNextRunTime(
   frequency: string,
   hourUtc: number,
@@ -4511,26 +4515,27 @@ function calculateNextRunTime(
   dayOfMonth?: number | null,
 ): Date {
   const now = new Date();
+  // Add 60s buffer: if the target time is within the next 60 seconds, treat it as still upcoming
+  const nowWithBuffer = new Date(now.getTime() - 60_000);
   const next = new Date();
   next.setUTCHours(hourUtc, 0, 0, 0);
 
   if (frequency === "daily") {
-    // Next occurrence at the specified hour
-    if (next <= now) {
+    if (next <= nowWithBuffer) {
       next.setUTCDate(next.getUTCDate() + 1);
     }
   } else if (frequency === "weekly") {
     const targetDay = dayOfWeek ?? 1; // Default Monday
     const currentDay = next.getUTCDay();
     let daysUntil = targetDay - currentDay;
-    if (daysUntil < 0 || (daysUntil === 0 && next <= now)) {
+    if (daysUntil < 0 || (daysUntil === 0 && next <= nowWithBuffer)) {
       daysUntil += 7;
     }
     next.setUTCDate(next.getUTCDate() + daysUntil);
   } else if (frequency === "monthly") {
     const targetDate = dayOfMonth ?? 1;
     next.setUTCDate(targetDate);
-    if (next <= now) {
+    if (next <= nowWithBuffer) {
       next.setUTCMonth(next.getUTCMonth() + 1);
     }
   }

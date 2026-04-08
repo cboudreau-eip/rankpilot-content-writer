@@ -45,19 +45,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-// US Eastern Time helpers
-// ET is UTC-5 (EST) or UTC-4 (EDT). We use a fixed -5 offset (EST) for storage simplicity.
-// This means during EDT (summer), stored times will be 1 hour off — acceptable for a daily scheduler.
-const ET_OFFSET_HOURS = 5; // ET = UTC - 5
+// US Eastern Time helpers — uses dynamic offset to handle EST (UTC-5) and EDT (UTC-4) correctly
+
+/** Get the current ET offset from UTC (4 in summer EDT, 5 in winter EST) */
+function getEtOffset(): number {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const etHour = parseInt(
+    now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false })
+  );
+  return (utcHour - etHour + 24) % 24;
+}
 
 /** Convert an ET hour (0-23) to UTC hour (0-23) for storage */
 function etHourToUtc(etHour: number): number {
-  return (etHour + ET_OFFSET_HOURS) % 24;
+  return (etHour + getEtOffset()) % 24;
 }
 
 /** Convert a stored UTC hour (0-23) to ET hour (0-23) for display */
 function utcHourToEt(utcHour: number): number {
-  return (utcHour - ET_OFFSET_HOURS + 24) % 24;
+  return (utcHour - getEtOffset() + 24) % 24;
 }
 
 /** Format an ET hour as a human-readable 12-hour string, e.g. "9:00 AM ET" */

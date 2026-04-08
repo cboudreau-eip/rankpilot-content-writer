@@ -946,3 +946,11 @@
 - [x] Added 60-second buffer to calculateNextRunTime so jobs created right at the target minute aren't pushed to tomorrow
 - [x] 429 tests pass, 0 TypeScript errors
 - [x] Save checkpoint — user must Publish to deploy, then delete/recreate the test job
+
+## Scheduler: Auto Em-Dash Removal (Hidden)
+- [x] Found existing logic in ArticleEditor.tsx: `html.replace(/\s*—\s*/g, ", ")`
+- [x] Added em-dash removal as final step in executeScheduledJob (after auto-grade, before notification)
+- [x] No UI toggle — runs silently by default on all scheduler-generated articles
+- [x] Non-fatal try/catch so a failure doesn't break the pipeline
+- [x] 429 tests pass, 0 TypeScript errors
+- [x] Save checkpoint

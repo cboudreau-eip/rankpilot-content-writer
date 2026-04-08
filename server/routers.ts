@@ -4622,6 +4622,20 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       }
     }
 
+    // Auto em-dash removal (hidden default — runs silently on all scheduler articles)
+    try {
+      const latestArticle = await getArticleById(articleResult.id);
+      if (latestArticle?.content) {
+        const cleaned = latestArticle.content.replace(/\s*\u2014\s*/g, ", ");
+        if (cleaned !== latestArticle.content) {
+          await updateArticle(articleResult.id, { content: cleaned });
+          console.log(`[Scheduler] Em dashes removed from article ${articleResult.id}`);
+        }
+      }
+    } catch (emDashErr) {
+      console.warn("[Scheduler] Em-dash removal failed (non-fatal):", emDashErr);
+    }
+
     // Send in-app notification
     try {
       const { notifyOwner } = await import("./_core/notification");

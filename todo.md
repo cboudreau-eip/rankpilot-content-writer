@@ -954,3 +954,10 @@
 - [x] Non-fatal try/catch so a failure doesn't break the pipeline
 - [x] 429 tests pass, 0 TypeScript errors
 - [x] Save checkpoint
+
+## Bug: Scheduler Article Title Appearing in Content Body
+- [x] Root cause: scheduler prompt told LLM to use h1/h2/h3 without explicitly banning the title as H1
+- [x] Fix 1: Updated scheduler prompt to say "do NOT include an <h1> tag or the article title in the content body"
+- [x] Fix 2: Added post-processing safety net — strips leading <h1> block, # Title line, and plain title line before saving
+- [x] 428/429 tests pass (1 flaky Anthropic 529 overload error, unrelated)
+- [x] Save checkpoint

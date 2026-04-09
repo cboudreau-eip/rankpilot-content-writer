@@ -4829,7 +4829,7 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
   const autoLinkNote = settings.autoLinkCount ? `\nInternal Links: include approximately ${settings.autoLinkCount} internal link placeholders where relevant` : '';
   const researchNote = settings.researchEnabled !== false ? '\nResearch Mode: provide thorough, well-supported content with statistics, examples, and expert insights where appropriate' : '';
 
-  const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}${toneNote}${locationNote}${audienceNote}${secondaryKwNote}${autoLinkNote}${researchNote}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h1, h2, h3), paragraphs, and lists' : 'Return plain text with markdown-style headings'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
+  const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}${toneNote}${locationNote}${audienceNote}${secondaryKwNote}${autoLinkNote}${researchNote}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h2, h3), paragraphs, and lists. Start directly with the first <h2> section — do NOT include an <h1> tag or the article title in the content body' : 'Return plain text with markdown-style headings (## for H2, ### for H3). Start directly with the first ## heading — do NOT include the article title as a line at the top'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
 
   const articleResult = await callLLM({
     messages: [
@@ -4839,7 +4839,17 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
   }, job.projectId);
 
   const rawArticleContent = articleResult.choices[0]?.message?.content;
-  const content = stripMarkdownFences(typeof rawArticleContent === "string" ? rawArticleContent : (rawArticleContent as any)?.[0]?.text ?? "");
+  let content = stripMarkdownFences(typeof rawArticleContent === "string" ? rawArticleContent : (rawArticleContent as any)?.[0]?.text ?? "");
+
+  // Strip any leading H1 tag or plain-text title line the LLM may have included
+  // HTML: remove leading <h1>...</h1> block
+  content = content.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '');
+  // Plain text: remove leading line that matches the article title (case-insensitive, with or without # prefix)
+  const titlePattern = new RegExp(`^\\s*#{0,2}\\s*${outline.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n?`, 'i');
+  content = content.replace(titlePattern, '');
+  // Also strip any leading plain paragraph that is just the title text (no heading markup)
+  const titleLinePattern = new RegExp(`^\\s*${outline.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n?`, 'i');
+  content = content.replace(titleLinePattern, '').trimStart();
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

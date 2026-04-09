@@ -83,7 +83,7 @@ export default function Dashboard() {
         {activeProject && (
           <div className="flex items-center gap-2">
             <Link href="/project-scheduler">
-              <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-green-600 bg-green-600 hover:bg-green-700 transition-colors text-sm font-medium text-white">
                 <Timer className="w-4 h-4" />
                 <span>Scheduler</span>
               </button>

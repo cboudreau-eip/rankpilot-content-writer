@@ -961,3 +961,15 @@
 - [x] Fix 2: Added post-processing safety net — strips leading <h1> block, # Title line, and plain title line before saving
 - [x] 428/429 tests pass (1 flaky Anthropic 529 overload error, unrelated)
 - [x] Save checkpoint
+
+## Scheduler Run Logging
+- [x] Add schedulerRunLogs DB table (id, runId, jobId, step, level, message, metadata JSON, createdAt)
+- [x] Push DB migration
+- [x] Add addSchedulerRunLog / getSchedulerRunLogs / getSchedulerRunLogsByRunId DB helpers
+- [x] Insert log entries at each pipeline step in executeScheduledJob (keyword_selection, outline, article, auto_grade, em_dash_removal, complete, error)
+- [x] Wire logFn callback through generateArticleForScheduler → runAutoGradeLoop for auto-grade iteration logging
+- [x] Add scheduler.getRunLogs tRPC procedure (accepts runId or jobId, returns ordered logs)
+- [x] Build expandable Run Log timeline in RunHistoryView — each run row is collapsible with Radix Collapsible
+- [x] Add RunLogTimeline component with step-specific icons, level-based coloring, vertical timeline line, and ET timestamps
+- [x] Add 4 new vitest tests for getRunLogs procedure (433 total passing)
+- [x] Save checkpoint

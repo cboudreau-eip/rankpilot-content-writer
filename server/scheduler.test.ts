@@ -170,6 +170,9 @@ vi.mock("./db", () => ({
     return entry;
   }),
   updateJobRunHistoryEntry: vi.fn(),
+  addSchedulerRunLog: vi.fn().mockResolvedValue(undefined),
+  getSchedulerRunLogs: vi.fn().mockResolvedValue([]),
+  getSchedulerRunLogsByRunId: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./storage", () => ({
@@ -650,5 +653,30 @@ describe("Content Scheduler — New Article Settings Fields", () => {
     expect(settings.autoLinkCount).toBe(5);
     expect(settings.researchEnabled).toBe(true);
     expect(settings.targetWordCount).toBe(3000);
+  });
+});
+
+describe("Content Scheduler — Run Logs", () => {
+  it("returns empty array when no logs exist for a run", async () => {
+    const logs = await caller.scheduler.getRunLogs({ runId: 999 });
+    expect(Array.isArray(logs)).toBe(true);
+    expect(logs.length).toBe(0);
+  });
+
+  it("returns empty array when no runId or jobId provided", async () => {
+    const logs = await caller.scheduler.getRunLogs({});
+    expect(Array.isArray(logs)).toBe(true);
+    expect(logs.length).toBe(0);
+  });
+
+  it("returns empty array for jobId with no logs", async () => {
+    const logs = await caller.scheduler.getRunLogs({ jobId: 999 });
+    expect(Array.isArray(logs)).toBe(true);
+    expect(logs.length).toBe(0);
+  });
+
+  it("accepts limit parameter", async () => {
+    const logs = await caller.scheduler.getRunLogs({ runId: 1, limit: 10 });
+    expect(Array.isArray(logs)).toBe(true);
   });
 });

@@ -34,6 +34,8 @@ import {
   History,
   Pencil,
   Save,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,6 +44,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -1636,6 +1639,7 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
 
 function RunHistoryView({ runs }: { runs: any[] }) {
   const [, navigate] = useLocation();
+  const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
 
   if (!runs.length) {
     return (
@@ -1648,55 +1652,166 @@ function RunHistoryView({ runs }: { runs: any[] }) {
 
   return (
     <div className="space-y-2">
-      {runs.map((run) => (
-        <div
-          key={run.id}
-          className={`flex items-center justify-between p-4 rounded-lg border ${
-            run.status === "completed" ? "border-green-100 bg-green-50/30" :
-            run.status === "failed" ? "border-red-100 bg-red-50/30" :
-            "border-blue-100 bg-blue-50/30"
-          }`}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            {run.status === "completed" ? (
-              <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-            ) : run.status === "failed" ? (
-              <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-            ) : (
-              <Loader2 className="w-5 h-5 text-blue-500 animate-spin shrink-0" />
-            )}
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{run.keyword}</span>
-                <Badge variant="outline" className="text-xs">
-                  {run.keywordSource === "ai" ? "AI" : "Queue"}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                <span>{new Date(run.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-                <span>{formatDuration(run.durationMs)}</span>
-                {run.status === "failed" && run.errorMessage && (
-                  <span className="text-red-500 truncate max-w-64" title={run.errorMessage}>
-                    {run.errorMessage}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {run.status === "completed" && run.articleId && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => navigate(`/articles/${run.articleId}`)}
+      {runs.map((run) => {
+        const isExpanded = expandedRunId === run.id;
+        return (
+          <Collapsible
+            key={run.id}
+            open={isExpanded}
+            onOpenChange={(open) => setExpandedRunId(open ? run.id : null)}
+          >
+            <div
+              className={`rounded-lg border ${
+                run.status === "completed" ? "border-green-100 bg-green-50/30" :
+                run.status === "failed" ? "border-red-100 bg-red-50/30" :
+                "border-blue-100 bg-blue-50/30"
+              }`}
             >
-              <FileText className="w-3.5 h-3.5 mr-1" />
-              View Article
-            </Button>
-          )}
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 text-left hover:bg-black/[0.02] transition-colors rounded-lg">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {run.status === "completed" ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                    ) : run.status === "failed" ? (
+                      <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+                    ) : (
+                      <Loader2 className="w-5 h-5 text-blue-500 animate-spin shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">{run.keyword}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {run.keywordSource === "ai" ? "AI" : "Queue"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                        <span>{new Date(run.startedAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                        <span>{formatDuration(run.durationMs)}</span>
+                        {run.status === "failed" && run.errorMessage && (
+                          <span className="text-red-500 truncate max-w-64" title={run.errorMessage}>
+                            {run.errorMessage}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {run.status === "completed" && run.articleId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/articles/${run.articleId}`); }}
+                      >
+                        <FileText className="w-3.5 h-3.5 mr-1" />
+                        View Article
+                      </Button>
+                    )}
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="px-4 pb-4">
+                  <RunLogTimeline runId={run.id} />
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// RUN LOG TIMELINE — fetches and displays step-level logs for a run
+// ============================================================
+
+const STEP_ICONS: Record<string, { icon: typeof CheckCircle2; color: string }> = {
+  keyword_selection: { icon: Sparkles, color: "text-indigo-500" },
+  outline: { icon: ListOrdered, color: "text-blue-500" },
+  article: { icon: FileText, color: "text-purple-500" },
+  auto_grade: { icon: Zap, color: "text-amber-500" },
+  em_dash_removal: { icon: Settings2, color: "text-gray-400" },
+  complete: { icon: CheckCircle2, color: "text-green-500" },
+  error: { icon: XCircle, color: "text-red-500" },
+};
+
+const LEVEL_STYLES: Record<string, string> = {
+  success: "text-green-600",
+  warning: "text-amber-600",
+  error: "text-red-600",
+  info: "text-muted-foreground",
+};
+
+function RunLogTimeline({ runId }: { runId: number }) {
+  const { data: logs, isLoading } = trpc.scheduler.getRunLogs.useQuery(
+    { runId },
+    { enabled: !!runId }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 pt-2 border-t border-dashed">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="w-4 h-4 rounded-full" />
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-3 w-16 ml-auto" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!logs?.length) {
+    return (
+      <div className="pt-2 border-t border-dashed">
+        <p className="text-xs text-muted-foreground">No detailed logs available for this run.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-3 border-t border-dashed">
+      <div className="relative">
+        {/* Vertical timeline line */}
+        <div className="absolute left-[9px] top-2 bottom-2 w-px bg-border" />
+        <div className="space-y-3">
+          {logs.map((log: any, idx: number) => {
+            const stepConfig = STEP_ICONS[log.step] ?? { icon: AlertCircle, color: "text-muted-foreground" };
+            const Icon = stepConfig.icon;
+            const levelStyle = LEVEL_STYLES[log.level] ?? LEVEL_STYLES.info;
+            const timestamp = new Date(log.createdAt).toLocaleString("en-US", {
+              timeZone: "America/New_York",
+              hour: "numeric",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+
+            return (
+              <div key={log.id ?? idx} className="flex items-start gap-3 relative">
+                <div className={`shrink-0 z-10 bg-white rounded-full p-0.5 ${stepConfig.color}`}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-xs leading-relaxed ${levelStyle}`}>
+                    {log.message}
+                  </span>
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums pt-0.5">
+                  {timestamp} ET
+                </span>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      </div>
     </div>
   );
 }

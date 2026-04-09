@@ -1,6 +1,6 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -587,4 +587,35 @@ export async function updateJobRunHistoryEntry(id: number, data: Partial<Pick<In
   if (!db) throw new Error("Database not available");
   await db.update(jobRunHistory).set(data).where(eq(jobRunHistory.id, id));
   return getJobRunHistoryById(id);
+}
+
+// ── Scheduler Run Logs ──────────────────────────────────────────────
+
+export async function addSchedulerRunLog(data: { runId: number; jobId: number; step: string; level?: string; message: string; metadata?: Record<string, any> }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    await db.insert(schedulerRunLogs).values({
+      runId: data.runId,
+      jobId: data.jobId,
+      step: data.step,
+      level: data.level ?? "info",
+      message: data.message,
+      metadata: data.metadata ?? null,
+    });
+  } catch (err) {
+    console.warn("[Scheduler] Failed to write run log:", err);
+  }
+}
+
+export async function getSchedulerRunLogs(jobId: number, limit = 200) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(schedulerRunLogs).where(eq(schedulerRunLogs.jobId, jobId)).orderBy(desc(schedulerRunLogs.id)).limit(limit);
+}
+
+export async function getSchedulerRunLogsByRunId(runId: number, limit = 200) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(schedulerRunLogs).where(eq(schedulerRunLogs.runId, runId)).orderBy(schedulerRunLogs.id).limit(limit);
 }

@@ -27,6 +27,7 @@ import {
   getScheduledJobsByProject, getScheduledJobsByUser, getScheduledJobById, createScheduledJob, updateScheduledJob, deleteScheduledJob, getDueScheduledJobs,
   getKeywordQueueByJob, getKeywordQueueItemById, addKeywordToQueue, addKeywordsToQueue, updateKeywordQueueItem, deleteKeywordQueueItem, getNextPendingKeyword, countPendingKeywords,
   getJobRunHistory, createJobRunHistoryEntry, updateJobRunHistoryEntry,
+  addSchedulerRunLog, getSchedulerRunLogs, getSchedulerRunLogsByRunId,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -4478,6 +4479,18 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         return getJobRunHistory(input.jobId, input.limit);
       }),
 
+    // ---- Run Logs (step-level) ----
+    getRunLogs: publicProcedure
+      .input(z.object({ runId: z.number().optional(), jobId: z.number().optional(), limit: z.number().default(200) }))
+      .query(async ({ input }) => {
+        if (input.runId) {
+          return getSchedulerRunLogsByRunId(input.runId, input.limit);
+        } else if (input.jobId) {
+          return getSchedulerRunLogs(input.jobId, input.limit);
+        }
+        return [];
+      }),
+
     // ---- Manual Trigger ----
     runNow: publicProcedure
       .input(z.object({ jobId: z.number() }))
@@ -4553,12 +4566,18 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
   let keywordQueueItemId: number | null = null;
   let runEntry: any = null;
 
+  // Helper to log a step (non-blocking, fire-and-forget)
+  const log = (step: string, message: string, level = "info", metadata?: Record<string, any>) => {
+    if (runEntry?.id) {
+      addSchedulerRunLog({ runId: runEntry.id, jobId: job.id, step, level, message, metadata });
+    }
+  };
+
   try {
     // Determine keyword
     if (job.keywordSource === "queue") {
       const nextItem = await getNextPendingKeyword(job.id);
       if (!nextItem) {
-        // No more keywords — mark job as completed
         await updateScheduledJob(job.id, { status: "completed", isRunning: 0 });
         return;
       }
@@ -4566,7 +4585,6 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       keywordQueueItemId = nextItem.id;
       await updateKeywordQueueItem(nextItem.id, { status: "processing" });
     } else {
-      // AI-suggested mode — ask LLM to suggest the next keyword
       keyword = await suggestNextKeyword(job);
     }
 
@@ -4578,11 +4596,29 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       jobId: job.id,
     });
 
+    log("keyword_selection", `Keyword selected: "${keyword}"`, "success", { keyword, source: job.keywordSource });
+
     // Step 1: Generate outline
+    log("outline", `Generating outline for "${keyword}"...`);
+    const outlineStart = Date.now();
     const outlineResult = await generateOutlineForScheduler(job, keyword);
+    const outlineDuration = Date.now() - outlineStart;
+    log("outline", `Outline generated: "${outlineResult.title}" (${Math.round(outlineDuration / 1000)}s)`, "success", {
+      title: outlineResult.title,
+      outlineId: outlineResult.id,
+      durationMs: outlineDuration,
+    });
 
     // Step 2: Generate article from outline
-    const articleResult = await generateArticleForScheduler(job, outlineResult);
+    log("article", `Writing article from outline...`);
+    const articleStart = Date.now();
+    const articleResult = await generateArticleForScheduler(job, outlineResult, log);
+    const articleDuration = Date.now() - articleStart;
+    log("article", `Article written: ${articleResult.wordCount ?? 0} words (${Math.round(articleDuration / 1000)}s)`, "success", {
+      articleId: articleResult.id,
+      wordCount: articleResult.wordCount,
+      durationMs: articleDuration,
+    });
 
     // Update run history
     const duration = Date.now() - startTime;
@@ -4619,22 +4655,33 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       const remaining = await countPendingKeywords(job.id);
       if (remaining === 0) {
         await updateScheduledJob(job.id, { status: "completed" });
+        log("complete", "Keyword queue exhausted — job marked as completed", "info", { remainingKeywords: 0 });
       }
     }
 
-    // Auto em-dash removal (hidden default — runs silently on all scheduler articles)
+    // Auto em-dash removal (hidden default)
     try {
       const latestArticle = await getArticleById(articleResult.id);
       if (latestArticle?.content) {
         const cleaned = latestArticle.content.replace(/\s*\u2014\s*/g, ", ");
         if (cleaned !== latestArticle.content) {
           await updateArticle(articleResult.id, { content: cleaned });
-          console.log(`[Scheduler] Em dashes removed from article ${articleResult.id}`);
+          log("em_dash_removal", "Em dashes removed from article", "success");
+        } else {
+          log("em_dash_removal", "No em dashes found — skipped", "info");
         }
       }
     } catch (emDashErr) {
+      log("em_dash_removal", "Em-dash removal failed (non-fatal)", "warning");
       console.warn("[Scheduler] Em-dash removal failed (non-fatal):", emDashErr);
     }
+
+    const totalDuration = Date.now() - startTime;
+    log("complete", `Run completed successfully in ${Math.round(totalDuration / 1000)}s`, "success", {
+      totalDurationMs: totalDuration,
+      articleId: articleResult.id,
+      wordCount: articleResult.wordCount,
+    });
 
     // Send in-app notification
     try {
@@ -4649,6 +4696,18 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
 
   } catch (error: any) {
     console.error(`[Scheduler] Job ${jobId} failed:`, error);
+
+    // Log the error
+    if (runEntry?.id) {
+      addSchedulerRunLog({
+        runId: runEntry.id,
+        jobId: job.id,
+        step: "error",
+        level: "error",
+        message: error.message || "Unknown error",
+        metadata: { stack: error.stack?.slice(0, 500) },
+      });
+    }
 
     // Update run history with error
     if (runEntry) {
@@ -4785,7 +4844,7 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
 }
 
 /** Generate an article from an outline using the scheduler job's settings */
-async function generateArticleForScheduler(job: any, outline: any): Promise<any> {
+async function generateArticleForScheduler(job: any, outline: any, logFn?: (step: string, message: string, level?: string, metadata?: Record<string, any>) => void): Promise<any> {
   const settings = job.articleSettings ?? {};
   const project = await getProjectById(job.projectId);
   const allVoices = await getBrandVoicesByProject(job.projectId);
@@ -4878,6 +4937,7 @@ async function generateArticleForScheduler(job: any, outline: any): Promise<any>
         projectId: job.projectId,
         targetGrade: settings.targetGrade,
         maxIterations: maxIter,
+        logFn,
       });
       console.log(`[Scheduler] Auto-grade complete. Final grade: ${finalGrade} after ${iterationsRun} iteration(s).`);
       const updatedArticle = await getArticleById(article.id);
@@ -4919,11 +4979,13 @@ async function runAutoGradeLoop({
   projectId,
   targetGrade,
   maxIterations,
+  logFn,
 }: {
   articleId: number;
   projectId: number;
   targetGrade: string;
   maxIterations: number;
+  logFn?: (step: string, message: string, level?: string, metadata?: Record<string, any>) => void;
 }): Promise<{ finalGrade: string; iterationsRun: number }> {
   const db = await getDb();
   if (!db) return { finalGrade: "?", iterationsRun: 0 };
@@ -4982,10 +5044,12 @@ async function runAutoGradeLoop({
     iterationsRun++;
 
     console.log(`[AutoGrade] Iteration ${i + 1}: grade=${finalGrade}, target=${targetGrade}`);
+    logFn?.("auto_grade", `Iteration ${i + 1}: graded ${finalGrade} (target: ${targetGrade})`, "info", { iteration: i + 1, grade: finalGrade, targetGrade });
 
     // Stop if target reached
     if (gradeMetOrExceeds(finalGrade, targetGrade)) {
       console.log(`[AutoGrade] Target grade ${targetGrade} reached after ${iterationsRun} iteration(s).`);
+      logFn?.("auto_grade", `Target grade ${targetGrade} reached after ${iterationsRun} iteration(s)`, "success", { finalGrade, iterationsRun });
       break;
     }
 
@@ -5039,6 +5103,7 @@ async function runAutoGradeLoop({
       const newWordCount = improvedContent.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
       await db.update(articles).set({ content: improvedContent, wordCount: newWordCount }).where(eq(articles.id, articleId));
       console.log(`[AutoGrade] Applied ${appliedCount} edits in iteration ${i + 1}.`);
+      logFn?.("auto_grade", `Applied ${appliedCount} improvements in iteration ${i + 1}`, "success", { appliedCount, iteration: i + 1, newWordCount });
     }
   }
 

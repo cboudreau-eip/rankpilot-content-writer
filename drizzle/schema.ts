@@ -521,3 +521,28 @@ export const jobRunHistory = mysqlTable("job_run_history", {
 
 export type JobRunHistoryEntry = typeof jobRunHistory.$inferSelect;
 export type InsertJobRunHistoryEntry = typeof jobRunHistory.$inferInsert;
+
+/**
+ * Scheduler Run Logs — step-level log entries for each job run.
+ * Multiple entries per run, forming a timeline of what happened.
+ */
+export const schedulerRunLogs = mysqlTable("scheduler_run_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Reference to the job_run_history entry */
+  runId: int("runId").notNull(),
+  /** Reference to the scheduled job */
+  jobId: int("jobId").notNull(),
+  /** Pipeline step: keyword_selection, outline, article, grading, em_dash_removal, complete, error */
+  step: varchar("step", { length: 64 }).notNull(),
+  /** Log level: info, success, warning, error */
+  level: varchar("level", { length: 16 }).default("info").notNull(),
+  /** Human-readable log message */
+  message: varchar("message", { length: 1024 }).notNull(),
+  /** Optional metadata (e.g., word count, grade result, iteration number) */
+  metadata: json("metadata").$type<Record<string, any>>(),
+  /** When this log entry was created */
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SchedulerRunLog = typeof schedulerRunLogs.$inferSelect;
+export type InsertSchedulerRunLog = typeof schedulerRunLogs.$inferInsert;

@@ -973,3 +973,21 @@
 - [x] Add RunLogTimeline component with step-specific icons, level-based coloring, vertical timeline line, and ET timestamps
 - [x] Add 4 new vitest tests for getRunLogs procedure (433 total passing)
 - [x] Save checkpoint
+
+## Scheduler Feature Parity with Article Generation Tool
+### Backend Pipeline Upgrades
+- [x] Add per-run dynamic keyword suggestion: suggestKeywordsForScheduler calls LLM, randomly picks 4 related + 2 LSI + 2 long-tail, merges with static secondary keywords
+- [x] Add actual research step: researchTopicForScheduler calls LLM when researchEnabled=true, passes findings to outline generation
+- [x] Add sitemap URL resolution: resolves sitemapUrls to actual page URLs, passes to article prompt with strict linking instructions
+- [x] Add CTA template injection: fetches project CTAs and injects into article prompt
+- [x] Add banned phrases enforcement: injects project.bannedPhrases into prompt AND post-generation scan/strip
+- [x] Add full post-processing pipeline: fixBrokenAnchors, wrapBareTextInPTags, splitLongParagraphs, applyBackgroundColors, applyTemplateStyles, link count enforcement
+- [x] Upgrade scheduler article prompt to match manual tool quality rules (intro variety, content uniqueness, citation rules, anchor text length, table format, per-section AI instructions, template sections, current date context, paragraph structure, URL integrity, total link limit)
+- [x] Add suggestKeywordsEnabled, manualLinks, sitemapUrls to ScheduledJobSettings interface and tRPC schemas
+### UI Enhancements
+- [x] Add "Auto-Suggest Secondary Keywords" toggle to scheduler create/edit form (enabled by default, 4 related + 2 LSI + 2 long-tail)
+- [x] Add sitemap picker to scheduler create/edit form (checkbox list of project sitemaps)
+- [x] Add manual links input to scheduler create/edit form (URL + anchor text pairs, add/remove)
+- [x] Align content type list with manual tool (added: Pillar Page, Review, Case Study; renamed Guide → How-To Guide)
+- [x] Align tone list with manual tool (replaced casual/educational with academic/persuasive)
+- [x] All 433 tests pass, checkpoint saved

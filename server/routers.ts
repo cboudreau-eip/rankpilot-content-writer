@@ -4314,6 +4314,8 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           autoGradeEnabled: z.boolean().optional(),
           targetGrade: z.string().optional(),
           maxGradeIterations: z.number().optional(),
+          suggestKeywordsEnabled: z.boolean().optional(),
+          manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
         }),
         projectId: z.number(),
         keywords: z.array(z.string()).optional(), // Initial keywords for queue mode
@@ -4378,6 +4380,8 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           autoGradeEnabled: z.boolean().optional(),
           targetGrade: z.string().optional(),
           maxGradeIterations: z.number().optional(),
+          suggestKeywordsEnabled: z.boolean().optional(),
+          manualLinks: z.array(z.object({ url: z.string(), anchorText: z.string() })).optional(),
         }).optional(),
       }))
       .mutation(async ({ input }) => {
@@ -4556,29 +4560,164 @@ function calculateNextRunTime(
   return next;
 }
 
-/** Execute a scheduled job — runs the full outline → article pipeline */
+/**
+ * Step 0: Auto-suggest secondary keywords for a given primary keyword.
+ * Calls the same LLM prompt as the manual suggestKeywords procedure,
+ * then randomly picks 4 related + 2 LSI + 2 long-tail.
+ */
+async function suggestKeywordsForScheduler(
+  keyword: string,
+  job: any,
+): Promise<string[]> {
+  const settings = job.articleSettings ?? {};
+  const prompt = `You are an expert SEO keyword researcher. Given a primary keyword, suggest related keywords that should be naturally woven into an article to improve topical coverage and semantic relevance.
+
+Primary keyword: "${keyword}"
+${settings.contentType ? `Content type: ${settings.contentType}` : ""}
+${settings.targetAudience ? `Target audience: ${settings.targetAudience}` : ""}
+${settings.targetLocation ? `Target location: ${settings.targetLocation}` : ""}
+
+Return a JSON object with exactly these three arrays:
+1. "secondary" — 5-8 closely related search terms
+2. "lsi" — 5-8 LSI/semantic terms
+3. "longTail" — 3-5 long-tail keyword variations
+
+Rules:
+- Each keyword should be lowercase
+- No duplicates across the three arrays
+- Do NOT include the primary keyword itself`;
+
+  const response = await callLLM({
+    messages: [
+      { role: "system", content: "You are an SEO keyword research expert. Return ONLY valid JSON." },
+      { role: "user", content: prompt },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "keyword_suggestions",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            secondary: { type: "array", items: { type: "string" } },
+            lsi: { type: "array", items: { type: "string" } },
+            longTail: { type: "array", items: { type: "string" } },
+          },
+          required: ["secondary", "lsi", "longTail"],
+          additionalProperties: false,
+        },
+      },
+    },
+  }, job.projectId);
+
+  const rawContent = response.choices[0]?.message?.content;
+  if (!rawContent) return [];
+  const text = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+  try {
+    const parsed = JSON.parse(text);
+    const secondary: string[] = (parsed.secondary || []).slice(0, 8);
+    const lsi: string[] = (parsed.lsi || []).slice(0, 8);
+    const longTail: string[] = (parsed.longTail || []).slice(0, 5);
+    const pick = (arr: string[], count: number): string[] => {
+      const shuffled = [...arr].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, count);
+    };
+    return [...pick(secondary, 4), ...pick(lsi, 2), ...pick(longTail, 2)];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Step 1: Run topic research (same as manual researchTopic procedure).
+ */
+async function researchTopicForScheduler(
+  keyword: string,
+  job: any,
+): Promise<any> {
+  const settings = job.articleSettings ?? {};
+  const project = await getProjectById(job.projectId);
+  const currentYear = new Date().getFullYear();
+
+  const researchPrompt = `Research the topic: "${keyword}"
+${settings.contentType ? `Content type: ${settings.contentType}` : ""}
+${settings.targetAudience ? `Target audience: ${settings.targetAudience}` : ""}
+${settings.targetLocation ? `Target location: ${settings.targetLocation}` : ""}
+${project?.domain ? `Website domain: ${project.domain}` : ""}
+
+Conduct thorough research and provide findings in these categories:
+
+1. STATISTICS & DATA - Find 5-8 relevant statistics with sources and URLs
+2. AUTHORITATIVE SOURCES - 4-6 authoritative sources
+3. EXPERT VOICES - 3-4 recognized experts
+4. COMMON QUESTIONS - 5-8 questions people search
+5. COMPETITOR CONTENT ANGLES - 3-5 common angles
+6. KEY TAKEAWAYS - 3-5 essential points
+
+IMPORTANT: The current year is ${currentYear}. Prefer ${currentYear} data.`;
+
+  const response = await callLLM({
+    messages: [
+      { role: "system", content: `You are an expert research assistant. The current year is ${currentYear}. Return ONLY valid JSON.` },
+      { role: "user", content: researchPrompt },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "research_findings",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            statistics: { type: "array", items: { type: "object", properties: { fact: { type: "string" }, value: { type: "string" }, source: { type: "string" }, sourceUrl: { type: "string" }, year: { type: "string" } }, required: ["fact", "value", "source", "sourceUrl", "year"], additionalProperties: false } },
+            authoritativeSources: { type: "array", items: { type: "object", properties: { name: { type: "string" }, url: { type: "string" }, type: { type: "string" }, description: { type: "string" } }, required: ["name", "url", "type", "description"], additionalProperties: false } },
+            experts: { type: "array", items: { type: "object", properties: { name: { type: "string" }, credentials: { type: "string" }, organization: { type: "string" }, notableQuote: { type: "string" } }, required: ["name", "credentials", "organization", "notableQuote"], additionalProperties: false } },
+            commonQuestions: { type: "array", items: { type: "object", properties: { question: { type: "string" }, searchVolume: { type: "string" }, intent: { type: "string" } }, required: ["question", "searchVolume", "intent"], additionalProperties: false } },
+            competitorAngles: { type: "array", items: { type: "object", properties: { angle: { type: "string" }, description: { type: "string" }, differentiator: { type: "string" } }, required: ["angle", "description", "differentiator"], additionalProperties: false } },
+            keyTakeaways: { type: "array", items: { type: "string" } },
+          },
+          required: ["statistics", "authoritativeSources", "experts", "commonQuestions", "competitorAngles", "keyTakeaways"],
+          additionalProperties: false,
+        },
+      },
+    },
+  }, job.projectId);
+
+  const rawContent = response.choices?.[0]?.message?.content;
+  const content = typeof rawContent === "string" ? rawContent.trim() : "";
+  if (!content) return null;
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Execute a scheduled job — runs the full research → outline → article pipeline with full parity */
 export async function executeScheduledJob(jobId: number): Promise<void> {
   const job = await getScheduledJobById(jobId);
-  if (!job) return;
+  if (!job) {
+    console.error(`[Scheduler] Job ${jobId} not found`);
+    return;
+  }
 
   const startTime = Date.now();
-  let keyword = "";
-  let keywordQueueItemId: number | null = null;
-  let runEntry: any = null;
-
-  // Helper to log a step (non-blocking, fire-and-forget)
-  const log = (step: string, message: string, level = "info", metadata?: Record<string, any>) => {
-    if (runEntry?.id) {
-      addSchedulerRunLog({ runId: runEntry.id, jobId: job.id, step, level, message, metadata });
-    }
-  };
+  let keywordQueueItemId: number | undefined;
+  let runEntry: any;
 
   try {
-    // Determine keyword
+    // Mark job as running
+    await updateScheduledJob(job.id, { isRunning: 1 });
+
+    // Determine the keyword for this run
+    let keyword: string;
     if (job.keywordSource === "queue") {
       const nextItem = await getNextPendingKeyword(job.id);
       if (!nextItem) {
-        await updateScheduledJob(job.id, { status: "completed", isRunning: 0 });
+        console.log(`[Scheduler] No pending keywords for job ${job.id}. Pausing.`);
+        await updateScheduledJob(job.id, { jobStatus: "paused", isRunning: 0 });
         return;
       }
       keyword = nextItem.keyword;
@@ -4588,116 +4727,121 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       keyword = await suggestNextKeyword(job);
     }
 
+    console.log(`[Scheduler] Starting pipeline for job ${job.id}, keyword: "${keyword}"`);
+
     // Create run history entry
     runEntry = await createJobRunHistoryEntry({
-      keyword,
-      keywordSource: job.keywordSource,
-      status: "running",
       jobId: job.id,
+      keyword,
+      status: "running",
+      startedAt: new Date(),
     });
 
-    log("keyword_selection", `Keyword selected: "${keyword}"`, "success", { keyword, source: job.keywordSource });
+    // Helper to log steps to the run log table
+    const logFn = (step: string, message: string, level: string = "info", metadata?: Record<string, any>) => {
+      if (runEntry?.id) {
+        addSchedulerRunLog({
+          runId: runEntry.id,
+          jobId: job.id,
+          step,
+          level,
+          message,
+          metadata: metadata ?? null,
+        });
+      }
+    };
 
-    // Step 1: Generate outline
-    log("outline", `Generating outline for "${keyword}"...`);
-    const outlineStart = Date.now();
-    const outlineResult = await generateOutlineForScheduler(job, keyword);
-    const outlineDuration = Date.now() - outlineStart;
-    log("outline", `Outline generated: "${outlineResult.title}" (${Math.round(outlineDuration / 1000)}s)`, "success", {
-      title: outlineResult.title,
-      outlineId: outlineResult.id,
-      durationMs: outlineDuration,
-    });
+    logFn("keyword_selection", `Selected keyword: "${keyword}"`, "info", { keyword, source: job.keywordSource });
 
-    // Step 2: Generate article from outline
-    log("article", `Writing article from outline...`);
-    const articleStart = Date.now();
-    const articleResult = await generateArticleForScheduler(job, outlineResult, log);
-    const articleDuration = Date.now() - articleStart;
-    log("article", `Article written: ${articleResult.wordCount ?? 0} words (${Math.round(articleDuration / 1000)}s)`, "success", {
-      articleId: articleResult.id,
-      wordCount: articleResult.wordCount,
-      durationMs: articleDuration,
-    });
+    const settings = job.articleSettings ?? {};
 
-    // Update run history
-    const duration = Date.now() - startTime;
-    if (runEntry) {
-      await updateJobRunHistoryEntry(runEntry.id, {
-        status: "completed",
-        articleId: articleResult.id,
-        outlineId: outlineResult.id,
-        durationMs: duration,
-        completedAt: new Date(),
-      });
+    // ── Step 0: Auto-suggest secondary keywords (if enabled) ──
+    let effectiveSecondaryKeywords: string[] = [...(settings.secondaryKeywords || [])];
+    if (settings.suggestKeywordsEnabled) {
+      logFn("keyword_suggestion", "Running AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...", "info");
+      try {
+        const suggested = await suggestKeywordsForScheduler(keyword, job);
+        if (suggested.length > 0) {
+          const existing = new Set(effectiveSecondaryKeywords.map(k => k.toLowerCase()));
+          for (const kw of suggested) {
+            if (!existing.has(kw.toLowerCase())) {
+              effectiveSecondaryKeywords.push(kw);
+              existing.add(kw.toLowerCase());
+            }
+          }
+          logFn("keyword_suggestion", `Suggested ${suggested.length} keywords: ${suggested.join(", ")}`, "success", { suggested, total: effectiveSecondaryKeywords.length });
+        }
+      } catch (err: any) {
+        logFn("keyword_suggestion", `Keyword suggestion failed (non-fatal): ${err.message}`, "warning");
+      }
     }
 
-    // Update keyword queue item
+    // ── Step 1: Research (if enabled) ──
+    let researchFindings: any = null;
+    if (settings.researchEnabled !== false) {
+      logFn("research", `Researching topic: "${keyword}"...`, "info");
+      try {
+        researchFindings = await researchTopicForScheduler(keyword, job);
+        if (researchFindings) {
+          const statCount = researchFindings.statistics?.length ?? 0;
+          const sourceCount = researchFindings.authoritativeSources?.length ?? 0;
+          logFn("research", `Research complete: ${statCount} statistics, ${sourceCount} authoritative sources`, "success", { statCount, sourceCount });
+        } else {
+          logFn("research", "Research returned no results (non-fatal)", "warning");
+        }
+      } catch (err: any) {
+        logFn("research", `Research failed (non-fatal): ${err.message}`, "warning");
+      }
+    }
+
+    // ── Step 2: Generate outline ──
+    logFn("outline", `Generating outline for "${keyword}"...`, "info");
+    const outline = await generateOutlineForScheduler(job, keyword, effectiveSecondaryKeywords, researchFindings);
+    logFn("outline", `Outline created: "${outline.title}" with ${outline.sections?.length ?? 0} sections`, "success", { outlineId: outline.id, title: outline.title });
+
+    // ── Step 3: Generate article ──
+    logFn("article", `Generating article from outline...`, "info");
+    const article = await generateArticleForScheduler(job, outline, effectiveSecondaryKeywords, researchFindings, logFn);
+    logFn("article", `Article generated: ${article.wordCount ?? 0} words`, "success", { articleId: article.id, wordCount: article.wordCount });
+
+    // ── Step 4: Em-dash removal ──
+    if (article?.content && article.content.includes("\u2014")) {
+      const emDashCount = (article.content.match(/\u2014/g) || []).length;
+      logFn("em_dash_removal", `Found ${emDashCount} em-dashes, removing...`, "info");
+      const cleanedContent = article.content.replace(/\u2014/g, " - ");
+      await updateArticle(article.id, { content: cleanedContent });
+      logFn("em_dash_removal", `Removed ${emDashCount} em-dashes`, "success");
+    }
+
+    // ── Step 5: Complete ──
+    const durationMs = Date.now() - startTime;
+    await updateScheduledJob(job.id, {
+      lastRunAt: new Date(),
+      totalGenerated: (job.totalGenerated ?? 0) + 1,
+      isRunning: 0,
+      nextRunAt: calculateNextRunTime(job.frequency, job.hourUtc, job.dayOfWeek, job.dayOfMonth),
+    });
+
     if (keywordQueueItemId) {
       await updateKeywordQueueItem(keywordQueueItemId, {
         status: "completed",
-        generatedArticleId: articleResult.id,
-        processedAt: new Date(),
+        articleId: article.id,
       });
     }
 
-    // Update job stats
-    const nextRunAt = calculateNextRunTime(job.frequency, job.hourUtc, job.dayOfWeek, job.dayOfMonth);
-    await updateScheduledJob(job.id, {
-      totalGenerated: (job.totalGenerated ?? 0) + 1,
-      lastRunAt: new Date(),
-      nextRunAt,
-      isRunning: 0,
+    await updateJobRunHistoryEntry(runEntry.id, {
+      status: "completed",
+      articleId: article.id,
+      durationMs,
+      completedAt: new Date(),
     });
 
-    // Check if queue is exhausted
-    if (job.keywordSource === "queue") {
-      const remaining = await countPendingKeywords(job.id);
-      if (remaining === 0) {
-        await updateScheduledJob(job.id, { status: "completed" });
-        log("complete", "Keyword queue exhausted — job marked as completed", "info", { remainingKeywords: 0 });
-      }
-    }
-
-    // Auto em-dash removal (hidden default)
-    try {
-      const latestArticle = await getArticleById(articleResult.id);
-      if (latestArticle?.content) {
-        const cleaned = latestArticle.content.replace(/\s*\u2014\s*/g, ", ");
-        if (cleaned !== latestArticle.content) {
-          await updateArticle(articleResult.id, { content: cleaned });
-          log("em_dash_removal", "Em dashes removed from article", "success");
-        } else {
-          log("em_dash_removal", "No em dashes found — skipped", "info");
-        }
-      }
-    } catch (emDashErr) {
-      log("em_dash_removal", "Em-dash removal failed (non-fatal)", "warning");
-      console.warn("[Scheduler] Em-dash removal failed (non-fatal):", emDashErr);
-    }
-
-    const totalDuration = Date.now() - startTime;
-    log("complete", `Run completed successfully in ${Math.round(totalDuration / 1000)}s`, "success", {
-      totalDurationMs: totalDuration,
-      articleId: articleResult.id,
-      wordCount: articleResult.wordCount,
-    });
-
-    // Send in-app notification
-    try {
-      const { notifyOwner } = await import("./_core/notification");
-      await notifyOwner({
-        title: `Article Generated: ${articleResult.title}`,
-        content: `Your scheduled job "${job.name}" generated a new article for keyword "${keyword}". Word count: ${articleResult.wordCount ?? "N/A"}. The article has been saved as a Draft and is ready for review.`,
-      });
-    } catch (notifErr) {
-      console.warn("[Scheduler] Failed to send notification:", notifErr);
-    }
+    logFn("complete", `Pipeline complete in ${Math.round(durationMs / 1000)}s \u2014 article #${article.id}`, "success", { articleId: article.id, durationMs });
+    console.log(`[Scheduler] Job ${job.id} completed. Article #${article.id} in ${Math.round(durationMs / 1000)}s`);
 
   } catch (error: any) {
-    console.error(`[Scheduler] Job ${jobId} failed:`, error);
+    console.error(`[Scheduler] Job ${job.id} failed:`, error);
 
-    // Log the error
     if (runEntry?.id) {
       addSchedulerRunLog({
         runId: runEntry.id,
@@ -4709,7 +4853,6 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       });
     }
 
-    // Update run history with error
     if (runEntry) {
       await updateJobRunHistoryEntry(runEntry.id, {
         status: "failed",
@@ -4719,7 +4862,6 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       });
     }
 
-    // Update keyword queue item with error
     if (keywordQueueItemId) {
       await updateKeywordQueueItem(keywordQueueItemId, {
         status: "failed",
@@ -4727,7 +4869,6 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       });
     }
 
-    // Reset job running state
     await updateScheduledJob(job.id, { isRunning: 0 });
   }
 }
@@ -4745,7 +4886,7 @@ async function suggestNextKeyword(job: any): Promise<string> {
 
 Project: ${project?.name ?? "Unknown"}
 Domain: ${project?.domain ?? "Not specified"}
-ICP: ${project?.icpPrimaryName ?? "Not specified"} — ${project?.icpWhoTheyAre ?? ""}
+ICP: ${project?.icpPrimaryName ?? "Not specified"} \u2014 ${project?.icpWhoTheyAre ?? ""}
 Existing article keywords: ${existingKeywords || "None yet"}
 
 Rules:
@@ -4760,8 +4901,13 @@ Rules:
   return text.trim();
 }
 
-/** Generate an outline using the scheduler job's settings */
-async function generateOutlineForScheduler(job: any, keyword: string): Promise<any> {
+/** Generate an outline using the scheduler job's settings \u2014 FULL PARITY with manual tool */
+async function generateOutlineForScheduler(
+  job: any,
+  keyword: string,
+  effectiveSecondaryKeywords: string[],
+  researchFindings: any,
+): Promise<any> {
   const settings = job.articleSettings ?? {};
   const project = await getProjectById(job.projectId);
   const allVoices = await getBrandVoicesByProject(job.projectId);
@@ -4769,16 +4915,20 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
     ? allVoices.find((v: any) => v.id === settings.brandVoiceId) ?? allVoices[0] ?? null
     : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
-  // Build ICP section
+  // Build ICP section (full version matching manual tool)
   let icpSection = "";
-  if (project) {
-    const formatList = (items: string[] | null | undefined, label: string): string => {
-      if (!items?.length) return '';
-      return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
-    };
-    if (project.icpPrimaryName) {
-      icpSection = `\n=== IDEAL CUSTOMER PROFILE (ICP) ===\nTARGET AUDIENCE: ${project.icpPrimaryName}\n${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}\n${formatList(project.icpPains, 'PAIN POINTS')}${formatList(project.icpGoals, 'GOALS')}${formatList(project.icpObjections, 'OBJECTIONS')}${formatList(project.icpDecisionTriggers, 'DECISION TRIGGERS')}${formatList(project.icpTrustSignals, 'TRUST SIGNALS')}`;
+  const formatList = (items: string[] | null | undefined, label: string): string => {
+    if (!items?.length) return '';
+    return `${label}:\n${items.map((item: string, i: number) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+  };
+
+  if (settings.icpProfileId) {
+    const icpProfile = await getICPById(settings.icpProfileId);
+    if (icpProfile) {
+      icpSection = `\n=== IDEAL CUSTOMER PROFILE (ICP) ===\nTARGET AUDIENCE: ${icpProfile.name}\n${icpProfile.description ? `Who They Are: ${icpProfile.description}` : ''}\n${formatList(icpProfile.painPoints, 'PAIN POINTS')}${formatList(icpProfile.goals, 'GOALS')}${formatList(icpProfile.objections, 'OBJECTIONS')}`;
     }
+  } else if (project?.icpPrimaryName) {
+    icpSection = `\n=== IDEAL CUSTOMER PROFILE (ICP) ===\nTARGET AUDIENCE: ${project.icpPrimaryName}\n${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}\n${formatList(project.icpPains as string[] | null, 'PAIN POINTS')}${formatList(project.icpGoals as string[] | null, 'GOALS')}${formatList(project.icpObjections as string[] | null, 'OBJECTIONS')}${formatList(project.icpDecisionTriggers as string[] | null, 'DECISION TRIGGERS')}${formatList(project.icpTrustSignals as string[] | null, 'TRUST SIGNALS')}`;
   }
 
   // Build brand voice section
@@ -4787,17 +4937,53 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
     voiceSection = `\n=== BRAND VOICE ===\nVoice: ${brandVoice.name}\nTone: ${brandVoice.toneTraits || 'Professional'}\nPerspective: ${brandVoice.perspective}\nSentence Style: ${brandVoice.sentenceStyle}\n${brandVoice.avoidList ? `Avoid: ${brandVoice.avoidList}` : ''}\n${brandVoice.writingStyleSample ? `Style Sample: ${brandVoice.writingStyleSample}` : ''}`;
   }
 
+  // Build research section
+  let researchSection = "";
+  if (researchFindings) {
+    researchSection = buildResearchSection(researchFindings);
+  }
+
   const numSections = settings.numSections ?? 8;
   const numFaqs = settings.numFaqs ?? 5;
   const targetWordCount = settings.targetWordCount ?? 2000;
 
   const toneInstruction = settings.tone ? `- Tone: ${settings.tone}` : '';
-  const locationInstruction = settings.targetLocation ? `- Target location: ${settings.targetLocation} — tailor the outline to be relevant for this geographic area` : '';
-  const audienceInstruction = settings.targetAudience ? `- Target audience: ${settings.targetAudience} — structure the outline to address this audience's specific needs` : '';
-  const secondaryKwInstruction = settings.secondaryKeywords?.length ? `- Secondary keywords to weave in: ${settings.secondaryKeywords.join(', ')}` : '';
-  const researchInstruction = settings.researchEnabled !== false ? '- This article will be research-backed; structure sections to support in-depth coverage' : '';
+  const locationInstruction = settings.targetLocation ? `- Target location: ${settings.targetLocation} \u2014 tailor the outline to be relevant for this geographic area` : '';
+  const audienceInstruction = settings.targetAudience ? `- Target audience: ${settings.targetAudience} \u2014 structure the outline to address this audience's specific needs` : '';
+  const secondaryKwInstruction = effectiveSecondaryKeywords.length ? `- Secondary keywords to weave in: ${effectiveSecondaryKeywords.join(', ')}` : '';
 
-  const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".\n\nRequirements:\n- Create ${numSections} main H2 sections\n- Include a FAQ section with ${numFaqs} questions\n- Target ${targetWordCount} words\n- Each section should have 2-4 bullet points describing what to cover\n${settings.contentType ? `- Content type: ${settings.contentType}` : ''}\n${toneInstruction}\n${locationInstruction}\n${audienceInstruction}\n${secondaryKwInstruction}\n${researchInstruction}\n${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ''}\n${icpSection}\n${voiceSection}\n\nReturn a JSON object with this structure:\n{\n  "title": "Article title",\n  "sections": [\n    {\n      "id": "s1",\n      "heading": "Section heading",\n      "type": "h2",\n      "points": ["Point 1", "Point 2"],\n      "subSections": [\n        { "id": "s1-1", "heading": "Sub heading", "type": "h3", "points": ["Sub point"] }\n      ]\n    }\n  ]\n}`;
+  const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".
+
+Requirements:
+- Create ${numSections} main H2 sections
+- Include a FAQ section with ${numFaqs} questions
+- Target ${targetWordCount} words
+- Each section should have 2-4 bullet points describing what to cover
+${settings.contentType ? `- Content type: ${settings.contentType}` : ''}
+${toneInstruction}
+${locationInstruction}
+${audienceInstruction}
+${secondaryKwInstruction}
+${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ''}
+${icpSection}
+${voiceSection}
+${researchSection}
+
+Return a JSON object with this structure:
+{
+  "title": "Article title",
+  "sections": [
+    {
+      "id": "s1",
+      "heading": "Section heading",
+      "type": "h2",
+      "points": ["Point 1", "Point 2"],
+      "subSections": [
+        { "id": "s1-1", "heading": "Sub heading", "type": "h3", "points": ["Sub point"] }
+      ]
+    }
+  ]
+}`;
 
   const outlineResult = await callLLM({
     messages: [
@@ -4831,9 +5017,10 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
       targetLocation: settings.targetLocation,
       targetAudience: settings.targetAudience,
       outputFormat: settings.outputFormat,
-      secondaryKeywords: settings.secondaryKeywords,
+      secondaryKeywords: effectiveSecondaryKeywords,
       autoLinkCount: settings.autoLinkCount,
       sitemapUrls: settings.sitemapUrls,
+      manualLinks: settings.manualLinks,
     },
     status: "approved",
     projectId: job.projectId,
@@ -4843,8 +5030,14 @@ async function generateOutlineForScheduler(job: any, keyword: string): Promise<a
   return outline;
 }
 
-/** Generate an article from an outline using the scheduler job's settings */
-async function generateArticleForScheduler(job: any, outline: any, logFn?: (step: string, message: string, level?: string, metadata?: Record<string, any>) => void): Promise<any> {
+/** Generate an article from an outline \u2014 FULL PARITY with manual tool */
+async function generateArticleForScheduler(
+  job: any,
+  outline: any,
+  effectiveSecondaryKeywords: string[],
+  researchFindings: any,
+  logFn?: (step: string, message: string, level?: string, metadata?: Record<string, any>) => void,
+): Promise<any> {
   const settings = job.articleSettings ?? {};
   const project = await getProjectById(job.projectId);
   const allVoices = await getBrandVoicesByProject(job.projectId);
@@ -4852,43 +5045,299 @@ async function generateArticleForScheduler(job: any, outline: any, logFn?: (step
     ? allVoices.find((v: any) => v.id === settings.brandVoiceId) ?? allVoices[0] ?? null
     : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
 
-  // Build the outline text for the prompt
+  // ── Build the outline text for the prompt (with AI instructions & template types) ──
   const outlineText = (outline.sections || []).map((s: any) => {
     let text = `## ${s.heading}\n`;
     if (s.points?.length) text += s.points.map((p: string) => `- ${p}`).join('\n') + '\n';
+    if (s.aiInstructions?.trim()) {
+      text += `[AI INSTRUCTIONS FOR THIS SECTION: ${s.aiInstructions.trim()}]\n`;
+    }
+    if (s.templateType) {
+      if (s.templateType === "coverage-card") {
+        text += `[TEMPLATE TYPE: coverage-card] \u2014 Output the <h2> heading as normal. Then write a 1-2 sentence summary, <h3>What It Covers</h3> with a <ul>, <h3>What It Doesn't Cover</h3> with a <ul>, and a <p> starting with "Cost:". No special formatting.\n`;
+      } else {
+        text += `[TEMPLATE TYPE: ${s.templateType}] \u2014 Output the heading as normal, then write ONLY clean body content (1-3 concise paragraphs). No special formatting.\n`;
+      }
+    }
+    if (s.backgroundColor && !s.templateType) {
+      text += `[BACKGROUND COLOR: Wrap this section in a <div> with style="background-color: ${s.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]\n`;
+    }
     if (s.subSections?.length) {
       for (const sub of s.subSections) {
         text += `### ${sub.heading}\n`;
         if (sub.points?.length) text += sub.points.map((p: string) => `- ${p}`).join('\n') + '\n';
+        if (sub.aiInstructions?.trim()) {
+          text += `[AI INSTRUCTIONS FOR THIS SUB-SECTION: ${sub.aiInstructions.trim()}]\n`;
+        }
+        if (sub.templateType) {
+          text += `[TEMPLATE TYPE: ${sub.templateType}] \u2014 Output the heading as normal, then write ONLY clean body content.\n`;
+        }
+        if (sub.backgroundColor && !sub.templateType) {
+          text += `[BACKGROUND COLOR: Wrap this sub-section in a <div> with style="background-color: ${sub.backgroundColor}; border-radius: 12px; padding: 24px 28px; margin: 16px 0;"]\n`;
+        }
       }
     }
     return text;
   }).join('\n');
 
-  // Build ICP section
+  // ── Build full ICP section (matching manual tool) ──
   let icpSection = "";
-  if (project?.icpPrimaryName) {
-    icpSection = `\nTarget Audience: ${project.icpPrimaryName}\n${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}`;
+  const formatListArt = (items: string[] | null | undefined, prefix: string): string => {
+    if (!items?.length) return '';
+    return `${prefix}:\n${items.map((item: string, i: number) => `${i + 1}. ${item}`).join('\n')}`;
+  };
+
+  let icpName = "";
+  let icpDescription = "";
+  let icpPains: string[] = [];
+  let icpGoals: string[] = [];
+  let icpObjections: string[] = [];
+  let icpTriggers: string[] = [];
+  let icpTrust: string[] = [];
+
+  if (settings.icpProfileId) {
+    const icpProfile = await getICPById(settings.icpProfileId);
+    if (icpProfile) {
+      icpName = icpProfile.name;
+      icpDescription = icpProfile.description || "";
+      icpPains = icpProfile.painPoints || [];
+      icpGoals = icpProfile.goals || [];
+      icpObjections = icpProfile.objections || [];
+    }
+  } else if (project?.icpPrimaryName) {
+    icpName = project.icpPrimaryName;
+    icpDescription = project.icpWhoTheyAre || "";
+    icpPains = (project.icpPains as string[] | null) || [];
+    icpGoals = (project.icpGoals as string[] | null) || [];
+    icpObjections = (project.icpObjections as string[] | null) || [];
+    icpTriggers = (project.icpDecisionTriggers as string[] | null) || [];
+    icpTrust = (project.icpTrustSignals as string[] | null) || [];
   }
 
-  // Build brand voice section
-  let voiceSection = "";
+  if (icpName) {
+    const painsSection = formatListArt(icpPains, 'PAIN POINTS');
+    const goalsSection = formatListArt(icpGoals, 'GOALS');
+    const objectionsSection = formatListArt(icpObjections, 'COMMON OBJECTIONS');
+    const triggersSection = formatListArt(icpTriggers, 'DECISION TRIGGERS');
+    const trustSection = formatListArt(icpTrust, 'TRUST SIGNALS');
+
+    icpSection = `
+IDEAL CUSTOMER PROFILE (ICP) - CONTENT TARGETING LAYER
+======================================================
+TARGET AUDIENCE:
+- ICP Name: ${icpName}
+${icpDescription ? `- Who They Are: ${icpDescription}` : ''}
+
+${painsSection}
+
+${goalsSection}
+
+${objectionsSection}
+
+${triggersSection}
+
+${trustSection}
+
+=== ICP ENFORCEMENT RULES ===
+**RULE 1 - INTRO:** Vary the opening approach each time. Do NOT start with "If you are..." or any formulaic audience-addressing pattern.
+**RULE 2 - HEADINGS:** At least 30% of H2/H3 headings must reflect ICP pain points or intent language.
+**RULE 3 - FAQs:** At least 60% of FAQ questions must be derived from the ICP's objections and decision triggers.
+**RULE 4 - EXAMPLES:** Include at least 2 examples consistent with "${icpDescription || icpName}".
+**RULE 5 - TRUST:** Naturally incorporate at least 2 trust signals.
+**RULE 6 - COMPLIANCE:** Avoid guarantees, exaggerated claims, or fear-based messaging.
+`;
+  }
+
+  // ── Build full Brand Voice section (matching manual tool) ──
+  let brandVoiceSection = "";
   if (brandVoice) {
-    voiceSection = `\nBrand Voice: ${brandVoice.name}\nTone: ${brandVoice.toneTraits || 'Professional'}\nPerspective: ${brandVoice.perspective}\nSentence Style: ${brandVoice.sentenceStyle}`;
+    let primaryTones: string[] = [];
+    let supportingTones: string[] = [];
+    const toneTraits = brandVoice.toneTraits || "";
+    if (toneTraits.includes("PRIMARY:") || toneTraits.includes("SUPPORTING:")) {
+      const parts = toneTraits.split("|");
+      for (const part of parts) {
+        if (part.startsWith("PRIMARY:")) primaryTones = part.replace("PRIMARY:", "").split(",").filter(Boolean);
+        else if (part.startsWith("SUPPORTING:")) supportingTones = part.replace("SUPPORTING:", "").split(",").filter(Boolean);
+      }
+    } else {
+      primaryTones = toneTraits.split(",").map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    const AVOID_LABELS: Record<string, string> = {
+      jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+      fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+      cliches: "Industry clich\u00e9s", passive: "Passive voice",
+      buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+      unverified: "Unverified statistics", competitor: "Competitor comparisons",
+    };
+    let avoidItems: string[] = [];
+    const avoidList = brandVoice.avoidList || "";
+    if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+      const parts = avoidList.split("|");
+      for (const part of parts) {
+        if (part.startsWith("PRESETS:")) {
+          const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+          avoidItems.push(...presetIds.map((id: string) => AVOID_LABELS[id] || id));
+        } else if (part.startsWith("CUSTOM:")) {
+          const custom = part.replace("CUSTOM:", "").trim();
+          if (custom) avoidItems.push(...custom.split(",").map((s: string) => s.trim()).filter(Boolean));
+        }
+      }
+    } else if (avoidList) {
+      avoidItems = avoidList.split(",").map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    const SENTENCE_STYLES: Record<string, { label: string; rules: string }> = {
+      short: {
+        label: "Short and Direct",
+        rules: `- Keep most sentences under 12 words.\n- Paragraphs MUST be 1-3 sentences maximum.\n- Eliminate filler words and unnecessary clauses.`,
+      },
+      mixed: {
+        label: "Mixed (Varied and Natural Rhythm)",
+        rules: `- Vary sentence length: short for emphasis, medium for clarity, longer for explanation.\n- Paragraphs MUST be 2-5 sentences maximum.\n- Create natural rhythm by alternating short and medium sentences.`,
+      },
+      detailed: {
+        label: "Detailed and Explanatory",
+        rules: `- Use longer sentences with expanded context where needed.\n- Paragraphs can be 3-6 sentences, but NEVER exceed 6.\n- Include transitional phrases to connect ideas smoothly.`,
+      },
+    };
+    const sentenceStyle = SENTENCE_STYLES[brandVoice.sentenceStyle || "mixed"] || SENTENCE_STYLES.mixed;
+
+    brandVoiceSection = `BRAND VOICE GUIDELINES (FOLLOW THESE CAREFULLY):
+Voice Name: ${brandVoice.name}
+
+PRIMARY TONE: ${primaryTones.length > 0 ? primaryTones.join(", ") : "Professional"}
+${supportingTones.length > 0 ? `SUPPORTING TONE: ${supportingTones.join(", ")}` : ''}
+
+PERSPECTIVE: ${brandVoice.perspective === "first" ? "First person (use 'we', 'our', 'us')" : brandVoice.perspective === "second" ? "Second person (address reader as 'you', 'your')" : "Third person (neutral/objective perspective)"}
+
+SENTENCE STYLE: ${sentenceStyle.label}
+
+=== PARAGRAPH & SENTENCE STRUCTURE RULES (MANDATORY) ===
+${sentenceStyle.rules}
+=== END STRUCTURE RULES ===
+
+${avoidItems.length > 0 ? `THINGS TO STRICTLY AVOID:\n${avoidItems.map((item: string) => `- DO NOT use ${item}`).join("\n")}\n` : ''}
+${brandVoice.writingStyleSample ? `
+Writing Style Example (learn the STYLE, not the content):
+"""
+${brandVoice.writingStyleSample}
+"""
+CRITICAL: Do NOT reuse any specific phrases, sentences, statistics, or openings from this sample.` : ''}`;
+  }
+
+  // ── Build CTA context ──
+  const ctaTemplates_list = await getCTAsByProject(job.projectId);
+  let ctaContext = "";
+  if (ctaTemplates_list.length > 0) {
+    const defaultCTA = ctaTemplates_list.find((c: any) => c.isDefault === 1) ?? ctaTemplates_list[0];
+    ctaContext = `\n\nCALL TO ACTION:\nInsert the following CTA naturally in the article (placement: ${defaultCTA.placement}):\n"${defaultCTA.content}"\n${defaultCTA.buttonText ? `Button text: "${defaultCTA.buttonText}"` : ""}\n${defaultCTA.url ? `Link URL: ${defaultCTA.url}` : ""}`;
+  }
+
+  // ── Build secondary keywords instructions ──
+  let secondaryKeywordsInstructions = "";
+  if (effectiveSecondaryKeywords.length > 0) {
+    secondaryKeywordsInstructions = `\n\nSECONDARY KEYWORDS & LSI TERMS (MUST naturally incorporate):\n${effectiveSecondaryKeywords.map(k => `- "${k}"`).join("\n")}`;
+  }
+
+  // ── Build internal linking instructions ──
+  let linkingInstructions = "";
+  const effectiveManualLinks = settings.manualLinks || [];
+  const effectiveAutoLinkCount = settings.autoLinkCount ?? 5;
+
+  if (effectiveManualLinks.length > 0) {
+    linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all):\n${effectiveManualLinks.map((l: any, i: number) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : ""}`).join("\n")}\nUse <a href="URL">anchor text</a> format. Anchor text must be 2-7 words.`;
+  }
+
+  // Resolve sitemap URLs to actual page URLs
+  if (settings.sitemapUrls?.length) {
+    const projectSitemaps = await getSitemapsByProject(job.projectId);
+    const resolvedPageUrls: string[] = [];
+    for (const sitemapXmlUrl of settings.sitemapUrls) {
+      const matchingSitemap = projectSitemaps.find((s: any) => s.url === sitemapXmlUrl);
+      if (matchingSitemap?.parsedUrls && Array.isArray(matchingSitemap.parsedUrls)) {
+        for (const entry of matchingSitemap.parsedUrls) {
+          if (typeof entry === 'string') {
+            resolvedPageUrls.push(entry);
+          } else if (entry && typeof entry === 'object' && 'url' in entry) {
+            const title = (entry as any).title;
+            resolvedPageUrls.push(title ? `${(entry as any).url} (${title})` : (entry as any).url);
+          }
+        }
+      }
+    }
+    if (resolvedPageUrls.length > 0) {
+      linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nInsert EXACTLY ${effectiveAutoLinkCount} internal links from these REAL page URLs. ONLY use URLs from this list:\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}\nAnchor text must be 2-7 words. CRITICAL: Only use exact URLs from the list above.`;
+    }
+  }
+
+  // ── Build research context for article prompt ──
+  let researchContext = "";
+  if (researchFindings) {
+    researchContext = buildResearchSection(researchFindings);
   }
 
   const outputFormat = settings.outputFormat ?? "html";
   const targetWordCount = settings.targetWordCount ?? 2000;
 
-  // Build extra context lines for the 6 new fields
-  const toneNote = settings.tone ? `\nTone: ${settings.tone}` : '';
-  const locationNote = settings.targetLocation ? `\nTarget Location: ${settings.targetLocation} — tailor examples, references, and context to this geographic area` : '';
-  const audienceNote = settings.targetAudience ? `\nTarget Audience: ${settings.targetAudience} — write for this specific audience's knowledge level and concerns` : '';
-  const secondaryKwNote = settings.secondaryKeywords?.length ? `\nSecondary Keywords: ${settings.secondaryKeywords.join(', ')} — incorporate these naturally throughout the article` : '';
-  const autoLinkNote = settings.autoLinkCount ? `\nInternal Links: include approximately ${settings.autoLinkCount} internal link placeholders where relevant` : '';
-  const researchNote = settings.researchEnabled !== false ? '\nResearch Mode: provide thorough, well-supported content with statistics, examples, and expert insights where appropriate' : '';
+  const formatInstructions = outputFormat === "plaintext"
+    ? `- Output as PLAIN TEXT with markdown-style headings. Do NOT use HTML tags.`
+    : `- Use proper HTML formatting: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td> tags\n- For links use <a href="URL">anchor text</a> format`;
 
-  const systemPrompt = `You are an expert content writer. Write a comprehensive article based on the following outline.\n\nTitle: ${outline.title}\nKeyword: ${outline.keyword}\nTarget Word Count: ${targetWordCount}\nOutput Format: ${outputFormat}${toneNote}${locationNote}${audienceNote}${secondaryKwNote}${autoLinkNote}${researchNote}\n${icpSection}\n${voiceSection}\n${settings.additionalInstructions ? `\nAdditional Instructions: ${settings.additionalInstructions}` : ''}\n\nOUTLINE:\n${outlineText}\n\nRules:\n- Follow the outline structure closely\n- Write naturally and engagingly\n- Include the target keyword naturally throughout\n- ${outputFormat === 'html' ? 'Return clean HTML with proper heading tags (h2, h3), paragraphs, and lists. Start directly with the first <h2> section — do NOT include an <h1> tag or the article title in the content body' : 'Return plain text with markdown-style headings (## for H2, ### for H3). Start directly with the first ## heading — do NOT include the article title as a line at the top'}\n- Target approximately ${targetWordCount} words\n- Do NOT include any JSON wrapper — return the article content directly`;
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.toLocaleString('en-US', { month: 'long' });
+
+  const maxAllowedLinks = effectiveAutoLinkCount + effectiveManualLinks.length;
+
+  const systemPrompt = `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
+
+IMPORTANT \u2014 CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${currentYear}. You MUST treat ${currentYear} as the current year.
+
+Guidelines:
+- Write in ${settings.tone ?? "a professional and informative"} tone
+- Target approximately ${targetWordCount} words
+${formatInstructions}
+- Include a compelling introduction that hooks the reader
+- CRITICAL - INTRO VARIETY: Every article must open differently. NEVER start with "If you are...", "Whether you are...", "As a...". Rotate opening strategies: surprising facts, bold claims, mini-stories, provocative questions, or recent trends.
+- Each section should flow naturally into the next
+- Include relevant statistics and examples \u2014 but NEVER reuse generic or overused statistics. Each article must cite DIFFERENT data points.
+- CONTENT UNIQUENESS: Every article must feel distinct. Avoid formulaic phrases and boilerplate sentences.
+- End with a strong conclusion and call to action
+- Optimize for the target keyword: "${outline.keyword ?? outline.title}"
+- Make the content comprehensive, authoritative, and reader-friendly
+- Include bullet points and numbered lists where appropriate
+- CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly.
+- PER-SECTION AI INSTRUCTIONS: Follow [AI INSTRUCTIONS FOR THIS SECTION: ...] directives precisely.
+- TEMPLATE SECTIONS: Follow [TEMPLATE TYPE: ...] directives. Output the heading as normal, then write clean body content only.
+- BACKGROUND COLOR SECTIONS: Follow [BACKGROUND COLOR: ...] directives. Wrap section content in a styled <div>.
+- TABLE FORMAT RULES: Use proper HTML <table> tags. NEVER use markdown table syntax.
+- ANCHOR TEXT LENGTH RULES: Anchor text MUST be 2-7 words. NEVER wrap an entire sentence as a link.
+- TOTAL LINK LIMIT: NO MORE THAN ${maxAllowedLinks} links total.
+- CITATION LINK RULES: NEVER use generic anchor text like "Learn more at" or "Click here".
+- URL INTEGRITY RULE: ENTIRE href value MUST be on a single line with NO line breaks.
+${settings.targetLocation ? `- Target location: ${settings.targetLocation} \u2014 include location-specific information` : ""}
+${settings.targetAudience ? `- Target audience: ${settings.targetAudience} \u2014 tailor language and depth to this audience` : ""}
+${settings.additionalInstructions ? `- Additional instructions: ${settings.additionalInstructions}` : ""}
+${project?.bannedPhrases?.length ? `
+=== BANNED PHRASES (ABSOLUTE HARD CONSTRAINT) ===
+The following phrases MUST NEVER appear in the generated content:
+${(project.bannedPhrases as string[]).map((p: string) => `- "${p}"`).join("\n")}
+=== END BANNED PHRASES ===` : ''}
+
+${brandVoiceSection}
+
+${icpSection}
+${ctaContext}
+${secondaryKeywordsInstructions}
+${linkingInstructions}
+${researchContext}
+
+OUTLINE:
+${outlineText}
+
+Return ONLY the ${outputFormat === "plaintext" ? "plain text" : "HTML"} content of the article body${outputFormat === "html" ? " (no <html>, <head>, or <body> tags)" : ""}. Start with the first ${outputFormat === "plaintext" ? "## heading" : "<h2> section"}.`;
 
   const articleResult = await callLLM({
     messages: [
@@ -4900,25 +5349,104 @@ async function generateArticleForScheduler(job: any, outline: any, logFn?: (step
   const rawArticleContent = articleResult.choices[0]?.message?.content;
   let content = stripMarkdownFences(typeof rawArticleContent === "string" ? rawArticleContent : (rawArticleContent as any)?.[0]?.text ?? "");
 
-  // Strip any leading H1 tag or plain-text title line the LLM may have included
-  // HTML: remove leading <h1>...</h1> block
+  // Strip any leading H1 tag or plain-text title line
   content = content.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '');
-  // Plain text: remove leading line that matches the article title (case-insensitive, with or without # prefix)
   const titlePattern = new RegExp(`^\\s*#{0,2}\\s*${outline.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n?`, 'i');
   content = content.replace(titlePattern, '');
-  // Also strip any leading plain paragraph that is just the title text (no heading markup)
   const titleLinePattern = new RegExp(`^\\s*${outline.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n?`, 'i');
   content = content.replace(titleLinePattern, '').trimStart();
+
+  // ── Post-processing pipeline (matching manual tool) ──
+  if (outputFormat === "html") {
+    const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
+    content = fixBrokenAnchors(content);
+    content = wrapBareTextInPTags(content);
+    content = splitLongParagraphs(content, maxSentences, outputFormat);
+    content = applyBackgroundColors(content, outline.sections as any[]);
+    content = applyTemplateStyles(content, outline.sections as any[]);
+  }
+
+  // Post-generation scan: remove any banned phrases that slipped through
+  if (project?.bannedPhrases?.length) {
+    for (const phrase of project.bannedPhrases as string[]) {
+      if (phrase.trim()) {
+        const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedPhrase, 'gi');
+        content = content.replace(regex, '');
+      }
+    }
+    content = content.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
+  }
+
+  // Post-processing: enforce link count cap
+  const linkMatches = content.match(/<a\s[^>]*>/gi);
+  const actualLinkCount = linkMatches ? linkMatches.length : 0;
+  if (actualLinkCount > maxAllowedLinks) {
+    let linksKept = 0;
+    content = content.replace(/<a\s([^>]*)>([\s\S]*?)<\/a>/gi, (match: string, _attrs: string, innerText: string) => {
+      if (linksKept < maxAllowedLinks) {
+        linksKept++;
+        return match;
+      }
+      return innerText;
+    });
+  }
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = plainText.split(/\s+/).length;
 
+  // Generate meta title and description
+  const metaResponse = await callLLM({
+    messages: [
+      { role: "system", content: "Generate an SEO meta title (max 60 chars) and meta description (max 155 chars) for the given article. Return JSON with 'metaTitle' and 'metaDescription' fields only." },
+      { role: "user", content: `Article title: ${outline.title}\nKeyword: ${outline.keyword ?? outline.title}\nFirst 500 chars: ${content.substring(0, 500)}` },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "seo_meta",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            metaTitle: { type: "string" },
+            metaDescription: { type: "string" },
+          },
+          required: ["metaTitle", "metaDescription"],
+          additionalProperties: false,
+        },
+      },
+    },
+  }, job.projectId);
+
+  const rawMetaContent = metaResponse.choices[0]?.message?.content;
+  const metaContent = typeof rawMetaContent === "string" ? rawMetaContent : (rawMetaContent as any)?.[0]?.text ?? null;
+  let metaTitle = outline.title;
+  let metaDescription = "";
+  if (metaContent) {
+    try {
+      const meta = JSON.parse(metaContent);
+      metaTitle = meta.metaTitle || outline.title;
+      metaDescription = meta.metaDescription || "";
+    } catch {}
+  }
+
+  // Generate slug
+  const slug = outline.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
   // Save article to DB
   const article = await createArticle({
     title: outline.title,
     content,
+    excerpt: content.replace(/<[^>]*>/g, "").substring(0, 200),
     keyword: outline.keyword,
+    metaTitle,
+    metaDescription,
+    slug,
     wordCount,
     status: "draft",
     contentType: settings.contentType,
@@ -4926,6 +5454,9 @@ async function generateArticleForScheduler(job: any, outline: any, logFn?: (step
     projectId: job.projectId,
     userId: job.userId,
   });
+
+  // Mark outline as complete
+  await updateOutline(outline.id, { status: "complete" });
 
   // Auto-grade loop for scheduler
   if (settings.autoGradeEnabled && settings.targetGrade && article?.id) {

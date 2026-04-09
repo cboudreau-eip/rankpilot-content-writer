@@ -462,6 +462,10 @@ export interface ScheduledJobSettings {
   targetGrade?: string;
   /** Maximum number of grade-and-improve iterations (default 2) */
   maxGradeIterations?: number;
+  /** Whether to auto-suggest secondary keywords per run (4 related + 2 LSI + 2 long-tail) */
+  suggestKeywordsEnabled?: boolean;
+  /** Manual internal links to force-include in articles */
+  manualLinks?: Array<{ url: string; anchorText: string }>;
 }
 
 /**

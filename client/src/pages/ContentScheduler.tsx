@@ -36,7 +36,11 @@ import {
   Save,
   ChevronDown,
   ChevronRight,
+  Link2,
+  Globe,
+  X,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -369,10 +373,14 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
   const [autoGradeEnabled, setAutoGradeEnabled] = useState(false);
   const [targetGrade, setTargetGrade] = useState("A-");
   const [maxGradeIterations, setMaxGradeIterations] = useState(2);
+  const [suggestKeywordsEnabled, setSuggestKeywordsEnabled] = useState(true);
+  const [manualLinks, setManualLinks] = useState<{ url: string; anchorText: string }[]>([]);
+  const [selectedSitemapUrls, setSelectedSitemapUrls] = useState<string[]>([]);
 
-  // Load brand voices and ICP profiles for the project
+  // Load brand voices, ICP profiles, and sitemaps for the project
   const { data: brandVoices } = trpc.brandVoices.list.useQuery({ projectId });
   const { data: icpProfiles } = trpc.icpProfiles.list.useQuery({ projectId });
+  const { data: sitemaps } = trpc.sitemaps.list.useQuery({ projectId });
   const [brandVoiceId, setBrandVoiceId] = useState<number | undefined>();
   const [icpProfileId, setIcpProfileId] = useState<number | undefined>();
 
@@ -424,6 +432,9 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
         maxGradeIterations: autoGradeEnabled ? maxGradeIterations : undefined,
         brandVoiceId,
         icpProfileId,
+        suggestKeywordsEnabled,
+        manualLinks: manualLinks.length > 0 ? manualLinks.filter(l => l.url.trim()) : undefined,
+        sitemapUrls: selectedSitemapUrls.length > 0 ? selectedSitemapUrls : undefined,
       },
       keywords,
     });
@@ -602,10 +613,12 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="blog">Blog Post</SelectItem>
-                  <SelectItem value="guide">Guide</SelectItem>
                   <SelectItem value="comparison">Comparison</SelectItem>
+                  <SelectItem value="guide">How-To Guide</SelectItem>
                   <SelectItem value="listicle">Listicle</SelectItem>
-                  <SelectItem value="how-to">How-To</SelectItem>
+                  <SelectItem value="pillar">Pillar Page</SelectItem>
+                  <SelectItem value="review">Review</SelectItem>
+                  <SelectItem value="case-study">Case Study</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -635,11 +648,11 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="professional">Professional</SelectItem>
-              <SelectItem value="casual">Casual</SelectItem>
-              <SelectItem value="authoritative">Authoritative</SelectItem>
               <SelectItem value="conversational">Conversational</SelectItem>
+              <SelectItem value="authoritative">Authoritative</SelectItem>
               <SelectItem value="friendly">Friendly</SelectItem>
-              <SelectItem value="educational">Educational</SelectItem>
+              <SelectItem value="academic">Academic</SelectItem>
+              <SelectItem value="persuasive">Persuasive</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -672,6 +685,102 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
             value={secondaryKeywordsText}
             onChange={(e) => setSecondaryKeywordsText(e.target.value)}
           />
+        </div>
+
+        {/* Suggest Keywords */}
+        <div className="rounded-lg border border-border/60 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                Auto-Suggest Secondary Keywords
+              </p>
+              <p className="text-xs text-muted-foreground">On each run, AI suggests 4 related + 2 LSI + 2 long-tail keywords for the primary keyword.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuggestKeywordsEnabled(!suggestKeywordsEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${suggestKeywordsEnabled ? "bg-indigo-600" : "bg-muted"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${suggestKeywordsEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Sitemap Picker */}
+        {sitemaps && sitemaps.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Globe className="w-4 h-4 text-muted-foreground" />
+              Sitemaps for Internal Linking
+            </Label>
+            <p className="text-xs text-muted-foreground">Select sitemaps to resolve URLs for internal linking. If none selected, all project sitemaps are used.</p>
+            <div className="space-y-2 max-h-32 overflow-y-auto rounded-md border border-border/60 p-3">
+              {sitemaps.map((sm: any) => (
+                <label key={sm.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={selectedSitemapUrls.includes(sm.url)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedSitemapUrls(prev => [...prev, sm.url]);
+                      } else {
+                        setSelectedSitemapUrls(prev => prev.filter(u => u !== sm.url));
+                      }
+                    }}
+                  />
+                  <span className="truncate">{sm.url}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Manual Links */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-muted-foreground" />
+            Manual Links <span className="text-muted-foreground font-normal">(optional)</span>
+          </Label>
+          <p className="text-xs text-muted-foreground">Force specific internal links with custom anchor text into every article.</p>
+          {manualLinks.map((link, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <Input
+                placeholder="https://example.com/page"
+                value={link.url}
+                onChange={(e) => {
+                  const updated = [...manualLinks];
+                  updated[idx] = { ...updated[idx], url: e.target.value };
+                  setManualLinks(updated);
+                }}
+                className="flex-1"
+              />
+              <Input
+                placeholder="anchor text"
+                value={link.anchorText}
+                onChange={(e) => {
+                  const updated = [...manualLinks];
+                  updated[idx] = { ...updated[idx], anchorText: e.target.value };
+                  setManualLinks(updated);
+                }}
+                className="w-40"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setManualLinks(manualLinks.filter((_, i) => i !== idx))}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setManualLinks([...manualLinks, { url: "", anchorText: "" }])}
+          >
+            <Plus className="w-3 h-3 mr-1" /> Add Link
+          </Button>
         </div>
 
         {/* Auto-Link Count & Research */}
@@ -855,9 +964,13 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
   const [autoGradeEnabled, setAutoGradeEnabled] = useState(!!settings.autoGradeEnabled);
   const [targetGrade, setTargetGrade] = useState(settings.targetGrade ?? "A-");
   const [maxGradeIterations, setMaxGradeIterations] = useState(settings.maxGradeIterations ?? 2);
+  const [suggestKeywordsEnabled, setSuggestKeywordsEnabled] = useState(settings.suggestKeywordsEnabled !== false);
+  const [manualLinks, setManualLinks] = useState<{ url: string; anchorText: string }[]>(settings.manualLinks ?? []);
+  const [selectedSitemapUrls, setSelectedSitemapUrls] = useState<string[]>(settings.sitemapUrls ?? []);
 
   const { data: brandVoices } = trpc.brandVoices.list.useQuery({ projectId });
   const { data: icpProfiles } = trpc.icpProfiles.list.useQuery({ projectId });
+  const { data: sitemaps } = trpc.sitemaps.list.useQuery({ projectId });
   const [brandVoiceId, setBrandVoiceId] = useState<number | undefined>(settings.brandVoiceId);
   const [icpProfileId, setIcpProfileId] = useState<number | undefined>(settings.icpProfileId);
 
@@ -904,6 +1017,9 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
         maxGradeIterations: autoGradeEnabled ? maxGradeIterations : undefined,
         brandVoiceId,
         icpProfileId,
+        suggestKeywordsEnabled,
+        manualLinks: manualLinks.length > 0 ? manualLinks.filter(l => l.url.trim()) : undefined,
+        sitemapUrls: selectedSitemapUrls.length > 0 ? selectedSitemapUrls : undefined,
       },
     });
   };
@@ -1026,10 +1142,12 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="blog">Blog Post</SelectItem>
-                  <SelectItem value="guide">Guide</SelectItem>
                   <SelectItem value="comparison">Comparison</SelectItem>
+                  <SelectItem value="guide">How-To Guide</SelectItem>
                   <SelectItem value="listicle">Listicle</SelectItem>
-                  <SelectItem value="how-to">How-To</SelectItem>
+                  <SelectItem value="pillar">Pillar Page</SelectItem>
+                  <SelectItem value="review">Review</SelectItem>
+                  <SelectItem value="case-study">Case Study</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1054,11 +1172,11 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="professional">Professional</SelectItem>
-                <SelectItem value="casual">Casual</SelectItem>
-                <SelectItem value="authoritative">Authoritative</SelectItem>
                 <SelectItem value="conversational">Conversational</SelectItem>
+                <SelectItem value="authoritative">Authoritative</SelectItem>
                 <SelectItem value="friendly">Friendly</SelectItem>
-                <SelectItem value="educational">Educational</SelectItem>
+                <SelectItem value="academic">Academic</SelectItem>
+                <SelectItem value="persuasive">Persuasive</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1080,6 +1198,102 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
         <div className="space-y-2">
           <Label className="text-sm font-medium">Secondary Keywords <span className="text-muted-foreground font-normal">(optional, comma-separated)</span></Label>
           <Input placeholder="e.g., medicare advantage, part d, supplement" value={secondaryKeywordsText} onChange={(e) => setSecondaryKeywordsText(e.target.value)} />
+        </div>
+
+        {/* Suggest Keywords */}
+        <div className="rounded-lg border border-border/60 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                Auto-Suggest Secondary Keywords
+              </p>
+              <p className="text-xs text-muted-foreground">On each run, AI suggests 4 related + 2 LSI + 2 long-tail keywords for the primary keyword.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuggestKeywordsEnabled(!suggestKeywordsEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${suggestKeywordsEnabled ? "bg-indigo-600" : "bg-muted"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${suggestKeywordsEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Sitemap Picker */}
+        {sitemaps && sitemaps.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Globe className="w-4 h-4 text-muted-foreground" />
+              Sitemaps for Internal Linking
+            </Label>
+            <p className="text-xs text-muted-foreground">Select sitemaps to resolve URLs for internal linking. If none selected, all project sitemaps are used.</p>
+            <div className="space-y-2 max-h-32 overflow-y-auto rounded-md border border-border/60 p-3">
+              {sitemaps.map((sm: any) => (
+                <label key={sm.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={selectedSitemapUrls.includes(sm.url)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedSitemapUrls(prev => [...prev, sm.url]);
+                      } else {
+                        setSelectedSitemapUrls(prev => prev.filter(u => u !== sm.url));
+                      }
+                    }}
+                  />
+                  <span className="truncate">{sm.url}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Manual Links */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-muted-foreground" />
+            Manual Links <span className="text-muted-foreground font-normal">(optional)</span>
+          </Label>
+          <p className="text-xs text-muted-foreground">Force specific internal links with custom anchor text into every article.</p>
+          {manualLinks.map((link, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <Input
+                placeholder="https://example.com/page"
+                value={link.url}
+                onChange={(e) => {
+                  const updated = [...manualLinks];
+                  updated[idx] = { ...updated[idx], url: e.target.value };
+                  setManualLinks(updated);
+                }}
+                className="flex-1"
+              />
+              <Input
+                placeholder="anchor text"
+                value={link.anchorText}
+                onChange={(e) => {
+                  const updated = [...manualLinks];
+                  updated[idx] = { ...updated[idx], anchorText: e.target.value };
+                  setManualLinks(updated);
+                }}
+                className="w-40"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setManualLinks(manualLinks.filter((_, i) => i !== idx))}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setManualLinks([...manualLinks, { url: "", anchorText: "" }])}
+          >
+            <Plus className="w-3 h-3 mr-1" /> Add Link
+          </Button>
         </div>
 
         {/* Auto-Link Count & Research */}

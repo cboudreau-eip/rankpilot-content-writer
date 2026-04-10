@@ -991,3 +991,8 @@
 - [x] Align content type list with manual tool (added: Pillar Page, Review, Case Study; renamed Guide → How-To Guide)
 - [x] Align tone list with manual tool (replaced casual/educational with academic/persuasive)
 - [x] All 433 tests pass, checkpoint saved
+
+## Scheduler UI Cleanup
+- [x] Remove static Secondary Keywords field from Create Job and Edit Job dialogs (redundant since auto-suggest handles this per-run)
+- [x] Remove secondaryKeywords from the articleSettings passed in createJob/updateJob mutations
+- [x] Fix 3 pre-existing TypeScript errors in scheduler backend (jobStatus→status, null→undefined, articleId→generatedArticleId)

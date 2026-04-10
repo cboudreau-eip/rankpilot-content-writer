@@ -4717,7 +4717,7 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       const nextItem = await getNextPendingKeyword(job.id);
       if (!nextItem) {
         console.log(`[Scheduler] No pending keywords for job ${job.id}. Pausing.`);
-        await updateScheduledJob(job.id, { jobStatus: "paused", isRunning: 0 });
+        await updateScheduledJob(job.id, { status: "paused", isRunning: 0 });
         return;
       }
       keyword = nextItem.keyword;
@@ -4746,7 +4746,7 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
           step,
           level,
           message,
-          metadata: metadata ?? null,
+          metadata: metadata ?? undefined,
         });
       }
     };
@@ -4825,7 +4825,7 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
     if (keywordQueueItemId) {
       await updateKeywordQueueItem(keywordQueueItemId, {
         status: "completed",
-        articleId: article.id,
+        generatedArticleId: article.id,
       });
     }
 

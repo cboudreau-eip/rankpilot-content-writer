@@ -367,7 +367,6 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
   const [tone, setTone] = useState("professional");
   const [targetLocation, setTargetLocation] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
-  const [secondaryKeywordsText, setSecondaryKeywordsText] = useState("");
   const [autoLinkCount, setAutoLinkCount] = useState(5);
   const [researchEnabled, setResearchEnabled] = useState(true);
   const [autoGradeEnabled, setAutoGradeEnabled] = useState(false);
@@ -422,9 +421,6 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
         tone,
         targetLocation: targetLocation.trim() || undefined,
         targetAudience: targetAudience.trim() || undefined,
-        secondaryKeywords: secondaryKeywordsText.trim()
-          ? secondaryKeywordsText.split(",").map((k: string) => k.trim()).filter(Boolean)
-          : undefined,
         autoLinkCount: autoLinkCount > 0 ? autoLinkCount : undefined,
         researchEnabled,
         autoGradeEnabled: autoGradeEnabled || undefined,
@@ -675,16 +671,6 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
               onChange={(e) => setTargetAudience(e.target.value)}
             />
           </div>
-        </div>
-
-        {/* Secondary Keywords */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Secondary Keywords <span className="text-muted-foreground font-normal">(optional, comma-separated)</span></Label>
-          <Input
-            placeholder="e.g., medicare advantage, part d, supplement"
-            value={secondaryKeywordsText}
-            onChange={(e) => setSecondaryKeywordsText(e.target.value)}
-          />
         </div>
 
         {/* Suggest Keywords */}
@@ -956,9 +942,6 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
   const [tone, setTone] = useState(settings.tone ?? "professional");
   const [targetLocation, setTargetLocation] = useState(settings.targetLocation ?? "");
   const [targetAudience, setTargetAudience] = useState(settings.targetAudience ?? "");
-  const [secondaryKeywordsText, setSecondaryKeywordsText] = useState(
-    (settings.secondaryKeywords ?? []).join(", ")
-  );
   const [autoLinkCount, setAutoLinkCount] = useState(settings.autoLinkCount ?? 5);
   const [researchEnabled, setResearchEnabled] = useState(settings.researchEnabled !== false);
   const [autoGradeEnabled, setAutoGradeEnabled] = useState(!!settings.autoGradeEnabled);
@@ -1007,9 +990,6 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
         tone,
         targetLocation: targetLocation.trim() || undefined,
         targetAudience: targetAudience.trim() || undefined,
-        secondaryKeywords: secondaryKeywordsText.trim()
-          ? secondaryKeywordsText.split(",").map((k: string) => k.trim()).filter(Boolean)
-          : undefined,
         autoLinkCount: autoLinkCount > 0 ? autoLinkCount : undefined,
         researchEnabled,
         autoGradeEnabled: autoGradeEnabled || undefined,
@@ -1192,12 +1172,6 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
             <Label className="text-sm font-medium">Target Audience <span className="text-muted-foreground font-normal">(optional)</span></Label>
             <Input placeholder="e.g., seniors 65+" value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} />
           </div>
-        </div>
-
-        {/* Secondary Keywords */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Secondary Keywords <span className="text-muted-foreground font-normal">(optional, comma-separated)</span></Label>
-          <Input placeholder="e.g., medicare advantage, part d, supplement" value={secondaryKeywordsText} onChange={(e) => setSecondaryKeywordsText(e.target.value)} />
         </div>
 
         {/* Suggest Keywords */}

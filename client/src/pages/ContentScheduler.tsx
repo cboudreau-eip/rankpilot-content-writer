@@ -1922,6 +1922,7 @@ function RunHistoryView({ runs }: { runs: any[] }) {
 
 const STEP_ICONS: Record<string, { icon: typeof CheckCircle2; color: string }> = {
   keyword_selection: { icon: Sparkles, color: "text-indigo-500" },
+  keyword_suggestion: { icon: Sparkles, color: "text-violet-500" },
   outline: { icon: ListOrdered, color: "text-blue-500" },
   article: { icon: FileText, color: "text-purple-500" },
   auto_grade: { icon: Zap, color: "text-amber-500" },
@@ -1982,15 +1983,46 @@ function RunLogTimeline({ runId }: { runId: number }) {
               second: "2-digit",
             });
 
+            // Detect keyword_suggestion entries with categorized metadata
+            const isKeywordSuggestion =
+              log.step === "keyword_suggestion" &&
+              log.level === "success" &&
+              log.metadata?.related;
+
             return (
               <div key={log.id ?? idx} className="flex items-start gap-3 relative">
-                <div className={`shrink-0 z-10 bg-white rounded-full p-0.5 ${stepConfig.color}`}>
+                <div className={`shrink-0 z-10 bg-white dark:bg-background rounded-full p-0.5 ${stepConfig.color}`}>
                   <Icon className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className={`text-xs leading-relaxed ${levelStyle}`}>
                     {log.message}
                   </span>
+                  {isKeywordSuggestion && (
+                    <div className="mt-2 space-y-1.5">
+                      {([
+                        { label: "Related", key: "related", chipClass: "bg-violet-50 text-violet-700 border-violet-200" },
+                        { label: "LSI", key: "lsi", chipClass: "bg-blue-50 text-blue-700 border-blue-200" },
+                        { label: "Long-tail", key: "longTail", chipClass: "bg-teal-50 text-teal-700 border-teal-200" },
+                      ] as const).map(({ label, key, chipClass }) => {
+                        const kws: string[] = log.metadata[key] ?? [];
+                        if (!kws.length) return null;
+                        return (
+                          <div key={key} className="flex flex-wrap items-center gap-1">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide w-14 shrink-0">{label}</span>
+                            {kws.map((kw: string) => (
+                              <span
+                                key={kw}
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${chipClass}`}
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums pt-0.5">
                   {timestamp} ET

@@ -996,3 +996,10 @@
 - [x] Remove static Secondary Keywords field from Create Job and Edit Job dialogs (redundant since auto-suggest handles this per-run)
 - [x] Remove secondaryKeywords from the articleSettings passed in createJob/updateJob mutations
 - [x] Fix 3 pre-existing TypeScript errors in scheduler backend (jobStatus→status, null→undefined, articleId→generatedArticleId)
+
+## Run Log: Suggested Keywords Display
+- [x] Updated suggestKeywordsForScheduler return type to { related, lsi, longTail } object
+- [x] Updated call site to store categorized metadata in run log: { related[], lsi[], longTail[], all[], total }
+- [x] Added keyword_suggestion to STEP_ICONS (violet Sparkles icon)
+- [x] Rendered keyword chip grid in RunLogTimeline: 3 labeled rows (Related/LSI/Long-tail) with color-coded chips
+- [x] Save checkpoint

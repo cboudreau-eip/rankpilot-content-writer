@@ -4568,7 +4568,7 @@ function calculateNextRunTime(
 async function suggestKeywordsForScheduler(
   keyword: string,
   job: any,
-): Promise<string[]> {
+): Promise<{ related: string[]; lsi: string[]; longTail: string[] }> {
   const settings = job.articleSettings ?? {};
   const prompt = `You are an expert SEO keyword researcher. Given a primary keyword, suggest related keywords that should be naturally woven into an article to improve topical coverage and semantic relevance.
 
@@ -4612,7 +4612,7 @@ Rules:
   }, job.projectId);
 
   const rawContent = response.choices[0]?.message?.content;
-  if (!rawContent) return [];
+  if (!rawContent) return { related: [], lsi: [], longTail: [] };
   const text = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
   try {
     const parsed = JSON.parse(text);
@@ -4623,9 +4623,14 @@ Rules:
       const shuffled = [...arr].sort(() => Math.random() - 0.5);
       return shuffled.slice(0, count);
     };
-    return [...pick(secondary, 4), ...pick(lsi, 2), ...pick(longTail, 2)];
+    const picked = {
+      related: pick(secondary, 4),
+      lsi: pick(lsi, 2),
+      longTail: pick(longTail, 2),
+    };
+    return picked;
   } catch {
-    return [];
+    return { related: [], lsi: [], longTail: [] };
   }
 }
 
@@ -4761,15 +4766,27 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       logFn("keyword_suggestion", "Running AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...", "info");
       try {
         const suggested = await suggestKeywordsForScheduler(keyword, job);
-        if (suggested.length > 0) {
+        const allSuggested = [...suggested.related, ...suggested.lsi, ...suggested.longTail];
+        if (allSuggested.length > 0) {
           const existing = new Set(effectiveSecondaryKeywords.map(k => k.toLowerCase()));
-          for (const kw of suggested) {
+          for (const kw of allSuggested) {
             if (!existing.has(kw.toLowerCase())) {
               effectiveSecondaryKeywords.push(kw);
               existing.add(kw.toLowerCase());
             }
           }
-          logFn("keyword_suggestion", `Suggested ${suggested.length} keywords: ${suggested.join(", ")}`, "success", { suggested, total: effectiveSecondaryKeywords.length });
+          logFn(
+            "keyword_suggestion",
+            `AI picked ${allSuggested.length} keywords (${suggested.related.length} related, ${suggested.lsi.length} LSI, ${suggested.longTail.length} long-tail)`,
+            "success",
+            {
+              related: suggested.related,
+              lsi: suggested.lsi,
+              longTail: suggested.longTail,
+              all: allSuggested,
+              total: effectiveSecondaryKeywords.length,
+            }
+          );
         }
       } catch (err: any) {
         logFn("keyword_suggestion", `Keyword suggestion failed (non-fatal): ${err.message}`, "warning");

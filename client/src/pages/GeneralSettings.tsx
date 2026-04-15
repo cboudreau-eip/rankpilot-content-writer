@@ -11,14 +11,66 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useTheme } from "@/contexts/ThemeContext";
+import { trpc } from "@/lib/trpc";
 
 type SettingsTab = "account" | "notifications" | "appearance";
+type ThemeOption = "light" | "dark" | "system";
 
 const tabs = [
   { id: "account" as const, label: "Account", icon: User, description: "Manage your profile and account details" },
   { id: "notifications" as const, label: "Notifications", icon: Bell, description: "Configure how you receive alerts" },
   { id: "appearance" as const, label: "Appearance", icon: Palette, description: "Customize the look and feel" },
 ];
+
+const themeOptions: { id: ThemeOption; label: string; icon: typeof Sun; iconClass: string; bgClass: string }[] = [
+  { id: "light", label: "Light", icon: Sun, iconClass: "text-amber-500", bgClass: "bg-card border-2 border-border shadow-sm" },
+  { id: "dark", label: "Dark", icon: Moon, iconClass: "text-gray-300", bgClass: "bg-gray-900 border border-gray-700" },
+  { id: "system", label: "System", icon: Monitor, iconClass: "text-muted-foreground", bgClass: "bg-gradient-to-br from-white to-gray-900 border border-border" },
+];
+
+function ThemeCards() {
+  const { theme, setTheme } = useTheme();
+  const setThemeMutation = trpc.auth.setTheme.useMutation();
+
+  const handleThemeChange = (newTheme: ThemeOption) => {
+    setTheme(newTheme);
+    setThemeMutation.mutate({ theme: newTheme }, {
+      onSuccess: () => toast.success(`Theme set to ${newTheme}`),
+      onError: () => toast.error("Failed to save theme preference"),
+    });
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {themeOptions.map((opt) => {
+        const Icon = opt.icon;
+        const isActive = theme === opt.id;
+        return (
+          <button
+            key={opt.id}
+            className={`flex flex-col items-center gap-3 p-6 rounded-xl transition-all ${
+              isActive
+                ? "border-2 border-primary bg-primary/5"
+                : "border border-border hover:border-primary/50"
+            }`}
+            onClick={() => handleThemeChange(opt.id)}
+          >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${opt.bgClass}`}>
+              <Icon className={`w-6 h-6 ${opt.iconClass}`} />
+            </div>
+            <span className="font-semibold">{opt.label}</span>
+            {isActive ? (
+              <Badge className="bg-primary/10 text-primary text-xs">Active</Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">&nbsp;</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function GeneralSettings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("account");
@@ -240,40 +292,7 @@ export default function GeneralSettings() {
               <CardDescription>Customize the visual appearance of the app.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <button
-                  className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-primary bg-primary/5 transition-all"
-                  onClick={() => toast.info("Light theme is active")}
-                >
-                  <div className="w-12 h-12 rounded-xl bg-card border-2 border-border flex items-center justify-center shadow-sm">
-                    <Sun className="w-6 h-6 text-amber-500" />
-                  </div>
-                  <span className="font-semibold">Light</span>
-                  <Badge className="bg-primary/10 text-primary text-xs">Active</Badge>
-                </button>
-
-                <button
-                  className="flex flex-col items-center gap-3 p-6 rounded-xl border border-border hover:border-primary/50 transition-all"
-                  onClick={() => toast.info("Dark theme coming soon!")}
-                >
-                  <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center">
-                    <Moon className="w-6 h-6 text-gray-300" />
-                  </div>
-                  <span className="font-semibold">Dark</span>
-                  <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-                </button>
-
-                <button
-                  className="flex flex-col items-center gap-3 p-6 rounded-xl border border-border hover:border-primary/50 transition-all"
-                  onClick={() => toast.info("System theme coming soon!")}
-                >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-white to-gray-900 border border-border flex items-center justify-center">
-                    <Monitor className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <span className="font-semibold">System</span>
-                  <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-                </button>
-              </div>
+              <ThemeCards />
             </CardContent>
           </Card>
 

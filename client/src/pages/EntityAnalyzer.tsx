@@ -52,7 +52,7 @@ function getGradeBadgeColor(grade: string) {
 function getProminenceBadge(p: string) {
   if (p === "High") return "bg-emerald-50 text-emerald-700 border-emerald-200";
   if (p === "Medium") return "bg-amber-50 text-amber-700 border-amber-200";
-  return "bg-slate-50 text-slate-600 border-slate-200";
+  return "bg-muted/50 text-muted-foreground border-border";
 }
 
 function getOverlapBadge(severity: string) {
@@ -832,7 +832,7 @@ export default function EntityAnalyzer() {
                   </div>
                   <details className="text-xs">
                     <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Preview extracted content</summary>
-                    <pre className="mt-2 p-3 bg-white rounded border text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                    <pre className="mt-2 p-3 bg-card rounded border text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
                       {fetchedUrlContent.content.slice(0, 2000)}{fetchedUrlContent.content.length > 2000 ? "..." : ""}
                     </pre>
                   </details>

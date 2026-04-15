@@ -1003,3 +1003,15 @@
 - [x] Added keyword_suggestion to STEP_ICONS (violet Sparkles icon)
 - [x] Rendered keyword chip grid in RunLogTimeline: 3 labeled rows (Related/LSI/Long-tail) with color-coded chips
 - [x] Save checkpoint
+
+## Dark/Light Mode Toggle
+- [x] Add `theme` column (light/dark/system, default: light) to appUsers table and push DB migration
+- [x] Add auth.getTheme and auth.setTheme tRPC procedures
+- [x] Update ThemeProvider to support programmatic setTheme with light/dark/system options
+- [x] Add 3-button segmented toggle (Light/Dark/Auto) in sidebar above user footer; collapsed sidebar shows single toggle icon
+- [x] Add .dark CSS variables to index.css for full dark palette (OKLCH colors)
+- [x] Add dark mode ProseMirror overrides for headings, links, code, tables, blockquotes
+- [x] Bulk-fix hardcoded slate/white/gray colors across 13 pages to use semantic tokens
+- [x] Update Login page to use semantic colors for dark mode compatibility
+- [x] Load saved theme from DB on login, persist on change via mutation
+- [x] All 433 tests pass, checkpoint saved

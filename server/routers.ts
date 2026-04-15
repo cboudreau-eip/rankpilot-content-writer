@@ -285,7 +285,7 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return null;
       const [user] = await db
-        .select({ id: appUsers.id, name: appUsers.name, email: appUsers.email, role: appUsers.role, mustChangePassword: appUsers.mustChangePassword })
+        .select({ id: appUsers.id, name: appUsers.name, email: appUsers.email, role: appUsers.role, mustChangePassword: appUsers.mustChangePassword, theme: appUsers.theme })
         .from(appUsers)
         .where(eq(appUsers.id, session.userId));
       return user ?? null;
@@ -332,6 +332,35 @@ export const appRouter = router({
       clearSessionCookie(ctx.res, ctx.req);
       return { success: true } as const;
     }),
+
+    /** Get the current user's theme preference */
+    getTheme: publicProcedure.query(async ({ ctx }) => {
+      const token = getSessionToken(ctx.req);
+      const session = await verifyAppSession(token);
+      if (!session) return { theme: "light" as const };
+      const db = await getDb();
+      if (!db) return { theme: "light" as const };
+      const [user] = await db
+        .select({ theme: appUsers.theme })
+        .from(appUsers)
+        .where(eq(appUsers.id, session.userId));
+      return { theme: (user?.theme ?? "light") as "light" | "dark" | "system" };
+    }),
+
+    /** Set the current user's theme preference */
+    setTheme: publicProcedure
+      .input(z.object({ theme: z.enum(["light", "dark", "system"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new Error("Not authenticated");
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        await db.update(appUsers)
+          .set({ theme: input.theme })
+          .where(eq(appUsers.id, session.userId));
+        return { success: true, theme: input.theme };
+      }),
 
     /** Change password for the currently logged-in user */
     changePassword: publicProcedure

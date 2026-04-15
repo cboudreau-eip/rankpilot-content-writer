@@ -35,7 +35,11 @@ import {
   LogOut,
   ChevronDown,
   PanelLeft,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation, Link } from "wouter";
 import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import type { Project } from "../../../drizzle/schema";
@@ -113,6 +117,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   });
   const handleLogout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
 
+  // Theme toggle
+  const { theme, setTheme } = useTheme();
+  const setThemeMutation = trpc.auth.setTheme.useMutation();
+  const handleThemeChange = useCallback((newTheme: "light" | "dark" | "system") => {
+    setTheme(newTheme);
+    setThemeMutation.mutate({ theme: newTheme });
+  }, [setTheme, setThemeMutation]);
+
+  // Load theme from server on first load
+  const { data: serverTheme } = trpc.auth.getTheme.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  useEffect(() => {
+    if (serverTheme?.theme) {
+      setTheme(serverTheme.theme);
+    }
+  }, [serverTheme]);
+
   // Active project state persisted in localStorage
   const [activeProjectId, setActiveProjectId] = useState<number | null>(() => {
     const saved = localStorage.getItem("rankpilot-active-project");
@@ -174,6 +194,52 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </NavSection>
             ))}
           </nav>
+
+          {/* Theme Toggle */}
+          <div className={`border-t border-sidebar-border px-3 py-2 ${sidebarCollapsed ? "flex justify-center" : ""}`}>
+            {sidebarCollapsed ? (
+              <button
+                onClick={() => handleThemeChange(theme === "light" ? "dark" : "light")}
+                className="h-9 w-9 flex items-center justify-center rounded-xl hover:bg-accent/50 transition-colors"
+                title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+              >
+                {theme === "dark" ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
+              </button>
+            ) : (
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/50">
+                <button
+                  onClick={() => handleThemeChange("light")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
+                    theme === "light" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Light mode"
+                >
+                  <Sun className="w-3.5 h-3.5" />
+                  <span>Light</span>
+                </button>
+                <button
+                  onClick={() => handleThemeChange("dark")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
+                    theme === "dark" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Dark mode"
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>Dark</span>
+                </button>
+                <button
+                  onClick={() => handleThemeChange("system")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
+                    theme === "system" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="System preference"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>Auto</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* User Footer */}
           <div className="border-t border-sidebar-border p-3">

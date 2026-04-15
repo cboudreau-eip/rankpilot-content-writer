@@ -200,7 +200,7 @@ export function RegenerateSection({ articleId, editorElement, onSectionRegenerat
       {showForm && formPos && !regenerateMutation.isPending && (
         <div
           ref={formRef}
-          className="absolute z-30 bg-white rounded-xl border border-indigo-200 shadow-lg p-4 space-y-3"
+          className="absolute z-30 bg-card rounded-xl border border-indigo-200 shadow-lg p-4 space-y-3"
           style={{
             top: formPos.top,
             left: formPos.left,
@@ -218,14 +218,14 @@ export function RegenerateSection({ articleId, editorElement, onSectionRegenerat
                 <p className="text-xs text-muted-foreground truncate max-w-[300px]">{activeHeading}</p>
               </div>
             </div>
-            <button onClick={resetForm} className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+            <button onClick={resetForm} className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-muted-foreground">
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Instructions */}
           <div>
-            <Label className="text-xs font-medium text-gray-700">Instructions (optional)</Label>
+            <Label className="text-xs font-medium text-secondary-foreground">Instructions (optional)</Label>
             <Textarea
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
@@ -237,7 +237,7 @@ export function RegenerateSection({ articleId, editorElement, onSectionRegenerat
 
           {/* Length Preference */}
           <div className="flex items-center gap-2">
-            <Label className="text-xs font-medium text-gray-700 shrink-0">Length:</Label>
+            <Label className="text-xs font-medium text-secondary-foreground shrink-0">Length:</Label>
             <div className="flex gap-1">
               {([
                 { value: "shorter", label: "Shorter", icon: ArrowUpToLine },
@@ -250,7 +250,7 @@ export function RegenerateSection({ articleId, editorElement, onSectionRegenerat
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
                     lengthPreference === value
                       ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                      : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
                   }`}
                 >
                   <Icon className="w-3 h-3" />
@@ -271,7 +271,7 @@ export function RegenerateSection({ articleId, editorElement, onSectionRegenerat
 
           {showAdvanced && (
             <div>
-              <Label className="text-xs font-medium text-gray-700">Tone Override</Label>
+              <Label className="text-xs font-medium text-secondary-foreground">Tone Override</Label>
               <Select value={toneOverride} onValueChange={setToneOverride}>
                 <SelectTrigger className="mt-1 text-sm h-8">
                   <SelectValue placeholder="Use project default" />
@@ -343,7 +343,7 @@ export function SectionDiffPreview({ sectionHeading, oldContent, newContent, onA
   const wordDiff = newWordCount - oldWordCount;
 
   return (
-    <div className="w-96 bg-white rounded-xl border border-indigo-200 shadow-lg flex-shrink-0 self-start sticky top-4 overflow-hidden">
+    <div className="w-96 bg-card rounded-xl border border-indigo-200 shadow-lg flex-shrink-0 self-start sticky top-4 overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-4 py-3 border-b border-indigo-100">
         <div className="flex items-center justify-between">
@@ -360,10 +360,10 @@ export function SectionDiffPreview({ sectionHeading, oldContent, newContent, onA
 
         {/* Word count comparison */}
         <div className="flex items-center gap-3 mt-2 text-xs">
-          <span className="text-gray-500">
+          <span className="text-muted-foreground">
             {oldWordCount} words <span className="mx-1">→</span> {newWordCount} words
           </span>
-          <span className={`font-medium ${wordDiff > 0 ? "text-emerald-600" : wordDiff < 0 ? "text-amber-600" : "text-gray-500"}`}>
+          <span className={`font-medium ${wordDiff > 0 ? "text-emerald-600" : wordDiff < 0 ? "text-amber-600" : "text-muted-foreground"}`}>
             ({wordDiff > 0 ? "+" : ""}{wordDiff})
           </span>
         </div>
@@ -376,7 +376,7 @@ export function SectionDiffPreview({ sectionHeading, oldContent, newContent, onA
           <button
             onClick={() => setShowOld(false)}
             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              !showOld ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "text-gray-500 hover:bg-gray-50"
+              !showOld ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "text-muted-foreground hover:bg-muted/50"
             }`}
           >
             New Version
@@ -384,14 +384,14 @@ export function SectionDiffPreview({ sectionHeading, oldContent, newContent, onA
           <button
             onClick={() => setShowOld(true)}
             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              showOld ? "bg-gray-100 text-gray-700 border border-gray-200" : "text-gray-500 hover:bg-gray-50"
+              showOld ? "bg-muted text-secondary-foreground border border-border" : "text-muted-foreground hover:bg-muted/50"
             }`}
           >
             Old Version
           </button>
         </div>
 
-        <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none">
+        <div className="text-sm text-secondary-foreground leading-relaxed prose prose-sm max-w-none">
           {showOld ? (
             <div className="opacity-60" dangerouslySetInnerHTML={{ __html: oldContent }} />
           ) : (
@@ -401,7 +401,7 @@ export function SectionDiffPreview({ sectionHeading, oldContent, newContent, onA
       </div>
 
       {/* Actions */}
-      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center gap-2">
+      <div className="px-4 py-3 border-t border-gray-100 bg-muted/50/50 flex items-center gap-2">
         <Button
           onClick={onAccept}
           size="sm"

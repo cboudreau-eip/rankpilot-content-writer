@@ -57,13 +57,13 @@ export default function ChangePassword() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
             <Rocket className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">RankPilot</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">RankPilot</h1>
         </div>
 
-        <Card className="shadow-xl border-slate-200/80 bg-white/90 backdrop-blur-sm">
+        <Card className="shadow-xl border-border/80 bg-card/90 backdrop-blur-sm">
           <CardHeader className="pb-2 pt-6 px-6">
-            <h2 className="text-lg font-bold text-slate-900">Set a new password</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-lg font-bold text-foreground">Set a new password</h2>
+            <p className="text-sm text-muted-foreground">
               {success
                 ? "Password updated! Redirecting you to the app..."
                 : "Your account requires a password change before continuing."}
@@ -84,7 +84,7 @@ export default function ChangePassword() {
                 )}
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="current-password" className="text-sm font-medium text-slate-700">
+                  <Label htmlFor="current-password" className="text-sm font-medium text-secondary-foreground">
                     Current password
                   </Label>
                   <div className="relative">
@@ -96,13 +96,13 @@ export default function ChangePassword() {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       disabled={changePasswordMutation.isPending}
-                      className="h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors pr-10"
+                      className="h-10 bg-muted/50 border-border focus:bg-card transition-colors pr-10"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowCurrent(!showCurrent)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground transition-colors"
                       tabIndex={-1}
                     >
                       {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -111,7 +111,7 @@ export default function ChangePassword() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-password" className="text-sm font-medium text-slate-700">
+                  <Label htmlFor="new-password" className="text-sm font-medium text-secondary-foreground">
                     New password
                   </Label>
                   <div className="relative">
@@ -123,14 +123,14 @@ export default function ChangePassword() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       disabled={changePasswordMutation.isPending}
-                      className="h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors pr-10"
+                      className="h-10 bg-muted/50 border-border focus:bg-card transition-colors pr-10"
                       required
                       minLength={8}
                     />
                     <button
                       type="button"
                       onClick={() => setShowNew(!showNew)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground transition-colors"
                       tabIndex={-1}
                     >
                       {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -139,7 +139,7 @@ export default function ChangePassword() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="confirm-password" className="text-sm font-medium text-slate-700">
+                  <Label htmlFor="confirm-password" className="text-sm font-medium text-secondary-foreground">
                     Confirm new password
                   </Label>
                   <Input
@@ -150,7 +150,7 @@ export default function ChangePassword() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={changePasswordMutation.isPending}
-                    className="h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+                    className="h-10 bg-muted/50 border-border focus:bg-card transition-colors"
                     required
                   />
                 </div>

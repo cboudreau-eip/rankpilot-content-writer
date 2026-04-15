@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 
 const STATUS_CONFIG = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-700", icon: FileEdit },
+  draft: { label: "Draft", color: "bg-muted text-secondary-foreground", icon: FileEdit },
   review: { label: "Review", color: "bg-amber-100 text-amber-700", icon: Eye },
   complete: { label: "Complete", color: "bg-blue-100 text-blue-700", icon: CheckCircle2 },
   published: { label: "Published", color: "bg-emerald-100 text-emerald-700", icon: Send },
@@ -114,11 +114,11 @@ export default function Articles() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Total", value: stats?.total ?? 0, color: "text-foreground" },
-          { label: "Drafts", value: stats?.draft ?? 0, color: "text-gray-600" },
+          { label: "Drafts", value: stats?.draft ?? 0, color: "text-muted-foreground" },
           { label: "In Review", value: stats?.review ?? 0, color: "text-amber-600" },
           { label: "Published", value: stats?.published ?? 0, color: "text-emerald-600" },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl border border-border/60 p-4">
+          <div key={s.label} className="bg-card rounded-xl border border-border/60 p-4">
             <p className="text-sm text-muted-foreground">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
@@ -134,7 +134,7 @@ export default function Articles() {
               onClick={() => setStatusFilter(tab.key)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 statusFilter === tab.key
-                  ? "bg-white text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -157,7 +157,7 @@ export default function Articles() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-border/60 p-5 animate-pulse">
+            <div key={i} className="bg-card rounded-xl border border-border/60 p-5 animate-pulse">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-muted" />
                 <div className="flex-1 space-y-2">
@@ -169,7 +169,7 @@ export default function Articles() {
           ))}
         </div>
       ) : filteredArticles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-border/60">
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-card rounded-xl border border-border/60">
           <FileText className="w-12 h-12 text-muted-foreground/30 mb-4" />
           <h3 className="text-lg font-semibold mb-1">
             {searchQuery ? "No articles found" : "No articles yet"}
@@ -194,7 +194,7 @@ export default function Articles() {
             return (
               <div
                 key={article.id}
-                className="group bg-white rounded-xl border border-border/60 hover:border-indigo-200 hover:shadow-sm transition-all p-5 cursor-pointer"
+                className="group bg-card rounded-xl border border-border/60 hover:border-indigo-200 hover:shadow-sm transition-all p-5 cursor-pointer"
                 onClick={() => navigate(`/articles/${article.id}`)}
               >
                 <div className="flex items-center gap-4">

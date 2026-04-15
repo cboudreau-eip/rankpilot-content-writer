@@ -11,6 +11,7 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   negativeKeywords: json("negativeKeywords").$type<string[]>(),
+  theme: mysqlEnum("theme", ["light", "dark", "system"]).default("light").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -382,6 +383,8 @@ export const appUsers = mysqlTable("app_users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastLoginAt: timestamp("lastLoginAt"),
+  /** User's preferred theme: light, dark, or system */
+  theme: mysqlEnum("theme", ["light", "dark", "system"]).default("light").notNull(),
 });
 
 export type AppUser = typeof appUsers.$inferSelect;

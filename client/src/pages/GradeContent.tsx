@@ -476,13 +476,13 @@ export default function GradeContent() {
                                     className={`w-full text-left flex items-start gap-2.5 text-sm p-2.5 rounded-lg border transition-all cursor-pointer ${
                                       isSelected
                                         ? "border-orange-400 bg-orange-50"
-                                        : "border-border/40 bg-white hover:border-orange-300 hover:bg-orange-50/30"
+                                        : "border-border/40 bg-card hover:border-orange-300 hover:bg-orange-50/30"
                                     }`}
                                   >
                                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                                       isSelected
                                         ? "border-orange-500 bg-orange-500"
-                                        : "border-gray-300 bg-white"
+                                        : "border-border bg-card"
                                     }`}>
                                       {isSelected && (
                                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -500,7 +500,7 @@ export default function GradeContent() {
                               className={`w-full mt-3 gap-1.5 font-semibold transition-all ${
                                 selCount > 0 && !applyMutation.isPending
                                   ? "bg-orange-500 hover:bg-orange-600 text-white"
-                                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                  : "bg-muted text-muted-foreground cursor-not-allowed"
                               }`}
                               disabled={selCount === 0 || applyMutation.isPending}
                               onClick={() => {

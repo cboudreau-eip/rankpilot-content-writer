@@ -380,7 +380,7 @@ function buildHighlightedHtml(oldHtml: string, newHtml: string): string {
 }
 
 const STATUS_CONFIG = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-700", icon: FileEdit },
+  draft: { label: "Draft", color: "bg-muted text-secondary-foreground", icon: FileEdit },
   review: { label: "Review", color: "bg-amber-100 text-amber-700", icon: Eye },
   complete: { label: "Complete", color: "bg-blue-100 text-blue-700", icon: CheckCircle2 },
   published: { label: "Published", color: "bg-emerald-100 text-emerald-700", icon: Send },
@@ -866,7 +866,7 @@ export default function ArticleEditor() {
                   toast.success("HTML file downloaded");
                 }}
               >
-                <Download className="w-4 h-4 mr-2 text-gray-600" />
+                <Download className="w-4 h-4 mr-2 text-muted-foreground" />
                 Download HTML
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -886,7 +886,7 @@ export default function ArticleEditor() {
 
       <div className="flex gap-4">
         {/* Editor */}
-        <div className="flex-1 bg-white rounded-xl border border-border/60 overflow-hidden">
+        <div className="flex-1 bg-card rounded-xl border border-border/60 overflow-hidden">
           {/* Toolbar */}
           {editor && (
             <div className="flex items-center gap-0.5 px-3 py-2 border-b border-border/40 bg-muted/20 flex-wrap">
@@ -975,7 +975,7 @@ export default function ArticleEditor() {
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
                   copied
                     ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                    : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted border-border"
                 }`}
               >
                 {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -997,7 +997,7 @@ export default function ArticleEditor() {
                   toast.success("Em dashes removed");
                 }}
                 title="Remove Em Dashes"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 text-muted-foreground hover:bg-muted transition-colors border border-border"
               >
                 <MinusCircle className="w-3.5 h-3.5" />
                 Remove —
@@ -1234,7 +1234,7 @@ export default function ArticleEditor() {
 
         {/* SEO Sidebar */}
         {showSeo && (
-          <div className="w-80 bg-white rounded-xl border border-border/60 p-5 space-y-5 flex-shrink-0 self-start sticky top-4">
+          <div className="w-80 bg-card rounded-xl border border-border/60 p-5 space-y-5 flex-shrink-0 self-start sticky top-4">
             <h3 className="font-semibold flex items-center gap-2">
               <Search className="w-4 h-4 text-indigo-600" />
               SEO Settings
@@ -1403,7 +1403,7 @@ function GradePanel({
   };
 
   return (
-    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
       {/* Header with Score + Grade */}
       <div className="p-4 border-b bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-pink-500/5">
         <div className="flex items-center justify-between mb-3">
@@ -1441,7 +1441,7 @@ function GradePanel({
       <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
         {/* Category Cards */}
         {Object.entries(categories).map(([key, cat]: [string, any]) => {
-          const meta = gradeCategoryMeta[key] || { icon: ShieldCheck, color: "text-gray-600", bgColor: "bg-gray-50" };
+          const meta = gradeCategoryMeta[key] || { icon: ShieldCheck, color: "text-muted-foreground", bgColor: "bg-muted/50" };
           const pct = cat.maxScore > 0 ? Math.round((cat.score / cat.maxScore) * 100) : 0;
           const analysis = cat.analysis || cat.explanation || cat.reason || "";
           const selCount = getSelectedCount(key);
@@ -1496,13 +1496,13 @@ function GradePanel({
                           className={`w-full text-left flex items-start gap-2 text-[11px] p-2 rounded-lg border transition-all cursor-pointer ${
                             isSelected
                               ? "border-orange-400 bg-orange-50"
-                              : "border-border/40 bg-white hover:border-orange-300 hover:bg-orange-50/30"
+                              : "border-border/40 bg-card hover:border-orange-300 hover:bg-orange-50/30"
                           }`}
                         >
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                             isSelected
                               ? "border-orange-500 bg-orange-500"
-                              : "border-gray-300 bg-white"
+                              : "border-border bg-card"
                           }`}>
                             {isSelected && (
                               <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -1521,7 +1521,7 @@ function GradePanel({
                     className={`w-full mt-2.5 text-xs h-8 gap-1.5 font-semibold transition-all ${
                       selCount > 0
                         ? "bg-orange-500 hover:bg-orange-600 text-white"
-                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-muted text-muted-foreground cursor-not-allowed"
                     }`}
                     disabled={selCount === 0 || isApplying}
                     onClick={() => handleApplySelected(key, cat.label || key, cat.improvements)}
@@ -1655,7 +1655,7 @@ function CrossCheckPanel({
   const lowCount = discrepancies.filter((d: any) => d.severity === "low").length;
 
   return (
-    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b bg-gradient-to-r from-teal-500/5 via-emerald-500/5 to-cyan-500/5">
         <div className="flex items-center justify-between mb-3">
@@ -1751,7 +1751,7 @@ function CrossCheckPanel({
                         <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                           selected.has(i)
                             ? 'bg-teal-600 border-teal-600'
-                            : 'border-gray-300 bg-white'
+                            : 'border-border bg-card'
                         }`}>
                           {selected.has(i) && (
                             <CheckCircle2 className="w-3 h-3 text-white" />
@@ -1888,7 +1888,7 @@ function RedundancyPanel({
   const scoreBg = redundancyScore >= 8 ? "bg-emerald-50" : redundancyScore >= 5 ? "bg-amber-50" : "bg-red-50";
 
   return (
-    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b bg-gradient-to-r from-orange-500/5 via-amber-500/5 to-yellow-500/5">
         <div className="flex items-center justify-between mb-3">
@@ -1979,7 +1979,7 @@ function RedundancyPanel({
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                         selected.has(i)
                           ? 'bg-orange-600 border-orange-600'
-                          : 'border-gray-300 bg-white'
+                          : 'border-border bg-card'
                       }`}>
                         {selected.has(i) && (
                           <CheckCircle2 className="w-3 h-3 text-white" />
@@ -2063,7 +2063,7 @@ function RedundancyPanel({
 const prominenceConfig = {
   High: { color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-200" },
   Medium: { color: "text-amber-700", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
-  Low: { color: "text-gray-600", bgColor: "bg-gray-50", borderColor: "border-gray-200" },
+  Low: { color: "text-muted-foreground", bgColor: "bg-muted/50", borderColor: "border-border" },
 } as const;
 
 const driftConfig = {
@@ -2144,7 +2144,7 @@ function EntityPanel({
   const primary = result.primaryEntity;
 
   return (
-    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden max-h-[calc(100vh-120px)] overflow-y-auto">
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden max-h-[calc(100vh-120px)] overflow-y-auto">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border/40 bg-gradient-to-r from-cyan-50 to-blue-50 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -2167,7 +2167,7 @@ function EntityPanel({
             return (
               <div key={item.label} className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground w-28 shrink-0">{item.label}</span>
-                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full ${pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500"}`}
                     style={{ width: `${pct}%` }}
@@ -2334,7 +2334,7 @@ function EntityPanel({
                     <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                       selectedFixes.has(i)
                         ? "bg-amber-500 border-amber-500 text-white"
-                        : "border-gray-300 bg-white"
+                        : "border-border bg-card"
                     }`}>
                       {selectedFixes.has(i) && (
                         <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -2475,7 +2475,7 @@ function EntityPanelSkeleton({
   label?: string;
 }) {
   return (
-    <div className="w-[420px] bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border/40 bg-gradient-to-r from-cyan-50 to-blue-50 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -2504,7 +2504,7 @@ function EntityPanelSkeleton({
         {onCancel && (
           <button
             onClick={onCancel}
-            className="text-xs text-muted-foreground hover:text-foreground border border-border/60 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground border border-border/60 rounded-md px-3 py-1.5 hover:bg-muted/50 transition-colors"
           >
             Cancel
           </button>
@@ -2514,37 +2514,37 @@ function EntityPanelSkeleton({
         <div className="w-full space-y-3 mt-2">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-24 bg-gray-100 rounded-full animate-pulse" />
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" />
-              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="h-2 w-24 bg-muted rounded-full animate-pulse" />
+              <div className="flex-1 h-1.5 bg-muted rounded-full animate-pulse" />
+              <div className="h-2 w-8 bg-muted rounded-full animate-pulse" />
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-2 w-20 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
-              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+              <div className="h-2 w-20 bg-muted rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+              <div className="flex-1 h-1.5 bg-muted rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+              <div className="h-2 w-8 bg-muted rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-2 w-28 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
-              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+              <div className="h-2 w-28 bg-muted rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+              <div className="flex-1 h-1.5 bg-muted rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+              <div className="h-2 w-8 bg-muted rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-2 w-24 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
-              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
+              <div className="h-2 w-24 bg-muted rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
+              <div className="flex-1 h-1.5 bg-muted rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
+              <div className="h-2 w-8 bg-muted rounded-full animate-pulse" style={{ animationDelay: "450ms" }} />
             </div>
           </div>
 
           {/* Skeleton entity cards */}
           <div className="border-t border-border/30 pt-3 space-y-2">
-            <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
+            <div className="h-3 w-32 bg-muted rounded animate-pulse" />
             {[0, 1, 2].map((i) => (
-              <div key={i} className="p-2 rounded-lg border border-gray-100 bg-gray-50/50 space-y-1.5" style={{ animationDelay: `${i * 200}ms` }}>
+              <div key={i} className="p-2 rounded-lg border border-gray-100 bg-muted/50/50 space-y-1.5" style={{ animationDelay: `${i * 200}ms` }}>
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-24 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
-                  <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
+                  <div className="h-2.5 w-24 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                  <div className="h-2 w-12 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
                 </div>
-                <div className="h-2 w-full bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
+                <div className="h-2 w-full bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
               </div>
             ))}
           </div>
@@ -2576,7 +2576,7 @@ function ScanPanelSkeleton({
   label?: string;
 }) {
   return (
-    <div className="w-80 bg-white rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+    <div className="w-80 bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
       {/* Header */}
       <div className={`px-4 py-3 border-b border-border/40 bg-gradient-to-r ${gradientFrom} ${gradientTo} flex items-center justify-between`}>
         <div className="flex items-center gap-2">
@@ -2591,7 +2591,7 @@ function ScanPanelSkeleton({
       {/* Loading content */}
       <div className="px-6 py-10 flex flex-col items-center gap-4">
         <div className="relative">
-          <div className={`w-14 h-14 rounded-full bg-gray-50 ring-4 ring-gray-100 flex items-center justify-center`}>
+          <div className={`w-14 h-14 rounded-full bg-muted/50 ring-4 ring-gray-100 flex items-center justify-center`}>
             <Loader2 className={`w-6 h-6 ${accentColor} animate-spin`} />
           </div>
         </div>
@@ -2605,7 +2605,7 @@ function ScanPanelSkeleton({
         {onCancel && (
           <button
             onClick={onCancel}
-            className="text-xs text-muted-foreground hover:text-foreground border border-border/60 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground border border-border/60 rounded-md px-3 py-1.5 hover:bg-muted/50 transition-colors"
           >
             Cancel
           </button>
@@ -2615,23 +2615,23 @@ function ScanPanelSkeleton({
         <div className="w-full space-y-3 mt-2">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className="h-2 w-20 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
-              <div className="h-2 w-8 bg-gray-100 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="h-2 w-20 bg-muted rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="flex-1 h-1.5 bg-muted rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="h-2 w-8 bg-muted rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
             </div>
           ))}
 
           {/* Skeleton result cards */}
           <div className="border-t border-border/30 pt-3 space-y-2">
-            <div className="h-3 w-28 bg-gray-100 rounded animate-pulse" />
+            <div className="h-3 w-28 bg-muted rounded animate-pulse" />
             {[0, 1, 2].map((i) => (
-              <div key={i} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50 space-y-1.5">
+              <div key={i} className="p-2.5 rounded-lg border border-gray-100 bg-muted/50/50 space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-20 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
-                  <div className="h-2 w-14 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
+                  <div className="h-2.5 w-20 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                  <div className="h-2 w-14 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
                 </div>
-                <div className="h-2 w-full bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
-                <div className="h-2 w-3/4 bg-gray-100 rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
+                <div className="h-2 w-full bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200 + 50}ms` }} />
+                <div className="h-2 w-3/4 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200 + 100}ms` }} />
               </div>
             ))}
           </div>

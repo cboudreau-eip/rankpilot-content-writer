@@ -82,7 +82,7 @@ function BulletSection({ icon, iconColor, bgColor, borderColor, label, descripti
         {items.map((item, index) => (
           <div key={index} className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm w-4">{index + 1}.</span>
-            <Input value={item} onChange={(e) => onUpdate(index, e.target.value)} placeholder={placeholder} className="flex-1 bg-white" />
+            <Input value={item} onChange={(e) => onUpdate(index, e.target.value)} placeholder={placeholder} className="flex-1 bg-card" />
             <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">
               <X className="w-4 h-4" />
             </Button>
@@ -197,7 +197,7 @@ function ICPTab({ projectId }: { projectId: number }) {
       </div>
 
       {/* Primary Identity Section */}
-      <div className="bg-white rounded-xl border border-border p-5 space-y-4">
+      <div className="bg-card rounded-xl border border-border p-5 space-y-4">
         <div className="flex items-center gap-2 text-violet-600 mb-2">
           <Users className="w-4 h-4" />
           <span className="font-medium text-sm">Primary Identity</span>
@@ -1575,8 +1575,8 @@ export default function ProjectSettings() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-base font-medium transition-all ${
                 isActive
-                  ? "bg-white shadow-md border border-border/60 text-foreground"
-                  : "text-muted-foreground hover:bg-white/60 hover:text-foreground"
+                  ? "bg-card shadow-md border border-border/60 text-foreground"
+                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
               }`}
             >
               <div className={`w-8 h-8 rounded-lg ${tab.bg} flex items-center justify-center`}>

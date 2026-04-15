@@ -185,10 +185,10 @@ function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJo
             <span className="font-semibold">{jobs?.reduce((sum, j) => sum + (j.totalGenerated ?? 0), 0) ?? 0}</span>
             <span className="text-indigo-600/70">generated</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 text-slate-600">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-muted-foreground">
             <Clock className="w-3.5 h-3.5" />
             <span className="font-semibold">{completedJobs.length}</span>
-            <span className="text-slate-500/70">completed</span>
+            <span className="text-muted-foreground/70">completed</span>
           </div>
         </div>
 
@@ -237,17 +237,17 @@ function JobListView({ projectId, onSelectJob }: { projectId: number; onSelectJo
                   <div className="flex items-center gap-4 min-w-0">
                     <div className={`p-2.5 rounded-xl ${
                       job.status === "active" ? "bg-green-50" :
-                      job.status === "paused" ? "bg-amber-50" : "bg-slate-50"
+                      job.status === "paused" ? "bg-amber-50" : "bg-muted/50"
                     }`}>
                       {job.keywordSource === "ai" ? (
                         <Sparkles className={`w-5 h-5 ${
                           job.status === "active" ? "text-green-600" :
-                          job.status === "paused" ? "text-amber-600" : "text-slate-400"
+                          job.status === "paused" ? "text-amber-600" : "text-muted-foreground"
                         }`} />
                       ) : (
                         <ListOrdered className={`w-5 h-5 ${
                           job.status === "active" ? "text-green-600" :
-                          job.status === "paused" ? "text-amber-600" : "text-slate-400"
+                          job.status === "paused" ? "text-amber-600" : "text-muted-foreground"
                         }`} />
                       )}
                     </div>
@@ -688,7 +688,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
               onClick={() => setSuggestKeywordsEnabled(!suggestKeywordsEnabled)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${suggestKeywordsEnabled ? "bg-indigo-600" : "bg-muted"}`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${suggestKeywordsEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${suggestKeywordsEnabled ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
         </div>
@@ -793,7 +793,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${
                     researchEnabled ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
@@ -856,7 +856,7 @@ function CreateJobDialog({ projectId, onClose, onCreated }: { projectId: number;
               onClick={() => setAutoGradeEnabled(!autoGradeEnabled)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGradeEnabled ? "bg-indigo-600" : "bg-muted"}`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoGradeEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${autoGradeEnabled ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
           {autoGradeEnabled && (
@@ -1189,7 +1189,7 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
               onClick={() => setSuggestKeywordsEnabled(!suggestKeywordsEnabled)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${suggestKeywordsEnabled ? "bg-indigo-600" : "bg-muted"}`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${suggestKeywordsEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${suggestKeywordsEnabled ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
         </div>
@@ -1282,7 +1282,7 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
             <div className="flex items-center gap-3 pt-2">
               <button type="button" onClick={() => setResearchEnabled(!researchEnabled)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${researchEnabled ? "bg-indigo-600" : "bg-muted"}`}>
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${researchEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${researchEnabled ? "translate-x-6" : "translate-x-1"}`} />
               </button>
               <span className="text-sm text-muted-foreground">{researchEnabled ? "Enabled" : "Disabled"}</span>
             </div>
@@ -1327,7 +1327,7 @@ function EditJobDialog({ job, projectId, onClose }: { job: any; projectId: numbe
             </div>
             <button type="button" onClick={() => setAutoGradeEnabled(!autoGradeEnabled)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoGradeEnabled ? "bg-indigo-600" : "bg-muted"}`}>
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoGradeEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${autoGradeEnabled ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
           {autoGradeEnabled && (
@@ -1731,7 +1731,7 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
 
       {/* Queue Status */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="p-3 bg-slate-50 rounded-lg text-center">
+        <div className="p-3 bg-muted/50 rounded-lg text-center">
           <p className="text-xl font-bold">{pendingKeywords.length}</p>
           <p className="text-xs text-muted-foreground">Pending</p>
         </div>
@@ -1926,7 +1926,7 @@ const STEP_ICONS: Record<string, { icon: typeof CheckCircle2; color: string }> =
   outline: { icon: ListOrdered, color: "text-blue-500" },
   article: { icon: FileText, color: "text-purple-500" },
   auto_grade: { icon: Zap, color: "text-amber-500" },
-  em_dash_removal: { icon: Settings2, color: "text-gray-400" },
+  em_dash_removal: { icon: Settings2, color: "text-muted-foreground" },
   complete: { icon: CheckCircle2, color: "text-green-500" },
   error: { icon: XCircle, color: "text-red-500" },
 };
@@ -1991,7 +1991,7 @@ function RunLogTimeline({ runId }: { runId: number }) {
 
             return (
               <div key={log.id ?? idx} className="flex items-start gap-3 relative">
-                <div className={`shrink-0 z-10 bg-white dark:bg-background rounded-full p-0.5 ${stepConfig.color}`}>
+                <div className={`shrink-0 z-10 bg-card dark:bg-background rounded-full p-0.5 ${stepConfig.color}`}>
                   <Icon className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1 min-w-0">

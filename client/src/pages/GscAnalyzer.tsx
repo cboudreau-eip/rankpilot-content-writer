@@ -104,13 +104,13 @@ function positionBadgeColor(pos: number): string {
 
 function StatCard({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; color: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+    <div className="bg-card rounded-xl border border-border p-5 flex items-center gap-4">
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-gray-900">{typeof value === "number" ? formatNumber(value) : value}</p>
-        <p className="text-sm text-gray-500">{label}</p>
+        <p className="text-2xl font-bold text-foreground">{typeof value === "number" ? formatNumber(value) : value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -145,7 +145,7 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
     const active = sortBy === col;
     return (
       <th
-        className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors ${active ? "text-indigo-600" : "text-gray-500"}`}
+        className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide cursor-pointer select-none hover:bg-muted transition-colors ${active ? "text-indigo-600" : "text-muted-foreground"}`}
         onClick={() => toggleSort(col)}
       >
         <span className="flex items-center gap-1">
@@ -159,23 +159,23 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
   return (
     <div className="space-y-3">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           type="text"
           placeholder={showPage ? "Filter pages..." : "Filter keywords..."}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+          className="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
         />
       </div>
 
-      <div className="text-xs text-gray-400">{sorted.length} {showPage ? "pages" : "keywords"}</div>
+      <div className="text-xs text-muted-foreground">{sorted.length} {showPage ? "pages" : "keywords"}</div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-muted/50 border-b border-border">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {showPage ? "Page URL" : "Keyword"}
               </th>
               <SortHeader col="clicks" label="Clicks" />
@@ -188,7 +188,7 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
             {sorted.slice(0, 200).map((row, i) => {
               const text = showPage ? (row as GscPageRow).page : (row as GscQueryRow).query;
               return (
-                <tr key={i} className="hover:bg-gray-50 transition-colors">
+                <tr key={i} className="hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3 max-w-xs">
                     {showPage ? (
                       <a
@@ -202,11 +202,11 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
                         <ExternalLink className="w-3 h-3 flex-shrink-0" />
                       </a>
                     ) : (
-                      <span className="text-gray-800 font-medium">{text}</span>
+                      <span className="text-foreground font-medium">{text}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{formatNumber(row.clicks)}</td>
-                  <td className="px-4 py-3 text-gray-600">{formatNumber(row.impressions)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatNumber(row.clicks)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatNumber(row.impressions)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${row.ctr < 0.02 ? "bg-red-100 text-red-700" : row.ctr < 0.05 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                       {formatCtr(row.ctr)}
@@ -222,7 +222,7 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-gray-400 text-sm">
+                <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground text-sm">
                   No results found
                 </td>
               </tr>
@@ -231,7 +231,7 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
         </table>
       </div>
       {sorted.length > 200 && (
-        <p className="text-xs text-gray-400 text-center">Showing top 200 of {sorted.length} results</p>
+        <p className="text-xs text-muted-foreground text-center">Showing top 200 of {sorted.length} results</p>
       )}
     </div>
   );
@@ -251,7 +251,7 @@ function CannibalizationTable({ groups }: { groups: GscCannibalizationGroup[] })
 
   if (!groups.length) {
     return (
-      <div className="text-center py-12 text-gray-400 text-sm">
+      <div className="text-center py-12 text-muted-foreground text-sm">
         No cannibalization issues detected
       </div>
     );
@@ -259,39 +259,39 @@ function CannibalizationTable({ groups }: { groups: GscCannibalizationGroup[] })
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-400">{groups.length} keyword groups with potential cannibalization</div>
+      <div className="text-xs text-muted-foreground">{groups.length} keyword groups with potential cannibalization</div>
       {groups.map((group, i) => (
-        <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
+        <div key={i} className="border border-border rounded-xl overflow-hidden">
           <button
-            className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition-colors text-left"
+            className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-muted/50 transition-colors text-left"
             onClick={() => toggle(i)}
           >
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
                 {group.queries.length} queries
               </span>
-              <span className="text-sm font-medium text-gray-800 capitalize">{group.topic}</span>
+              <span className="text-sm font-medium text-foreground capitalize">{group.topic}</span>
             </div>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${expanded.has(i) ? "rotate-180" : ""}`} />
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded.has(i) ? "rotate-180" : ""}`} />
           </button>
           {expanded.has(i) && (
             <div className="border-t border-gray-100">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Keyword</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Clicks</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Impressions</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">CTR</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Position</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Keyword</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Clicks</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Impressions</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">CTR</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Position</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {group.queries.map((q, j) => (
-                    <tr key={j} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-gray-800">{q.query}</td>
-                      <td className="px-4 py-2 text-gray-600">{formatNumber(q.clicks)}</td>
-                      <td className="px-4 py-2 text-gray-600">{formatNumber(q.impressions)}</td>
+                    <tr key={j} className="hover:bg-muted/50">
+                      <td className="px-4 py-2 text-foreground">{q.query}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{formatNumber(q.clicks)}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{formatNumber(q.impressions)}</td>
                       <td className="px-4 py-2">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${q.ctr < 0.02 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
                           {formatCtr(q.ctr)}
@@ -439,11 +439,11 @@ export default function GscAnalyzer() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-indigo-600" />
             GSC Analyzer
           </h1>
-          <p className="text-gray-500 mt-1 text-sm">
+          <p className="text-muted-foreground mt-1 text-sm">
             Upload your Google Search Console export to uncover keyword opportunities and issues.
           </p>
         </div>
@@ -467,12 +467,12 @@ export default function GscAnalyzer() {
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-16 text-center cursor-pointer transition-all ${isDragging ? "border-indigo-500 bg-indigo-50" : "border-gray-300 hover:border-indigo-400 hover:bg-gray-50"}`}
+          className={`border-2 border-dashed rounded-2xl p-16 text-center cursor-pointer transition-all ${isDragging ? "border-indigo-500 bg-indigo-50" : "border-border hover:border-indigo-400 hover:bg-muted/50"}`}
         >
           {isUploading ? (
             <div className="flex flex-col items-center gap-3">
               <RefreshCw className="w-10 h-10 text-indigo-500 animate-spin" />
-              <p className="text-gray-600 font-medium">Parsing your GSC export...</p>
+              <p className="text-muted-foreground font-medium">Parsing your GSC export...</p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
@@ -480,10 +480,10 @@ export default function GscAnalyzer() {
                 <FileSpreadsheet className="w-8 h-8 text-indigo-600" />
               </div>
               <div>
-                <p className="text-gray-800 font-semibold text-lg">Drop your GSC Excel export here</p>
-                <p className="text-gray-500 text-sm mt-1">or click to browse — supports .xlsx files</p>
+                <p className="text-foreground font-semibold text-lg">Drop your GSC Excel export here</p>
+                <p className="text-muted-foreground text-sm mt-1">or click to browse — supports .xlsx files</p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-100 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
                 <Info className="w-3.5 h-3.5" />
                 <span>Export from Google Search Console → Performance → Export → Download Excel</span>
               </div>
@@ -497,12 +497,12 @@ export default function GscAnalyzer() {
         <div className="space-y-5">
           {/* Export Selector */}
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-gray-600">Export:</span>
+            <span className="text-sm font-medium text-muted-foreground">Export:</span>
             {exports.map((exp: any) => (
               <button
                 key={exp.id}
                 onClick={() => setSelectedExportId(exp.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${selectedExportId === exp.id ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${selectedExportId === exp.id ? "bg-indigo-600 text-white border-indigo-600" : "bg-card text-secondary-foreground border-border hover:border-indigo-300"}`}
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
                 {exp.fileName.replace(/\.xlsx?$/, "")}
@@ -516,7 +516,7 @@ export default function GscAnalyzer() {
                     deleteMutation.mutate({ id: selectedExportId });
                   }
                 }}
-                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                 title="Delete export"
               >
                 <Trash2 className="w-4 h-4" />
@@ -543,9 +543,9 @@ export default function GscAnalyzer() {
               </div>
 
               {/* Tabs */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="bg-card rounded-2xl border border-border overflow-hidden">
                 {/* Tab Header */}
-                <div className="border-b border-gray-200 overflow-x-auto">
+                <div className="border-b border-border overflow-x-auto">
                   <div className="flex min-w-max">
                     {TABS.map((tab) => {
                       const Icon = tab.icon;
@@ -564,11 +564,11 @@ export default function GscAnalyzer() {
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
-                          className={`flex items-center gap-2 px-5 py-4 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${isActive ? "border-indigo-600 text-indigo-600 bg-indigo-50/50" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+                          className={`flex items-center gap-2 px-5 py-4 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${isActive ? "border-indigo-600 text-indigo-600 bg-indigo-50/50" : "border-transparent text-muted-foreground hover:text-secondary-foreground hover:bg-muted/50"}`}
                         >
                           <Icon className={`w-4 h-4 ${isActive ? tab.color : ""}`} />
                           {tab.label}
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${isActive ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-500"}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${isActive ? "bg-indigo-100 text-indigo-700" : "bg-muted text-muted-foreground"}`}>
                             {count}
                           </span>
                         </button>
@@ -581,26 +581,26 @@ export default function GscAnalyzer() {
                 <div className="p-5 space-y-4">
                   {/* Tab description + threshold filter */}
                   <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="flex items-start gap-2 text-sm text-gray-500 max-w-xl">
-                      <Info className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground max-w-xl">
+                      <Info className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                       <span>{currentTab.description}</span>
                     </div>
 
                     {/* Priority Threshold — only shown for near-jump tab */}
                     {activeTab === "near-jump" && (
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-600">Priority Threshold</span>
+                        <span className="text-sm font-medium text-muted-foreground">Priority Threshold</span>
                         <div className="relative">
                           <select
                             value={threshold}
                             onChange={(e) => setThreshold(e.target.value as PriorityThreshold)}
-                            className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 bg-white text-gray-700 cursor-pointer"
+                            className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 bg-card text-secondary-foreground cursor-pointer"
                           >
                             {THRESHOLD_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
                           </select>
-                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                         </div>
                       </div>
                     )}

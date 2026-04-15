@@ -47,8 +47,8 @@ export default function GeneralSettings() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-base font-medium transition-all ${
                 isActive
-                  ? "bg-white shadow-md border border-border/60 text-foreground"
-                  : "text-muted-foreground hover:bg-white/60 hover:text-foreground"
+                  ? "bg-card shadow-md border border-border/60 text-foreground"
+                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
               }`}
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
@@ -245,7 +245,7 @@ export default function GeneralSettings() {
                   className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-primary bg-primary/5 transition-all"
                   onClick={() => toast.info("Light theme is active")}
                 >
-                  <div className="w-12 h-12 rounded-xl bg-white border-2 border-border flex items-center justify-center shadow-sm">
+                  <div className="w-12 h-12 rounded-xl bg-card border-2 border-border flex items-center justify-center shadow-sm">
                     <Sun className="w-6 h-6 text-amber-500" />
                   </div>
                   <span className="font-semibold">Light</span>
@@ -268,7 +268,7 @@ export default function GeneralSettings() {
                   onClick={() => toast.info("System theme coming soon!")}
                 >
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-white to-gray-900 border border-border flex items-center justify-center">
-                    <Monitor className="w-6 h-6 text-gray-500" />
+                    <Monitor className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <span className="font-semibold">System</span>
                   <Badge variant="secondary" className="text-xs">Coming Soon</Badge>

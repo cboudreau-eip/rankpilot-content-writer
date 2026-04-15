@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `theme` enum('light','dark','system') DEFAULT 'light' NOT NULL;

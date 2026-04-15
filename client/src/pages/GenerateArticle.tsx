@@ -356,7 +356,7 @@ interface OutlineSection {
 }
 
 const SECTION_BG_COLORS = [
-  { name: "None", value: "", swatch: "bg-white border border-gray-200" },
+  { name: "None", value: "", swatch: "bg-card border border-border" },
   { name: "Light Gray", value: "#F3F4F6", swatch: "bg-[#F3F4F6]" },
   { name: "Warm Gray", value: "#F5F5F4", swatch: "bg-[#F5F5F4]" },
   { name: "Slate", value: "#F1F5F9", swatch: "bg-[#F1F5F9]" },
@@ -1111,7 +1111,7 @@ export default function GenerateArticle() {
 
       {/* Step 1: Settings */}
       {step === "settings" && (
-        <div className="bg-white rounded-xl border border-border/60 p-6 space-y-6">
+        <div className="bg-card rounded-xl border border-border/60 p-6 space-y-6">
           <div className="space-y-5">
             {/* Target Keyword */}
             <div>
@@ -1447,7 +1447,7 @@ export default function GenerateArticle() {
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
                                 isAdded
                                   ? "bg-indigo-100 text-indigo-700 border-indigo-300 hover:bg-indigo-200"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50"
+                                  : "bg-card text-secondary-foreground border-border hover:border-indigo-300 hover:bg-indigo-50"
                               }`}
                             >
                               {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
@@ -1479,7 +1479,7 @@ export default function GenerateArticle() {
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
                                 isAdded
                                   ? "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50"
+                                  : "bg-card text-secondary-foreground border-border hover:border-emerald-300 hover:bg-emerald-50"
                               }`}
                             >
                               {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
@@ -1511,7 +1511,7 @@ export default function GenerateArticle() {
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
                                 isAdded
                                   ? "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50"
+                                  : "bg-card text-secondary-foreground border-border hover:border-amber-300 hover:bg-amber-50"
                               }`}
                             >
                               {isAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
@@ -1575,7 +1575,7 @@ export default function GenerateArticle() {
                             </span>
                           ))}
                           {traits.standalone.map((t, i) => (
-                            <span key={`st-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            <span key={`st-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-secondary-foreground">
                               {t}
                             </span>
                           ))}
@@ -1854,7 +1854,7 @@ export default function GenerateArticle() {
                 type="checkbox"
                 checked={researchEnabled}
                 onChange={(e) => setResearchEnabled(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500"
               />
               <Search className="w-4 h-4 text-indigo-500" />
               <span className="text-sm font-medium text-foreground">Research topic first</span>
@@ -1891,7 +1891,7 @@ export default function GenerateArticle() {
       {step === "outline" && (
         <div className="space-y-4">
           {/* Outline Title */}
-          <div className="bg-white rounded-xl border border-border/60 p-6">
+          <div className="bg-card rounded-xl border border-border/60 p-6">
             <Label className="text-base font-semibold text-muted-foreground">Article Title</Label>
             <Input
               value={outlineTitle}
@@ -1918,9 +1918,9 @@ export default function GenerateArticle() {
                   {secondaryKeywords.map((kw, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-muted text-secondary-foreground border border-border"
                     >
-                      <Tag className="w-3 h-3 text-slate-400" />
+                      <Tag className="w-3 h-3 text-muted-foreground" />
                       {kw}
                     </span>
                   ))}
@@ -1931,7 +1931,7 @@ export default function GenerateArticle() {
 
           {/* Research Findings Panel */}
           {researchFindings && showResearchPanel && (
-            <div className="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+            <div className="bg-card rounded-xl border border-indigo-200 overflow-hidden">
               <button
                 onClick={() => setShowResearchPanel(!showResearchPanel)}
                 className="w-full flex items-center justify-between p-4 hover:bg-indigo-50/50 transition-colors"
@@ -2031,11 +2031,11 @@ export default function GenerateArticle() {
                 {/* Key Takeaways */}
                 {researchFindings.keyTakeaways?.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Key Takeaways</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Key Takeaways</h4>
                     <ul className="space-y-1">
                       {researchFindings.keyTakeaways.map((takeaway, i) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                          <span className="text-slate-400">•</span>
+                          <span className="text-muted-foreground">•</span>
                           {takeaway}
                         </li>
                       ))}
@@ -2049,7 +2049,7 @@ export default function GenerateArticle() {
           {/* Sections */}
           <div className="space-y-3">
             {sections.map((section, index) => (
-              <div key={section.id} className="bg-white rounded-xl border border-border/60 overflow-hidden">
+              <div key={section.id} className="bg-card rounded-xl border border-border/60 overflow-hidden">
                 {/* Section Header */}
                 <div className="flex items-center gap-2 p-4 bg-muted/20">
                   <button
@@ -2270,7 +2270,7 @@ export default function GenerateArticle() {
                             style={color.value ? { backgroundColor: color.value } : undefined}
                           >
                             {(section.backgroundColor || "") === color.value && (
-                              <Check className={`w-3.5 h-3.5 ${color.value ? "text-gray-600" : "text-gray-400"}`} />
+                              <Check className={`w-3.5 h-3.5 ${color.value ? "text-muted-foreground" : "text-muted-foreground"}`} />
                             )}
                           </button>
                         ))}
@@ -2278,7 +2278,7 @@ export default function GenerateArticle() {
                       {section.backgroundColor && (
                         <div className="mt-2 flex items-center gap-2">
                           <div
-                            className="h-6 flex-1 rounded-md border border-gray-200"
+                            className="h-6 flex-1 rounded-md border border-border"
                             style={{ backgroundColor: section.backgroundColor }}
                           />
                           <span className="text-xs text-muted-foreground font-mono">{section.backgroundColor}</span>
@@ -2432,13 +2432,13 @@ export default function GenerateArticle() {
             </div>
             <div className="flex items-center gap-3">
               {/* Auto-Grade controls */}
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-white">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-card">
                 <input
                   type="checkbox"
                   id="autoGradeToggle"
                   checked={autoGradeEnabled}
                   onChange={(e) => setAutoGradeEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 />
                 <GraduationCap className="w-4 h-4 text-indigo-500" />
                 <label htmlFor="autoGradeToggle" className="text-sm font-medium cursor-pointer select-none">Auto-Grade</label>
@@ -2496,7 +2496,7 @@ export default function GenerateArticle() {
 
       {/* Step 3: Generating Article */}
       {step === "generating-article" && (
-        <div className="bg-white rounded-xl border border-border/60 p-12 text-center">
+        <div className="bg-card rounded-xl border border-border/60 p-12 text-center">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-6">
             <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>

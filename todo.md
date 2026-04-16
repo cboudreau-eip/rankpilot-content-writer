@@ -1022,3 +1022,8 @@
 - [x] Coverage results panel UI showing overlap severity, recommendation, explanation, and clickable URL
 - [x] Vitest tests for checkCoverage procedure (5 tests passing)
 - [x] Tighten checkCoverage LLM prompt criteria to reduce false positives (27 pages flagged in test)
+
+## Em Dash Removal (Post-Processing)
+- [x] Add shared stripEmDashes utility function in server/utils.ts
+- [x] Apply stripEmDashes to all LLM-generated article content before returning to client
+- [x] Add vitest tests for the stripEmDashes utility

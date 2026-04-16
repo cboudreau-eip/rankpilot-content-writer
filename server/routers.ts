@@ -171,6 +171,24 @@ function stripMarkdownFences(content: string): string {
 }
 
 /**
+ * Strips em dashes (— U+2014) from LLM-generated content.
+ * Rules:
+ *  - Em dash at the end of a sentence/line (optionally followed by whitespace) → removed
+ *  - Em dash used as a clause separator (word — word) → replaced with a comma and space
+ *  - Any remaining em dashes → removed
+ * Applied as a post-processing step on all LLM-generated article content before saving/returning.
+ */
+function stripEmDashes(content: string): string {
+  // 1. Em dash at end of a line or sentence (e.g. "some text —" or "some text—") → remove
+  let result = content.replace(/\s*\u2014\s*(<\/|\n|$)/g, '$1');
+  // 2. Em dash used as clause separator between words (word — word or word—word) → replace with ", "
+  result = result.replace(/(\w)\s*\u2014\s*(\w)/g, '$1, $2');
+  // 3. Any remaining em dashes → remove
+  result = result.replace(/\u2014/g, '');
+  return result;
+}
+
+/**
  * Pre-processes LLM HTML output to fix common malformations before further processing:
  * 1. Removes spaces inside URLs in href attributes (e.g. "https://www. example.com" → "https://www.example.com")
  * 2. Rejoins <a href> tags that were split across newlines by the LLM
@@ -2160,6 +2178,9 @@ RULES:
           newSectionContent = newSectionContent.replace(/<p>\s*<\/p>/g, '').replace(/\s{3,}/g, ' ').trim();
         }
 
+        // Post-processing: strip em dashes from regenerated section content
+        newSectionContent = stripEmDashes(newSectionContent);
+
         // --- Splice the new section into the full article ---
         const updatedContent = content.slice(0, sectionStart) + newSectionContent + "\n" + content.slice(sectionEnd);
         const newWordCount = updatedContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
@@ -2660,6 +2681,9 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           });
           console.log(`[ArticleGen] After enforcement: kept ${linksKept} links.`);
         }
+
+        // Post-processing: strip em dashes from generated content
+        articleContent = stripEmDashes(articleContent);
 
         // Count words (exclude image tags from word count)
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
@@ -5566,6 +5590,9 @@ Return ONLY the ${outputFormat === "plaintext" ? "plain text" : "HTML"} content 
       return innerText;
     });
   }
+
+  // Post-processing: strip em dashes from generated content
+  content = stripEmDashes(content);
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

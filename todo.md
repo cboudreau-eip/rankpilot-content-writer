@@ -1015,3 +1015,9 @@
 - [x] Update Login page to use semantic colors for dark mode compatibility
 - [x] Load saved theme from DB on login, persist on change via mutation
 - [x] All 433 tests pass, checkpoint saved
+
+## Check for Existing Coverage (Generate Article Step 1)
+- [x] Backend tRPC procedure to scan project sitemap URLs against target keyword via LLM
+- [x] Check for Existing Coverage button on Generate Article page (Step 1) next to keyword input
+- [x] Coverage results panel UI showing overlap severity, recommendation, explanation, and clickable URL
+- [x] Vitest tests for checkCoverage procedure (5 tests passing)

@@ -1371,6 +1371,127 @@ Return ONLY valid JSON, no markdown code blocks.`;
       .mutation(async ({ input }) => {
         return deleteSitemap(input.id);
       }),
+
+    /**
+     * Check for Existing Coverage — scans all project sitemap URLs against a target keyword
+     * using LLM analysis to find pages that may already cover the same topic.
+     */
+    checkCoverage: publicProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const allSitemaps = await getSitemapsByProject(input.projectId);
+        if (!allSitemaps || allSitemaps.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No sitemaps found for this project. Add a sitemap in Project Settings first." });
+        }
+
+        // Collect all parsed URLs from all sitemaps
+        const allUrls: { url: string; title?: string }[] = [];
+        for (const sm of allSitemaps) {
+          if (sm.parsedUrls && Array.isArray(sm.parsedUrls)) {
+            for (const u of sm.parsedUrls) {
+              allUrls.push({ url: u.url, title: u.title || undefined });
+            }
+          }
+        }
+
+        if (allUrls.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Sitemaps contain no parsed URLs. Try refreshing your sitemaps." });
+        }
+
+        // Build a compact list for the LLM (number, URL, title if available)
+        const urlList = allUrls.map((u, i) =>
+          `${i + 1}. ${u.url}${u.title ? ` | Title: "${u.title}"` : ""}`
+        ).join("\n");
+
+        const coverageResult = await callLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are an SEO content strategist. Given a target keyword and a list of existing website URLs (with optional titles), analyze which pages may already cover the same topic or would cause keyword cannibalization.
+
+For each URL, consider:
+- Does the URL path suggest the same topic? (e.g., /medicare-advantage-plans/ for keyword "Medicare Advantage Explained")
+- Does the title (if available) indicate overlapping content?
+- Would publishing a new article on this keyword compete with the existing page?
+
+Return JSON:
+{
+  "totalScanned": number,
+  "overlaps": [
+    {
+      "url": string,
+      "title": string or null,
+      "severity": "high" | "medium",
+      "recommendation": "Update existing page" | "Differentiate angle" | "Merge content" | "Consider canonical",
+      "explanation": string (1-2 sentences explaining WHY this page overlaps)
+    }
+  ]
+}
+
+Only include pages with genuine medium or high overlap. Do NOT include pages with low/no relevance.
+- "high" = the page directly covers the same core topic and would compete for the same search intent
+- "medium" = the page covers a related topic that partially overlaps
+
+Be conservative — only flag pages that truly overlap. Most URLs will NOT overlap.`
+            },
+            {
+              role: "user",
+              content: `Target keyword: "${input.keyword}"
+
+Existing pages (${allUrls.length} total):\n${urlList}`
+            }
+          ],
+          response_format: {
+            type: "json_schema" as const,
+            json_schema: {
+              name: "coverage_check",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  totalScanned: { type: "integer", description: "Total number of URLs scanned" },
+                  overlaps: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        url: { type: "string" },
+                        title: { type: ["string", "null"] },
+                        severity: { type: "string", enum: ["high", "medium"] },
+                        recommendation: { type: "string" },
+                        explanation: { type: "string" },
+                      },
+                      required: ["url", "title", "severity", "recommendation", "explanation"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["totalScanned", "overlaps"],
+                additionalProperties: false,
+              },
+            },
+          },
+        }, input.projectId);
+
+        const rawContent = coverageResult.choices?.[0]?.message?.content;
+        const text = typeof rawContent === "string" ? rawContent : "";
+
+        try {
+          const parsed = JSON.parse(stripMarkdownFences(text));
+          return {
+            totalScanned: parsed.totalScanned ?? allUrls.length,
+            overlaps: parsed.overlaps ?? [],
+            highCount: (parsed.overlaps ?? []).filter((o: any) => o.severity === "high").length,
+            mediumCount: (parsed.overlaps ?? []).filter((o: any) => o.severity === "medium").length,
+          };
+        } catch {
+          console.error("[CoverageCheck] Failed to parse LLM response:", text);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse coverage analysis. Please try again." });
+        }
+      }),
   }),
 
   citations: router({

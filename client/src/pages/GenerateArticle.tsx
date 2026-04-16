@@ -420,6 +420,15 @@ export default function GenerateArticle() {
   const [targetGrade, setTargetGrade] = useState("A-");
   const [maxGradeIterations, setMaxGradeIterations] = useState(2);
 
+  // Coverage check state
+  const [coverageResult, setCoverageResult] = useState<{
+    totalScanned: number;
+    overlaps: Array<{ url: string; title: string | null; severity: "high" | "medium"; recommendation: string; explanation: string }>;
+    highCount: number;
+    mediumCount: number;
+  } | null>(null);
+  const [showCoverageResult, setShowCoverageResult] = useState(false);
+
   // Outline state
   const [outlineTitle, setOutlineTitle] = useState("");
   const [sections, setSections] = useState<OutlineSection[]>([]);
@@ -676,6 +685,19 @@ export default function GenerateArticle() {
       }
     },
     onError: (err: any) => toast.error(err.message || "Failed to suggest keywords"),
+  });
+
+  const coverageCheckMutation = trpc.sitemaps.checkCoverage.useMutation({
+    onSuccess: (data) => {
+      setCoverageResult(data);
+      setShowCoverageResult(true);
+      if (data.overlaps.length > 0) {
+        toast.warning(`${data.overlaps.length} existing page${data.overlaps.length > 1 ? "s" : ""} may overlap`);
+      } else {
+        toast.success(`${data.totalScanned} pages scanned \u2014 no overlap found!`);
+      }
+    },
+    onError: (err: any) => toast.error(err.message || "Coverage check failed"),
   });
 
   const generateOutlineMutation = trpc.outlines.generate.useMutation({
@@ -1116,13 +1138,145 @@ export default function GenerateArticle() {
             {/* Target Keyword */}
             <div>
               <Label className="text-sm font-semibold">Target Keyword *</Label>
-              <Input
-                placeholder="e.g., Medicare Advantage vs Medigap"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                className="mt-1.5 text-base"
-              />
+              <div className="flex gap-2 mt-1.5">
+                <Input
+                  placeholder="e.g., Medicare Advantage vs Medigap"
+                  value={keyword}
+                  onChange={(e) => { setKeyword(e.target.value); if (showCoverageResult) { setShowCoverageResult(false); setCoverageResult(null); } }}
+                  className="text-base flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="shrink-0 gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-950/30"
+                  disabled={!keyword.trim() || !activeProjectId || coverageCheckMutation.isPending}
+                  onClick={() => {
+                    if (!keyword.trim()) { toast.error("Enter a target keyword first"); return; }
+                    if (!activeProjectId) { toast.error("Select a project first"); return; }
+                    coverageCheckMutation.mutate({ keyword: keyword.trim(), projectId: activeProjectId });
+                  }}
+                >
+                  {coverageCheckMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Shield className="w-4 h-4" />
+                  )}
+                  {coverageCheckMutation.isPending ? "Scanning..." : "Check for Existing Coverage"}
+                </Button>
+              </div>
             </div>
+
+            {/* Coverage Check Results */}
+            {showCoverageResult && coverageResult && (
+              <div className={`rounded-xl border p-5 space-y-4 ${
+                coverageResult.overlaps.length > 0
+                  ? "border-red-200 bg-red-50/60 dark:bg-red-950/15 dark:border-red-800/50"
+                  : "border-green-200 bg-green-50/60 dark:bg-green-950/15 dark:border-green-800/50"
+              }`}>
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${
+                      coverageResult.overlaps.length > 0
+                        ? "bg-red-100 dark:bg-red-900/30"
+                        : "bg-green-100 dark:bg-green-900/30"
+                    }`}>
+                      <Shield className={`w-5 h-5 ${
+                        coverageResult.overlaps.length > 0
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-green-600 dark:text-green-400"
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">
+                        {coverageResult.overlaps.length > 0
+                          ? `${coverageResult.overlaps.length} existing page${coverageResult.overlaps.length > 1 ? "s" : ""} may overlap`
+                          : "No overlapping pages found"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {coverageResult.totalScanned} pages scanned
+                        {coverageResult.highCount > 0 && (
+                          <span className="ml-2 text-red-600 dark:text-red-400 font-semibold">{coverageResult.highCount} high</span>
+                        )}
+                        {coverageResult.mediumCount > 0 && (
+                          <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">{coverageResult.mediumCount} medium</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        if (!keyword.trim() || !activeProjectId) return;
+                        coverageCheckMutation.mutate({ keyword: keyword.trim(), projectId: activeProjectId });
+                      }}
+                      className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Re-scan"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setShowCoverageResult(false)}
+                      className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Dismiss"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Overlap Cards */}
+                {coverageResult.overlaps.length > 0 && (
+                  <div className="space-y-3">
+                    {coverageResult.overlaps.map((overlap, idx) => (
+                      <div key={idx} className="bg-card rounded-lg border border-border/60 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                                overlap.severity === "high"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                              }`}>
+                                {overlap.severity === "high" ? "\u26d4" : "\u26a0"} {overlap.severity.charAt(0).toUpperCase() + overlap.severity.slice(1)}
+                              </span>
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                {overlap.recommendation}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground">
+                              {overlap.title || "(no title)"}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {overlap.explanation}
+                            </p>
+                            <a
+                              href={overlap.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-muted-foreground hover:text-foreground mt-1.5 inline-block truncate max-w-full"
+                            >
+                              {overlap.url}
+                            </a>
+                          </div>
+                          <a
+                            href={overlap.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Open page"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Content Type + Tone */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1021,3 +1021,4 @@
 - [x] Check for Existing Coverage button on Generate Article page (Step 1) next to keyword input
 - [x] Coverage results panel UI showing overlap severity, recommendation, explanation, and clickable URL
 - [x] Vitest tests for checkCoverage procedure (5 tests passing)
+- [x] Tighten checkCoverage LLM prompt criteria to reduce false positives (27 pages flagged in test)

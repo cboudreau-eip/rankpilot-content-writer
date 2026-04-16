@@ -1410,12 +1410,26 @@ Return ONLY valid JSON, no markdown code blocks.`;
           messages: [
             {
               role: "system",
-              content: `You are an SEO content strategist. Given a target keyword and a list of existing website URLs (with optional titles), analyze which pages may already cover the same topic or would cause keyword cannibalization.
+              content: `You are a senior SEO strategist performing a strict keyword cannibalization audit. Your job is to identify ONLY pages that would directly compete with a new article on the target keyword.
 
-For each URL, consider:
-- Does the URL path suggest the same topic? (e.g., /medicare-advantage-plans/ for keyword "Medicare Advantage Explained")
-- Does the title (if available) indicate overlapping content?
-- Would publishing a new article on this keyword compete with the existing page?
+Flagging criteria — apply these strictly:
+
+**HIGH severity** (flag only if ALL of these are true):
+- The existing page targets the SAME primary keyword or search intent as the new article
+- A user searching the target keyword could land on this page and have their question fully answered
+- Publishing a new article would split ranking signals and directly cannibalize this page
+
+**MEDIUM severity** (flag only if BOTH of these are true):
+- The existing page covers the SAME specific subtopic — not just the same broad subject area
+- A substantial portion (>40%) of the new article's content would duplicate what this page already covers
+
+**DO NOT flag** pages that:
+- Are in the same general topic category but answer a different question
+- Mention the keyword in passing but focus on a different primary topic
+- Cover a broader or narrower subject (e.g., a category page vs. a specific explainer)
+- Are navigation, contact, about, or utility pages
+
+When in doubt, DO NOT flag. A typical site should have 0–3 overlaps for most keywords. If you are flagging more than 5 pages, you are being too liberal — re-evaluate and only keep the strongest matches.
 
 Return JSON:
 {
@@ -1426,16 +1440,10 @@ Return JSON:
       "title": string or null,
       "severity": "high" | "medium",
       "recommendation": "Update existing page" | "Differentiate angle" | "Merge content" | "Consider canonical",
-      "explanation": string (1-2 sentences explaining WHY this page overlaps)
+      "explanation": string (1 sentence: state specifically WHY this page targets the same search intent, not just that it's related)
     }
   ]
-}
-
-Only include pages with genuine medium or high overlap. Do NOT include pages with low/no relevance.
-- "high" = the page directly covers the same core topic and would compete for the same search intent
-- "medium" = the page covers a related topic that partially overlaps
-
-Be conservative — only flag pages that truly overlap. Most URLs will NOT overlap.`
+}`
             },
             {
               role: "user",

@@ -24,7 +24,7 @@ import {
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
   FileCheck, Info, ExternalLink, Repeat2, MoreVertical, Download, Scan, Image, ImagePlus, Trash2, RefreshCw, Palette,
-  ListTree, FolderKanban,
+  ListTree, FolderKanban, Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -473,6 +473,25 @@ export default function ArticleEditor() {
   const [showEntity, setShowEntity] = useState(false);
   const [entityResult, setEntityResult] = useState<EntityAnalysisResult | null>(null);
 
+  // Broken Link Checker state
+  const [showBrokenLinks, setShowBrokenLinks] = useState(false);
+  const [brokenLinksResult, setBrokenLinksResult] = useState<any>(null);
+
+  const brokenLinksMutation = trpc.brokenLinks.check.useMutation({
+    onSuccess: (data) => {
+      setBrokenLinksResult(data);
+      setShowBrokenLinks(true);
+      if (data.brokenCount === 0) {
+        toast.success(`All ${data.checkedCount} links are working!`);
+      } else {
+        toast.error(`Found ${data.brokenCount} broken link${data.brokenCount === 1 ? '' : 's'} out of ${data.checkedCount}`);
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to check links");
+    },
+  });
+
   const entityMutation = trpc.entity.analyzeArticle.useMutation({
     onSuccess: (data: any) => {
       setEntityResult(data);
@@ -851,6 +870,22 @@ export default function ArticleEditor() {
                 )}
                 Redundancy Check
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (showBrokenLinks) { setShowBrokenLinks(false); return; }
+                  setShowBrokenLinks(true);
+                  brokenLinksMutation.mutate({ articleId });
+                }}
+                disabled={brokenLinksMutation.isPending}
+                className={showBrokenLinks ? "bg-red-50 text-red-700" : ""}
+              >
+                {brokenLinksMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Unlink className="w-4 h-4 mr-2 text-red-500" />
+                )}
+                Broken Links
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => {
@@ -1195,6 +1230,26 @@ export default function ArticleEditor() {
           />
         )}
 
+        {/* Broken Link Checker Sidebar */}
+        {showBrokenLinks && brokenLinksMutation.isPending && (
+          <ScanPanelSkeleton
+            title="Broken Link Checker"
+            icon={<Unlink className="w-4 h-4 text-red-500" />}
+            gradientFrom="from-red-50"
+            gradientTo="to-rose-50"
+            accentColor="text-red-600"
+            description="Checking all links in the article for broken or unreachable URLs"
+            onClose={() => setShowBrokenLinks(false)}
+            onCancel={() => { brokenLinksMutation.reset(); setShowBrokenLinks(false); }}
+          />
+        )}
+        {showBrokenLinks && !brokenLinksMutation.isPending && brokenLinksResult && (
+          <BrokenLinksPanel
+            result={brokenLinksResult}
+            onClose={() => setShowBrokenLinks(false)}
+            onRescan={() => brokenLinksMutation.mutate({ articleId })}
+          />
+        )}
 
         {/* Section Regeneration Diff Preview */}
         {regenDiff && (
@@ -2642,6 +2697,202 @@ function ScanPanelSkeleton({
 }
 
 
+/* ── Broken Links Panel Component ── */
+function BrokenLinksPanel({
+  result,
+  onClose,
+  onRescan,
+}: {
+  result: { links: any[]; brokenCount: number; checkedCount: number };
+  onClose: () => void;
+  onRescan: () => void;
+}) {
+  const { links, brokenCount, checkedCount } = result;
+  const brokenLinks = links.filter((l: any) => !l.ok);
+  const workingLinks = links.filter((l: any) => l.ok);
+  const [showWorking, setShowWorking] = useState(false);
+
+  const getStatusBadge = (link: any) => {
+    if (link.ok) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+          <CheckCircle2 className="w-3 h-3" />
+          {link.status}
+        </span>
+      );
+    }
+    if (link.status === 404) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">
+          <AlertTriangle className="w-3 h-3" />
+          404 Not Found
+        </span>
+      );
+    }
+    if (link.status === 403) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">
+          <AlertTriangle className="w-3 h-3" />
+          403 Forbidden
+        </span>
+      );
+    }
+    if (link.status === 500 || link.status === 502 || link.status === 503) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">
+          <AlertTriangle className="w-3 h-3" />
+          {link.status} Server Error
+        </span>
+      );
+    }
+    if (link.error) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">
+          <AlertTriangle className="w-3 h-3" />
+          {link.statusText}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">
+        <AlertTriangle className="w-3 h-3" />
+        {link.status || "Error"}
+      </span>
+    );
+  };
+
+  return (
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b bg-gradient-to-r from-red-500/5 via-rose-500/5 to-pink-500/5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Unlink className="w-4 h-4 text-red-500" />
+            Broken Link Checker
+          </h3>
+          <div className="flex items-center gap-1">
+            <button onClick={onRescan} className="p-1 rounded hover:bg-muted" title="Re-scan">
+              <RefreshCw className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-muted-foreground">
+            {checkedCount} link{checkedCount !== 1 ? 's' : ''} checked
+          </div>
+          {brokenCount === 0 ? (
+            <div className="flex items-center gap-1.5 bg-emerald-100 text-emerald-700 rounded-lg px-2.5 py-1 text-xs font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              All links working
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-red-100 text-red-700 rounded-lg px-2.5 py-1 text-xs font-semibold">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {brokenCount} broken
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Results */}
+      <div className="max-h-[60vh] overflow-y-auto">
+        {/* Broken Links Section */}
+        {brokenLinks.length > 0 && (
+          <div className="p-4 space-y-2">
+            <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wider">Broken Links</h4>
+            {brokenLinks.map((link: any, i: number) => (
+              <div key={i} className="p-3 rounded-lg border border-red-200 bg-red-50/50 space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {getStatusBadge(link)}
+                    </div>
+                    <p className="text-xs font-medium text-foreground truncate" title={link.anchorText}>
+                      "{link.anchorText}"
+                    </p>
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-muted-foreground hover:text-foreground truncate block mt-0.5"
+                      title={link.url}
+                    >
+                      {link.url}
+                    </a>
+                    {link.error && (
+                      <p className="text-[10px] text-red-500 mt-1">{link.error}</p>
+                    )}
+                  </div>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 rounded hover:bg-red-100 flex-shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Working Links Section (collapsible) */}
+        {workingLinks.length > 0 && (
+          <div className="border-t border-border/40">
+            <button
+              onClick={() => setShowWorking(!showWorking)}
+              className="w-full px-4 py-2.5 flex items-center justify-between text-xs text-muted-foreground hover:bg-muted/50"
+            >
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                {workingLinks.length} working link{workingLinks.length !== 1 ? 's' : ''}
+              </span>
+              {showWorking ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {showWorking && (
+              <div className="px-4 pb-3 space-y-1.5">
+                {workingLinks.map((link: any, i: number) => (
+                  <div key={i} className="p-2 rounded-lg border border-emerald-100 bg-emerald-50/30 flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-foreground truncate" title={link.anchorText}>
+                        "{link.anchorText}"
+                      </p>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-muted-foreground hover:text-foreground truncate block"
+                        title={link.url}
+                      >
+                        {link.url}
+                      </a>
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">{link.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {checkedCount === 0 && (
+          <div className="p-8 text-center">
+            <Unlink className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">No links found in this article</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Dialog for generating an outline from entity analysis results */
 function GenerateOutlineFromAnalysisDialog({

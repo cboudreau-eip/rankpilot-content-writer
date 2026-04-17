@@ -2793,6 +2793,131 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
       }),
   }),
 
+  // ---- Broken Link Checker ----
+  brokenLinks: router({
+    /** Check all links in an article's content for broken URLs */
+    check: publicProcedure
+      .input(z.object({
+        articleId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+        const content = (article.content as string) || "";
+        if (!content) return { links: [], brokenCount: 0, checkedCount: 0 };
+
+        // Extract all href URLs from the HTML content
+        const linkRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
+        const links: { url: string; anchorText: string }[] = [];
+        let match;
+        while ((match = linkRegex.exec(content)) !== null) {
+          const url = match[1].trim();
+          const anchorText = match[2].replace(/<[^>]*>/g, "").trim();
+          // Only check http/https URLs
+          if (url.startsWith("http://") || url.startsWith("https://")) {
+            links.push({ url, anchorText });
+          }
+        }
+
+        if (links.length === 0) return { links: [], brokenCount: 0, checkedCount: 0 };
+
+        // Deduplicate URLs but keep all anchor texts
+        const uniqueUrls = Array.from(new Set(links.map(l => l.url)));
+
+        // Check each URL with a timeout
+        const results: {
+          url: string;
+          anchorText: string;
+          status: number | null;
+          statusText: string;
+          ok: boolean;
+          error: string | null;
+        }[] = [];
+
+        const checkUrl = async (url: string): Promise<{ status: number | null; statusText: string; ok: boolean; error: string | null }> => {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+            const response = await fetch(url, {
+              method: "HEAD",
+              signal: controller.signal,
+              redirect: "follow",
+              headers: {
+                "User-Agent": "RankPilot-LinkChecker/1.0",
+              },
+            });
+            clearTimeout(timeout);
+
+            // Some servers don't support HEAD, retry with GET
+            if (response.status === 405) {
+              const controller2 = new AbortController();
+              const timeout2 = setTimeout(() => controller2.abort(), 10000);
+              const getResponse = await fetch(url, {
+                method: "GET",
+                signal: controller2.signal,
+                redirect: "follow",
+                headers: {
+                  "User-Agent": "RankPilot-LinkChecker/1.0",
+                },
+              });
+              clearTimeout(timeout2);
+              // Consume and discard the body to free resources
+              await getResponse.text().catch(() => {});
+              return {
+                status: getResponse.status,
+                statusText: getResponse.statusText || String(getResponse.status),
+                ok: getResponse.ok,
+                error: null,
+              };
+            }
+
+            return {
+              status: response.status,
+              statusText: response.statusText || String(response.status),
+              ok: response.ok,
+              error: null,
+            };
+          } catch (err: any) {
+            if (err.name === "AbortError") {
+              return { status: null, statusText: "Timeout", ok: false, error: "Request timed out after 10 seconds" };
+            }
+            return { status: null, statusText: "Error", ok: false, error: err.message || "Connection failed" };
+          }
+        };
+
+        // Check URLs in parallel with concurrency limit of 5
+        const CONCURRENCY = 5;
+        const urlResults = new Map<string, { status: number | null; statusText: string; ok: boolean; error: string | null }>();
+
+        for (let i = 0; i < uniqueUrls.length; i += CONCURRENCY) {
+          const batch = uniqueUrls.slice(i, i + CONCURRENCY);
+          const batchResults = await Promise.all(batch.map(url => checkUrl(url)));
+          batch.forEach((url, idx) => urlResults.set(url, batchResults[idx]));
+        }
+
+        // Build results with anchor text info
+        for (const link of links) {
+          const urlResult = urlResults.get(link.url);
+          if (urlResult) {
+            results.push({
+              url: link.url,
+              anchorText: link.anchorText,
+              ...urlResult,
+            });
+          }
+        }
+
+        const brokenCount = results.filter(r => !r.ok).length;
+
+        return {
+          links: results,
+          brokenCount,
+          checkedCount: results.length,
+        };
+      }),
+  }),
+
   // ---- Thin Content Analyzer ----
   thinContent: router({
     /** Analyze a sitemap URL for thin content issues */

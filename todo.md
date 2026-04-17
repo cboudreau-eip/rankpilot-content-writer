@@ -1033,3 +1033,9 @@
 - [x] Remove "Short Answer:" prefix instruction from FAQ prompt
 - [x] Add post-processing to strip "Short Answer:" prefix from generated content
 - [x] Add vitest tests for the new post-processing
+
+## Broken Link Checker
+- [x] Backend tRPC procedure to extract and check all links in article content
+- [x] Add Broken Link Checker option to article actions dropdown menu
+- [x] Results UI showing broken links with status codes and anchor text
+- [x] Add vitest tests for the broken link checker

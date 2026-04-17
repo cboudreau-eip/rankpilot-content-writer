@@ -189,6 +189,22 @@ function stripEmDashes(content: string): string {
 }
 
 /**
+ * Strips "Short Answer:" (and common variants) prefix from FAQ answers in LLM-generated content.
+ * The LLM sometimes adds this label even when not instructed to. Removes it from:
+ *  - HTML content: inside <p> tags (e.g. <p><strong>Short Answer:</strong> ...)</p> or <p>Short Answer: ...)</p>
+ *  - Plaintext content: at the start of a line
+ */
+function stripShortAnswerPrefix(content: string): string {
+  // HTML variant: <p><strong>Short Answer:</strong> or <p>Short Answer:
+  let result = content.replace(/<p>\s*(?:<strong>)?Short Answer:?(?:<\/strong>)?\s*/gi, '<p>');
+  // HTML variant inside other tags: <strong>Short Answer:</strong> at start of paragraph content
+  result = result.replace(/<strong>Short Answer:?<\/strong>\s*/gi, '');
+  // Plaintext variant: "Short Answer:" at start of a line
+  result = result.replace(/^Short Answer:?\s*/gim, '');
+  return result;
+}
+
+/**
  * Pre-processes LLM HTML output to fix common malformations before further processing:
  * 1. Removes spaces inside URLs in href attributes (e.g. "https://www. example.com" → "https://www.example.com")
  * 2. Rejoins <a href> tags that were split across newlines by the LLM
@@ -2585,6 +2601,7 @@ ${formatInstructions}
 - Make the content comprehensive, authoritative, and reader-friendly
 - Include bullet points and numbered lists where appropriate
 - CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly. Do NOT write wall-of-text paragraphs.
+- FAQ ANSWER RULES (CRITICAL): When writing FAQ sections, each answer MUST be 2-4 sentences maximum (40-80 words). Lead directly with the answer — no preamble, no "Short Answer:" prefix, no "Great question" openers. Give one supporting detail if needed, then stop. FAQ answers must be scannable and conversational, NOT essay-length explanations.
 - PER-SECTION AI INSTRUCTIONS: Some sections in the outline may include [AI INSTRUCTIONS FOR THIS SECTION: ...] or [AI INSTRUCTIONS FOR THIS SUB-SECTION: ...] directives. You MUST follow these instructions precisely when writing that specific section. These may request specific content formats (tables, charts, bullet lists), specific focus areas, examples, statistics, or other structural requirements. Treat them as mandatory requirements for that section.
 - TEMPLATE SECTIONS: Some sections may include a [TEMPLATE TYPE: ...] directive. For ALL template sections, you MUST output the <h2> heading as normal. Do NOT add any special formatting, icons, borders, or wrapper divs — styled containers are added automatically in post-processing.
   * [TEMPLATE TYPE: pro-tip] or [TEMPLATE TYPE: summary]: Write ONLY clean body content (1-3 concise paragraphs) after the heading.
@@ -2682,8 +2699,9 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           console.log(`[ArticleGen] After enforcement: kept ${linksKept} links.`);
         }
 
-        // Post-processing: strip em dashes from generated content
+        // Post-processing: strip em dashes and "Short Answer:" prefix from generated content
         articleContent = stripEmDashes(articleContent);
+        articleContent = stripShortAnswerPrefix(articleContent);
 
         // Count words (exclude image tags from word count)
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
@@ -5508,6 +5526,7 @@ ${formatInstructions}
 - Make the content comprehensive, authoritative, and reader-friendly
 - Include bullet points and numbered lists where appropriate
 - CRITICAL: Follow the PARAGRAPH & SENTENCE STRUCTURE RULES from the Brand Voice section exactly.
+- FAQ ANSWER RULES (CRITICAL): When writing FAQ sections, each answer MUST be 2-4 sentences maximum (40-80 words). Lead directly with the answer — no preamble, no "Short Answer:" prefix, no "Great question" openers. Give one supporting detail if needed, then stop. FAQ answers must be scannable and conversational, NOT essay-length explanations.
 - PER-SECTION AI INSTRUCTIONS: Follow [AI INSTRUCTIONS FOR THIS SECTION: ...] directives precisely.
 - TEMPLATE SECTIONS: Follow [TEMPLATE TYPE: ...] directives. Output the heading as normal, then write clean body content only.
 - BACKGROUND COLOR SECTIONS: Follow [BACKGROUND COLOR: ...] directives. Wrap section content in a styled <div>.
@@ -5591,8 +5610,9 @@ Return ONLY the ${outputFormat === "plaintext" ? "plain text" : "HTML"} content 
     });
   }
 
-  // Post-processing: strip em dashes from generated content
+  // Post-processing: strip em dashes and "Short Answer:" prefix from generated content
   content = stripEmDashes(content);
+  content = stripShortAnswerPrefix(content);
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

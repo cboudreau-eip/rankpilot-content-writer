@@ -1027,3 +1027,9 @@
 - [x] Add shared stripEmDashes utility function in server/utils.ts
 - [x] Apply stripEmDashes to all LLM-generated article content before returning to client
 - [x] Add vitest tests for the stripEmDashes utility
+
+## FAQ Answer Length Fix
+- [x] Update FAQ generation prompt to enforce 2-4 sentence / 40-80 word answers
+- [x] Remove "Short Answer:" prefix instruction from FAQ prompt
+- [x] Add post-processing to strip "Short Answer:" prefix from generated content
+- [x] Add vitest tests for the new post-processing

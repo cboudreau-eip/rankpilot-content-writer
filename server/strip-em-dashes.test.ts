@@ -85,3 +85,63 @@ describe("stripEmDashes", () => {
     expect(result).not.toContain("—");
   });
 });
+
+// Replicate stripShortAnswerPrefix logic for self-contained tests
+function stripShortAnswerPrefix(content: string): string {
+  let result = content.replace(/<p>\s*(?:<strong>)?Short Answer:?(?:<\/strong>)?\s*/gi, '<p>');
+  result = result.replace(/<strong>Short Answer:?<\/strong>\s*/gi, '');
+  result = result.replace(/^Short Answer:?\s*/gim, '');
+  return result;
+}
+
+describe("stripShortAnswerPrefix", () => {
+  it("removes 'Short Answer:' prefix from plain HTML paragraph", () => {
+    const input = "<p>Short Answer: Yes, you can switch at any time.</p>";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe("<p>Yes, you can switch at any time.</p>");
+    expect(result).not.toContain("Short Answer");
+  });
+
+  it("removes 'Short Answer:' wrapped in <strong> tags", () => {
+    const input = "<p><strong>Short Answer:</strong> Rate increases vary by state.</p>";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe("<p>Rate increases vary by state.</p>");
+    expect(result).not.toContain("Short Answer");
+  });
+
+  it("removes 'Short Answer' without colon", () => {
+    const input = "<p>Short Answer Yes, you can apply to switch at any time.</p>";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe("<p>Yes, you can apply to switch at any time.</p>");
+  });
+
+  it("removes 'Short Answer:' at start of plaintext line", () => {
+    const input = "Short Answer: Rate increases vary by state.\nNext line.";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe("Rate increases vary by state.\nNext line.");
+    expect(result).not.toContain("Short Answer");
+  });
+
+  it("handles case-insensitive matching", () => {
+    const input = "<p>SHORT ANSWER: Yes, you can switch.</p>";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe("<p>Yes, you can switch.</p>");
+  });
+
+  it("does not modify content without 'Short Answer:' prefix", () => {
+    const input = "<p>Yes, you can switch Medicare Supplement companies at any time.</p>";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe(input);
+  });
+
+  it("handles multiple FAQ answers in a single content block", () => {
+    const input = "<p>Short Answer: Yes, you can switch.</p><p>Short Answer: Rate increases vary.</p>";
+    const result = stripShortAnswerPrefix(input);
+    expect(result).toBe("<p>Yes, you can switch.</p><p>Rate increases vary.</p>");
+    expect(result).not.toContain("Short Answer");
+  });
+
+  it("handles empty string without error", () => {
+    expect(stripShortAnswerPrefix("")).toBe("");
+  });
+});

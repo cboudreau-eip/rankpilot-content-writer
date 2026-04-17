@@ -1039,3 +1039,10 @@
 - [x] Add Broken Link Checker option to article actions dropdown menu
 - [x] Results UI showing broken links with status codes and anchor text
 - [x] Add vitest tests for the broken link checker
+
+## Broken Link Auto-Fix (LLM-Powered)
+- [x] Backend tRPC procedure to suggest replacement URLs via LLM with live verification
+- [x] Find Replacement button on each broken link in the BrokenLinksPanel
+- [x] Replacement picker UI showing verified suggestions with one-click replace
+- [x] Wire replace action to update article content in the editor
+- [x] Add vitest tests for the replacement feature

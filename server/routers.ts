@@ -2916,6 +2916,112 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           checkedCount: results.length,
         };
       }),
+
+    /** Suggest replacement URLs for a broken link using LLM + live verification */
+    suggestReplacement: publicProcedure
+      .input(z.object({
+        brokenUrl: z.string(),
+        anchorText: z.string(),
+        articleKeyword: z.string().optional(),
+        surroundingContext: z.string().optional(),
+        projectId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { brokenUrl, anchorText, articleKeyword, surroundingContext, projectId } = input;
+
+        // Ask LLM to suggest replacement URLs
+        const systemPrompt = `You are an SEO link research assistant. A broken link has been found in an article and needs to be replaced with a working, authoritative alternative.
+
+Your task: suggest exactly 3 replacement URLs that:
+1. Cover the same topic or information as the original broken link
+2. Come from authoritative, well-known sources (government sites, major publications, established organizations, Wikipedia, etc.)
+3. Are likely to be stable, long-lived URLs (avoid blog posts from small sites, social media links, or PDFs)
+4. Are relevant to the anchor text and surrounding context
+
+IMPORTANT: Suggest REAL, specific URLs that you are confident actually exist. Do not make up URLs. Prefer well-known domains like:
+- Government: .gov sites (cms.gov, medicare.gov, ssa.gov, cdc.gov, etc.)
+- Reference: wikipedia.org, britannica.com
+- Major publications: nytimes.com, reuters.com, bbc.com, forbes.com
+- Industry authorities: relevant .org sites, established industry publications
+
+Respond with a JSON array of exactly 3 objects, each with:
+- "url": the full URL
+- "source": the domain/site name (e.g., "Medicare.gov", "Wikipedia")
+- "reason": one sentence explaining why this is a good replacement (max 20 words)`;
+
+        const userPrompt = `Broken URL: ${brokenUrl}
+Anchor text: "${anchorText}"
+${articleKeyword ? `Article keyword: ${articleKeyword}` : ""}
+${surroundingContext ? `Surrounding context: ${surroundingContext}` : ""}
+
+Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
+
+        try {
+          const llmResponse = await callLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          }, projectId);
+
+          const rawContent = String(llmResponse.choices?.[0]?.message?.content || "[]");
+          const cleaned = stripMarkdownFences(rawContent);
+          let suggestions: { url: string; source: string; reason: string }[] = [];
+
+          try {
+            suggestions = JSON.parse(cleaned);
+          } catch {
+            return { suggestions: [], error: "Failed to parse LLM response" };
+          }
+
+          if (!Array.isArray(suggestions) || suggestions.length === 0) {
+            return { suggestions: [], error: "No suggestions returned" };
+          }
+
+          // Verify each suggested URL is actually live
+          const verified = await Promise.all(
+            suggestions.map(async (s) => {
+              try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 8000);
+                const response = await fetch(s.url, {
+                  method: "HEAD",
+                  signal: controller.signal,
+                  redirect: "follow",
+                  headers: { "User-Agent": "RankPilot-LinkChecker/1.0" },
+                });
+                clearTimeout(timeout);
+
+                // Retry with GET if HEAD not supported
+                if (response.status === 405) {
+                  const controller2 = new AbortController();
+                  const timeout2 = setTimeout(() => controller2.abort(), 8000);
+                  const getResp = await fetch(s.url, {
+                    method: "GET",
+                    signal: controller2.signal,
+                    redirect: "follow",
+                    headers: { "User-Agent": "RankPilot-LinkChecker/1.0" },
+                  });
+                  clearTimeout(timeout2);
+                  await getResp.text().catch(() => {});
+                  return { ...s, verified: getResp.ok, status: getResp.status };
+                }
+
+                return { ...s, verified: response.ok, status: response.status };
+              } catch {
+                return { ...s, verified: false, status: null };
+              }
+            })
+          );
+
+          return {
+            suggestions: verified,
+            error: null,
+          };
+        } catch (err: any) {
+          return { suggestions: [], error: err.message || "LLM call failed" };
+        }
+      }),
   }),
 
   // ---- Thin Content Analyzer ----

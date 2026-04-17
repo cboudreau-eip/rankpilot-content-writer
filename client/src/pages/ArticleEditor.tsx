@@ -1248,6 +1248,25 @@ export default function ArticleEditor() {
             result={brokenLinksResult}
             onClose={() => setShowBrokenLinks(false)}
             onRescan={() => brokenLinksMutation.mutate({ articleId })}
+            articleKeyword={article?.keyword || keyword}
+            articleProjectId={article?.projectId ?? undefined}
+            onReplaceLink={(oldUrl, newUrl) => {
+              if (!editor) return;
+              const html = editor.getHTML();
+              // Replace all occurrences of the broken URL in href attributes
+              const updated = html.replace(
+                new RegExp(`href="${oldUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'),
+                `href="${newUrl}"`
+              );
+              editor.commands.setContent(updated);
+              // Auto-save after replacement
+              const wordCount = editor.getText().split(/\s+/).filter(Boolean).length;
+              updateMutation.mutate({
+                id: articleId,
+                content: updated,
+                wordCount,
+              });
+            }}
           />
         )}
 
@@ -2702,15 +2721,63 @@ function BrokenLinksPanel({
   result,
   onClose,
   onRescan,
+  articleKeyword,
+  articleProjectId,
+  onReplaceLink,
 }: {
   result: { links: any[]; brokenCount: number; checkedCount: number };
   onClose: () => void;
   onRescan: () => void;
+  articleKeyword?: string;
+  articleProjectId?: number;
+  onReplaceLink: (oldUrl: string, newUrl: string) => void;
 }) {
   const { links, brokenCount, checkedCount } = result;
   const brokenLinks = links.filter((l: any) => !l.ok);
   const workingLinks = links.filter((l: any) => l.ok);
   const [showWorking, setShowWorking] = useState(false);
+  // Track which broken link index is showing suggestions
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  // Store suggestions per broken link URL
+  const [suggestions, setSuggestions] = useState<Record<string, any[]>>({});
+  const [loadingUrl, setLoadingUrl] = useState<string | null>(null);
+  const [replacedUrls, setReplacedUrls] = useState<Set<string>>(new Set());
+
+  const suggestMutation = trpc.brokenLinks.suggestReplacement.useMutation({
+    onSuccess: (data, variables) => {
+      setSuggestions(prev => ({ ...prev, [variables.brokenUrl]: data.suggestions || [] }));
+      setLoadingUrl(null);
+      if (data.error) {
+        toast.error(data.error);
+      }
+    },
+    onError: (err) => {
+      setLoadingUrl(null);
+      toast.error(err.message || "Failed to find replacements");
+    },
+  });
+
+  const handleFindReplacement = (link: any, idx: number) => {
+    if (expandedIdx === idx && suggestions[link.url]) {
+      setExpandedIdx(null);
+      return;
+    }
+    setExpandedIdx(idx);
+    if (suggestions[link.url]) return; // Already fetched
+    setLoadingUrl(link.url);
+    suggestMutation.mutate({
+      brokenUrl: link.url,
+      anchorText: link.anchorText,
+      articleKeyword: articleKeyword || undefined,
+      projectId: articleProjectId || undefined,
+    });
+  };
+
+  const handleReplace = (oldUrl: string, newUrl: string) => {
+    onReplaceLink(oldUrl, newUrl);
+    setReplacedUrls(prev => new Set(prev).add(oldUrl));
+    toast.success("Link replaced in article");
+  };
 
   const getStatusBadge = (link: any) => {
     if (link.ok) {
@@ -2805,40 +2872,146 @@ function BrokenLinksPanel({
         {brokenLinks.length > 0 && (
           <div className="p-4 space-y-2">
             <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wider">Broken Links</h4>
-            {brokenLinks.map((link: any, i: number) => (
-              <div key={i} className="p-3 rounded-lg border border-red-200 bg-red-50/50 space-y-1.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {getStatusBadge(link)}
+            {brokenLinks.map((link: any, i: number) => {
+              const isReplaced = replacedUrls.has(link.url);
+              const isExpanded = expandedIdx === i;
+              const linkSuggestions = suggestions[link.url];
+              const isLoading = loadingUrl === link.url;
+
+              return (
+                <div key={i} className={`rounded-lg border space-y-1.5 ${isReplaced ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'}`}>
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {isReplaced ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Replaced
+                            </span>
+                          ) : (
+                            getStatusBadge(link)
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-foreground truncate" title={link.anchorText}>
+                          "{link.anchorText}"
+                        </p>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`text-[11px] hover:text-foreground truncate block mt-0.5 ${isReplaced ? 'line-through text-muted-foreground/60' : 'text-muted-foreground'}`}
+                          title={link.url}
+                        >
+                          {link.url}
+                        </a>
+                        {link.error && !isReplaced && (
+                          <p className="text-[10px] text-red-500 mt-1">{link.error}</p>
+                        )}
+                      </div>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 rounded hover:bg-red-100 flex-shrink-0"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                      </a>
                     </div>
-                    <p className="text-xs font-medium text-foreground truncate" title={link.anchorText}>
-                      "{link.anchorText}"
-                    </p>
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-muted-foreground hover:text-foreground truncate block mt-0.5"
-                      title={link.url}
-                    >
-                      {link.url}
-                    </a>
-                    {link.error && (
-                      <p className="text-[10px] text-red-500 mt-1">{link.error}</p>
+
+                    {/* Find Replacement Button */}
+                    {!isReplaced && (
+                      <button
+                        onClick={() => handleFindReplacement(link, i)}
+                        disabled={isLoading}
+                        className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Finding replacements...
+                          </>
+                        ) : isExpanded && linkSuggestions ? (
+                          <>
+                            <ChevronUp className="w-3 h-3" />
+                            Hide suggestions
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-3 h-3" />
+                            Find Replacement
+                          </>
+                        )}
+                      </button>
                     )}
                   </div>
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1 rounded hover:bg-red-100 flex-shrink-0"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-                  </a>
+
+                  {/* Suggestions Dropdown */}
+                  {isExpanded && !isReplaced && (
+                    <div className="border-t border-red-200/60 bg-white/80 p-2 space-y-1.5">
+                      {isLoading && (
+                        <div className="space-y-1.5">
+                          {[0, 1, 2].map(j => (
+                            <div key={j} className="p-2 rounded border border-gray-100 bg-gray-50/50 space-y-1">
+                              <div className="h-2.5 w-32 bg-muted rounded animate-pulse" style={{ animationDelay: `${j * 150}ms` }} />
+                              <div className="h-2 w-full bg-muted rounded animate-pulse" style={{ animationDelay: `${j * 150 + 75}ms` }} />
+                              <div className="h-2 w-3/4 bg-muted rounded animate-pulse" style={{ animationDelay: `${j * 150 + 150}ms` }} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {!isLoading && linkSuggestions && linkSuggestions.length === 0 && (
+                        <p className="text-[11px] text-muted-foreground text-center py-2">No replacement suggestions found</p>
+                      )}
+                      {!isLoading && linkSuggestions && linkSuggestions.map((s: any, j: number) => (
+                        <div key={j} className={`p-2.5 rounded-lg border transition-colors ${
+                          s.verified
+                            ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50/60'
+                            : 'border-amber-200 bg-amber-50/30 opacity-60'
+                        }`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[10px] font-semibold text-foreground">{s.source}</span>
+                                {s.verified ? (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-700">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                    Verified
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-700">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    Unverified
+                                  </span>
+                                )}
+                              </div>
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-blue-600 hover:text-blue-800 truncate block"
+                                title={s.url}
+                              >
+                                {s.url}
+                              </a>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{s.reason}</p>
+                            </div>
+                            {s.verified && (
+                              <button
+                                onClick={() => handleReplace(link.url, s.url)}
+                                className="flex-shrink-0 px-2 py-1 rounded text-[10px] font-semibold bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                              >
+                                Replace
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

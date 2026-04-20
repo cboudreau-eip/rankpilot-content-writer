@@ -1156,18 +1156,91 @@ function StandaloneOutlineDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ListTree className="w-5 h-5 text-indigo-600" />
             Generate Outline from Analysis
           </DialogTitle>
           <DialogDescription>
-            Create a fresh, optimized outline based on the entity and salience analysis findings. The outline will address every weakness identified.
+            Create a fresh, optimized outline that addresses every weakness found in the analysis.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Suggested Title */}
+          {result.advancedRecommendations?.suggestedTitleRewrite && (
+            <div className="rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 p-3">
+              <p className="text-[11px] font-semibold text-indigo-700 mb-1 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Suggested Title
+              </p>
+              <p className="text-sm font-medium text-indigo-900">{result.advancedRecommendations.suggestedTitleRewrite}</p>
+            </div>
+          )}
+
+          {/* Score Overview */}
+          <div className="flex items-center gap-3 rounded-lg border p-3">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white ${
+              (result.scores?.overallScore ?? 0) >= 70 ? 'bg-emerald-500' :
+              (result.scores?.overallScore ?? 0) >= 50 ? 'bg-amber-500' : 'bg-red-500'
+            }`}>
+              {Math.round(result.scores?.overallScore ?? 0)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">Current Article Score</p>
+              <p className="text-xs text-muted-foreground">
+                {result.entities?.length || 0} entities found &middot; {result.actionableFixes?.length || 0} fixes to address
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Target</p>
+              <p className="text-sm font-bold text-emerald-600">85+</p>
+            </div>
+          </div>
+
+          {/* What the outline will fix */}
+          {result.actionableFixes?.length > 0 && (
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                <Wrench className="w-3.5 h-3.5 text-indigo-600" />
+                What the Outline Will Fix
+              </p>
+              <div className="space-y-1.5 max-h-[120px] overflow-y-auto">
+                {result.actionableFixes.map((fix: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                    <span>{fix}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Topics being added */}
+          {(() => {
+            const missingEntities = result.advancedRecommendations?.missingSupportingEntities || [];
+            const missingComponents = result.supportingCoverage?.missingComponents || [];
+            const allTopics = Array.from(new Set([...missingEntities, ...missingComponents]));
+            if (allTopics.length === 0) return null;
+            return (
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-purple-600" />
+                  Topics Being Added
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allTopics.map((topic: string, i: number) => (
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                      {topic}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Project Selector */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold flex items-center gap-1.5">
               <FolderKanban className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1281,15 +1354,7 @@ function StandaloneOutlineDialog({
             </div>
           </div>
 
-          <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-3">
-            <p className="text-[11px] font-semibold text-indigo-800 mb-1">Analysis Summary</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-indigo-700">
-              <span>Primary Entity: <strong>{result.advancedRecommendations?.refinedPrimaryEntity || result.primaryEntity?.name}</strong></span>
-              <span>Overall Score: <strong>{result.scores?.overallScore}/100</strong></span>
-              <span>Entities Found: <strong>{result.entities?.length || 0}</strong></span>
-              <span>Fixes to Address: <strong>{result.actionableFixes?.length || 0}</strong></span>
-            </div>
-          </div>
+
         </div>
 
         <DialogFooter>

@@ -1046,3 +1046,10 @@
 - [x] Replacement picker UI showing verified suggestions with one-click replace
 - [x] Wire replace action to update article content in the editor
 - [x] Add vitest tests for the replacement feature
+
+## Generate Outline Dialog Enhancement
+- [x] Show actionable fixes checklist in the Generate Outline from Analysis dialog
+- [x] Show topics being added preview (missing topics + missing supporting entities)
+- [x] Show suggested title from entity analysis
+- [x] Show score overview with current score and target
+- [x] Updated both ArticleEditor and EntityAnalyzer versions of the dialog

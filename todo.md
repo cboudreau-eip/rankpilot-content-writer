@@ -1053,3 +1053,11 @@
 - [x] Show suggested title from entity analysis
 - [x] Show score overview with current score and target
 - [x] Updated both ArticleEditor and EntityAnalyzer versions of the dialog
+
+## Fix: Broken Link Checker "Failed to parse LLM response"
+- [ ] Add robust JSON parsing with fallback handling to suggestReplacement procedure
+
+## Fix: Broken Link Checker "Failed to parse LLM response"
+- [x] Added extractJSON helper with 4-step fallback parsing (strip fences → regex array match → regex object match → bracket slicing)
+- [x] Updated stripMarkdownFences to handle ```json fences
+- [x] Applied extractJSON to suggestReplacement and checkCoverage procedures

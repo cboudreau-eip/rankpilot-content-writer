@@ -163,11 +163,56 @@ function splitSentences(text: string): string[] {
  * Handles: ```html\n...\n```, ```\n...\n```, and bare trailing ```
  */
 function stripMarkdownFences(content: string): string {
-  // Remove opening fence: ```html or ``` (with optional whitespace/newline)
-  let stripped = content.replace(/^```(?:html|markdown|md)?\s*\n?/i, '');
+  // Remove opening fence: ```json, ```html, ```markdown, ``` etc. (with optional whitespace/newline)
+  let stripped = content.replace(/^```(?:json|html|markdown|md)?\s*\n?/i, '');
   // Remove closing fence: trailing ``` (with optional whitespace)
   stripped = stripped.replace(/\n?```\s*$/i, '');
   return stripped.trim();
+}
+
+/**
+ * Robustly extract JSON from LLM responses that may contain extra text,
+ * markdown fences, or other wrapping around the actual JSON content.
+ */
+function extractJSON(raw: string): any {
+  // Step 1: Try direct parse after stripping markdown fences
+  const stripped = stripMarkdownFences(raw);
+  try {
+    return JSON.parse(stripped);
+  } catch {}
+
+  // Step 2: Try to find a JSON array [...] in the text
+  const arrayMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/);
+  if (arrayMatch) {
+    try {
+      return JSON.parse(arrayMatch[0]);
+    } catch {}
+  }
+
+  // Step 3: Try to find a JSON object {...} in the text
+  const objectMatch = raw.match(/\{\s*"[\s\S]*\}/);
+  if (objectMatch) {
+    try {
+      return JSON.parse(objectMatch[0]);
+    } catch {}
+  }
+
+  // Step 4: Try removing everything before the first [ or { and after the last ] or }
+  const firstBracket = raw.indexOf('[');
+  const firstBrace = raw.indexOf('{');
+  const start = firstBracket >= 0 && (firstBrace < 0 || firstBracket < firstBrace) ? firstBracket : firstBrace;
+  if (start >= 0) {
+    const isArray = raw[start] === '[';
+    const lastClose = isArray ? raw.lastIndexOf(']') : raw.lastIndexOf('}');
+    if (lastClose > start) {
+      try {
+        return JSON.parse(raw.slice(start, lastClose + 1));
+      } catch {}
+    }
+  }
+
+  // All attempts failed
+  return null;
 }
 
 /**
@@ -1521,18 +1566,17 @@ Existing pages (${allUrls.length} total):\n${urlList}`
         const rawContent = coverageResult.choices?.[0]?.message?.content;
         const text = typeof rawContent === "string" ? rawContent : "";
 
-        try {
-          const parsed = JSON.parse(stripMarkdownFences(text));
-          return {
-            totalScanned: parsed.totalScanned ?? allUrls.length,
-            overlaps: parsed.overlaps ?? [],
-            highCount: (parsed.overlaps ?? []).filter((o: any) => o.severity === "high").length,
-            mediumCount: (parsed.overlaps ?? []).filter((o: any) => o.severity === "medium").length,
-          };
-        } catch {
+        const parsed = extractJSON(text);
+        if (!parsed) {
           console.error("[CoverageCheck] Failed to parse LLM response:", text);
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse coverage analysis. Please try again." });
         }
+        return {
+          totalScanned: parsed.totalScanned ?? allUrls.length,
+          overlaps: parsed.overlaps ?? [],
+          highCount: (parsed.overlaps ?? []).filter((o: any) => o.severity === "high").length,
+          mediumCount: (parsed.overlaps ?? []).filter((o: any) => o.severity === "medium").length,
+        };
       }),
   }),
 
@@ -2965,14 +3009,14 @@ Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
           }, projectId);
 
           const rawContent = String(llmResponse.choices?.[0]?.message?.content || "[]");
-          const cleaned = stripMarkdownFences(rawContent);
           let suggestions: { url: string; source: string; reason: string }[] = [];
 
-          try {
-            suggestions = JSON.parse(cleaned);
-          } catch {
-            return { suggestions: [], error: "Failed to parse LLM response" };
+          const parsed = extractJSON(rawContent);
+          if (!parsed) {
+            console.error("[SuggestReplacement] Failed to parse LLM response:", rawContent);
+            return { suggestions: [], error: "Failed to parse LLM response. Please try again." };
           }
+          suggestions = Array.isArray(parsed) ? parsed : (parsed.suggestions || []);
 
           if (!Array.isArray(suggestions) || suggestions.length === 0) {
             return { suggestions: [], error: "No suggestions returned" };

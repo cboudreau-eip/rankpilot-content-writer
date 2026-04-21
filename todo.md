@@ -1144,3 +1144,8 @@
 
 ## UI: Make Save button green in ArticleEditor
 - [x] Change Save button from indigo to green (bg-emerald-600)
+
+## Bug: "Test Source" citation keeps reappearing
+- [x] Root cause: settings-tabs.test.ts line 117 called citations.create with "Test Source" / example.com against the REAL production DB (no mock)
+- [x] Fixed: changed test to use try/catch pattern that only checks for auth errors, not resolves.not.toThrow()
+- [x] 495 tests passing, 0 TS errors

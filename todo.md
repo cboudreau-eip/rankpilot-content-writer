@@ -1075,3 +1075,11 @@
 - [x] Fix LLM prompts to explicitly prohibit adding <strong> tags (4 prompts updated: applyImprovements, applyContentImprovements, applyEntityFixes, crossCheck, redundancy)
 - [x] Add post-processing safety net stripWrappingStrongTags() — applied in 5 backend locations + 2 frontend handlers
 - [x] 13 unit tests for stripWrappingStrongTags, 485 total tests passing
+
+## Cross-Reference Doc in Article Generation
+- [x] Add "Reference Document" toggle to article generation settings UI (between ICP Targeting and Internal Linking)
+- [x] Auto-enable toggle when project has cross-reference doc set up, show doc name + char count
+- [x] Inject cross-reference doc content into LLM system prompt during article generation (80k char limit)
+- [x] Pass useReferenceDoc flag from frontend to backend generate procedure
+- [x] Also inject into scheduler's generateArticleForScheduler (always enabled when doc exists)
+- [x] TypeScript: 0 errors, 485 tests passing

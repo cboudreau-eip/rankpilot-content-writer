@@ -10,7 +10,7 @@ import {
   ChevronUp, X, PlusCircle, BotMessageSquare, LayoutGrid,
   List, ListOrdered, BarChart3, Table2, HelpCircle, Quote, Lightbulb, Zap,
   BookOpen, ThumbsUp, ThumbsDown, Star, AlertCircle, Bookmark, ClipboardList, LayoutTemplate, Palette,
-  CheckCircle2, Key, Tag, Search, ExternalLink, GraduationCap, TrendingUp, Building2, Shield,
+  CheckCircle2, Key, Tag, Search, ExternalLink, GraduationCap, TrendingUp, Building2, Shield, FileCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -483,6 +483,19 @@ export default function GenerateArticle() {
   const [icpEnabled, setIcpEnabled] = useState(true);
   const [selectedIcpId, setSelectedIcpId] = useState<number | null>(null);
 
+  // Fetch reference document for the active project
+  const { data: referenceDocData } = trpc.crossCheck.getReferenceDoc.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: !!activeProjectId }
+  );
+  const hasReferenceDoc = !!(referenceDocData?.referenceDocName && referenceDocData?.referenceDoc);
+  const [referenceDocEnabled, setReferenceDocEnabled] = useState(true);
+
+  // Auto-enable reference doc when it becomes available
+  useEffect(() => {
+    if (hasReferenceDoc) setReferenceDocEnabled(true);
+  }, [hasReferenceDoc]);
+
   // Fetch sitemaps for the active project
   const { data: projectSitemaps = [] } = trpc.sitemaps.list.useQuery(
     { projectId: activeProjectId! },
@@ -836,6 +849,7 @@ export default function GenerateArticle() {
       autoGradeEnabled: autoGradeEnabled || undefined,
       targetGrade: autoGradeEnabled ? targetGrade : undefined,
       maxGradeIterations: autoGradeEnabled ? maxGradeIterations : undefined,
+      useReferenceDoc: hasReferenceDoc && referenceDocEnabled ? true : undefined,
     });
   };
 
@@ -1820,6 +1834,57 @@ export default function GenerateArticle() {
                       No ICP profiles configured for this project. Add one in Project Settings.
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Reference Document Section */}
+            <div className="border-t border-border/60 pt-5">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-base font-semibold flex items-center gap-2">
+                  <FileCheck className="w-4 h-4 text-violet-500" />
+                  Reference Document
+                </h3>
+                {hasReferenceDoc && (
+                  <button
+                    onClick={() => setReferenceDocEnabled(!referenceDocEnabled)}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      referenceDocEnabled
+                        ? "bg-violet-100 text-violet-700"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {referenceDocEnabled ? (
+                      <><Check className="w-3 h-3" /> Enabled</>
+                    ) : (
+                      "Disabled"
+                    )}
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Use your cross-reference document as a factual source during content generation.
+              </p>
+
+              {hasReferenceDoc && referenceDocEnabled ? (
+                <div className="bg-violet-50/60 border border-violet-200/60 rounded-lg p-4 space-y-2">
+                  <p className="font-semibold text-sm text-violet-800">{referenceDocData?.referenceDocName}</p>
+                  <p className="text-xs text-violet-600">
+                    {referenceDocData?.referenceDocLength
+                      ? `${referenceDocData.referenceDocLength.toLocaleString()} characters`
+                      : "Document loaded"}
+                  </p>
+                  <p className="text-xs text-violet-700/80 leading-relaxed">
+                    The AI will use this document as a factual reference while writing, ensuring claims, statistics, and details align with your source material.
+                  </p>
+                </div>
+              ) : hasReferenceDoc && !referenceDocEnabled ? (
+                <div className="px-4 py-3 rounded-lg border border-dashed border-violet-200 bg-violet-50/20 text-sm text-muted-foreground">
+                  Reference document available but disabled. Enable to use as factual source.
+                </div>
+              ) : (
+                <div className="px-4 py-3 rounded-lg border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
+                  No reference document configured. Add one in Project Settings → Cross Check.
                 </div>
               )}
             </div>

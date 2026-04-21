@@ -2316,9 +2316,10 @@ RULES:
         autoGradeEnabled: z.boolean().optional(),
         targetGrade: z.string().optional(),
         maxGradeIterations: z.number().min(1).max(5).optional(),
+        useReferenceDoc: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        console.log(`[ArticleGen] Starting article generation. outlineId=${input.outlineId}, projectId=${input.projectId}, outputFormat=${input.outputFormat}`);
+        console.log(`[ArticleGen] Starting article generation. outlineId=${input.outlineId}, projectId=${input.projectId}, outputFormat=${input.outputFormat}, useReferenceDoc=${input.useReferenceDoc}`);
         const outline = await getOutlineById(input.outlineId);
         if (!outline) throw new Error("Outline not found");
 
@@ -2649,6 +2650,54 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           }
         }
 
+        // Build reference document section if enabled
+        let referenceDocSection = "";
+        if (input.useReferenceDoc && project) {
+          let refDocContent: string | null = null;
+          // Primary source: database column
+          if (project.referenceDocContent) {
+            refDocContent = project.referenceDocContent;
+          }
+          // Fallback: S3
+          else if (project.referenceDocS3Key) {
+            try {
+              const { url } = await storageGet(project.referenceDocS3Key);
+              const resp = await fetch(url);
+              if (resp.ok) refDocContent = await resp.text();
+            } catch (e) {
+              console.warn("[ArticleGen] Failed to fetch reference doc from S3:", e);
+            }
+          }
+
+          if (refDocContent && project.referenceDocName) {
+            // Truncate very large docs to avoid exceeding context window (keep first 80k chars)
+            const maxChars = 80000;
+            const truncated = refDocContent.length > maxChars
+              ? refDocContent.substring(0, maxChars) + "\n[... document truncated for length ...]"
+              : refDocContent;
+
+            referenceDocSection = `
+REFERENCE DOCUMENT — FACTUAL SOURCE ("${project.referenceDocName}")
+================================================================
+The following reference document contains verified facts, figures, rules, and details about the topic.
+You MUST use this document as your PRIMARY factual source when writing the article.
+
+RULES FOR USING THE REFERENCE DOCUMENT:
+1. When the reference document provides specific numbers, dates, eligibility rules, costs, or procedures — use them EXACTLY as stated. Do NOT invent alternative figures.
+2. When the reference document covers a topic that overlaps with a section in the outline, ground that section's content in the reference material.
+3. Do NOT copy the reference document verbatim — synthesize and rewrite the information in your own words while preserving factual accuracy.
+4. If the reference document contradicts your training data, ALWAYS defer to the reference document (it is more current and authoritative).
+5. You may add supplementary information beyond what the reference document covers, but NEVER contradict it.
+6. Do NOT mention or cite "the reference document" in the article text — the reader should not know it exists. Simply use the facts naturally.
+
+=== REFERENCE DOCUMENT CONTENT ===
+${truncated}
+=== END REFERENCE DOCUMENT ===
+`;
+            console.log(`[ArticleGen] Reference doc injected: "${project.referenceDocName}" (${refDocContent.length} chars${refDocContent.length > maxChars ? ", truncated to " + maxChars : ""})`);
+          }
+        }
+
         // Output format instructions
         const formatInstructions = effectiveFormat === "plaintext"
           ? `- Output as PLAIN TEXT with markdown-style headings (## for H2, ### for H3). Do NOT use HTML tags.\n- Use plain text formatting: **bold**, bullet points with -, numbered lists with 1. 2. 3.`
@@ -2718,6 +2767,7 @@ ${icpSection}
 ${ctaContext}
 ${secondaryKeywordsInstructions}
 ${linkingInstructions}
+${referenceDocSection}
 
 Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} content of the article body${effectiveFormat === "html" ? " (no <html>, <head>, or <body> tags)" : ""}. Start with the first ${effectiveFormat === "plaintext" ? "## heading" : "<h2> section"}.`;
 
@@ -5820,6 +5870,31 @@ CRITICAL: Do NOT reuse any specific phrases, sentences, statistics, or openings 
   const outputFormat = settings.outputFormat ?? "html";
   const targetWordCount = settings.targetWordCount ?? 2000;
 
+  // Build reference document section (always enabled for scheduler if project has one)
+  let referenceDocSection = "";
+  if (project) {
+    let refDocContent: string | null = null;
+    if (project.referenceDocContent) {
+      refDocContent = project.referenceDocContent;
+    } else if (project.referenceDocS3Key) {
+      try {
+        const { url } = await storageGet(project.referenceDocS3Key);
+        const resp = await fetch(url);
+        if (resp.ok) refDocContent = await resp.text();
+      } catch (e) {
+        logFn?.("reference-doc", `Failed to fetch reference doc from S3: ${e}`, "warn");
+      }
+    }
+    if (refDocContent && project.referenceDocName) {
+      const maxChars = 80000;
+      const truncated = refDocContent.length > maxChars
+        ? refDocContent.substring(0, maxChars) + "\n[... document truncated for length ...]"
+        : refDocContent;
+      referenceDocSection = `\nREFERENCE DOCUMENT \u2014 FACTUAL SOURCE ("${project.referenceDocName}")\n================================================================\nThe following reference document contains verified facts, figures, rules, and details about the topic.\nYou MUST use this document as your PRIMARY factual source when writing the article.\n\nRULES FOR USING THE REFERENCE DOCUMENT:\n1. When the reference document provides specific numbers, dates, eligibility rules, costs, or procedures \u2014 use them EXACTLY as stated. Do NOT invent alternative figures.\n2. When the reference document covers a topic that overlaps with a section in the outline, ground that section's content in the reference material.\n3. Do NOT copy the reference document verbatim \u2014 synthesize and rewrite the information in your own words while preserving factual accuracy.\n4. If the reference document contradicts your training data, ALWAYS defer to the reference document.\n5. You may add supplementary information beyond what the reference document covers, but NEVER contradict it.\n6. Do NOT mention or cite "the reference document" in the article text.\n\n=== REFERENCE DOCUMENT CONTENT ===\n${truncated}\n=== END REFERENCE DOCUMENT ===\n`;
+      logFn?.("reference-doc", `Reference doc injected: "${project.referenceDocName}" (${refDocContent.length} chars)`, "info");
+    }
+  }
+
   const formatInstructions = outputFormat === "plaintext"
     ? `- Output as PLAIN TEXT with markdown-style headings. Do NOT use HTML tags.`
     : `- Use proper HTML formatting: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td> tags\n- For links use <a href="URL">anchor text</a> format`;
@@ -5872,6 +5947,7 @@ ${icpSection}
 ${ctaContext}
 ${secondaryKeywordsInstructions}
 ${linkingInstructions}
+${referenceDocSection}
 ${researchContext}
 
 OUTLINE:

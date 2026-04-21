@@ -1125,3 +1125,13 @@
 - [x] Updated updateReferenceDoc removal branch to overwrite S3 deterministic key with empty content
 - [x] Prevents self-heal from restoring a removed doc on next page load
 - [x] 494 tests passing, 0 TS errors
+
+## Bug: Reference Doc Edit/Delete Not Working After S3-Primary Change
+- [x] Root cause: CloudFront CDN caching prevents S3 overwrites at the same key
+- [x] Also confirmed: pnpm db:push does NOT wipe data ("No schema changes, nothing to migrate")
+- [x] Reverted to DB-primary architecture: DB is source of truth, S3 is write-once backup with timestamped keys
+- [x] Updated all 5 code paths: getReferenceDoc, updateReferenceDoc, checkArticle, articles.generate, scheduler
+- [x] Save: DB first (primary), then S3 with timestamped key (immutable backup)
+- [x] Load: DB first, S3 fallback only if DB is null and S3 key exists
+- [x] Delete: Just clear DB, old S3 files are harmless orphans
+- [x] 13 crosscheck-storage tests + 495 total tests passing, 0 TS errors

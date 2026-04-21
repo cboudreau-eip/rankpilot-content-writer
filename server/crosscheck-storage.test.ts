@@ -4,7 +4,7 @@ import type { TrpcContext } from "./_core/context";
 
 // ---- Mock data ----
 const mockRefDocContent = "# Medicare Reference Data\n## Part A Premiums\n2026 Full Part A Premium: $565";
-const deterministicKey = "reference-docs/project-1.txt";
+const mockS3Key = "reference-docs/project-1-1234567890.txt";
 
 let mockProject: any = {
   id: 1,
@@ -78,8 +78,8 @@ vi.mock("./db", () => ({
 }));
 
 // ---- Mock storage module ----
-let storagePutMock = vi.fn().mockResolvedValue({ key: deterministicKey, url: "https://cdn.example.com/ref.txt" });
-let storageGetMock = vi.fn().mockResolvedValue({ key: deterministicKey, url: "https://cdn.example.com/ref.txt" });
+let storagePutMock = vi.fn().mockResolvedValue({ key: mockS3Key, url: "https://cdn.example.com/ref.txt" });
+let storageGetMock = vi.fn().mockResolvedValue({ key: mockS3Key, url: "https://cdn.example.com/ref.txt" });
 
 vi.mock("./storage", () => ({
   storagePut: (...args: any[]) => storagePutMock(...args),
@@ -112,8 +112,8 @@ beforeEach(() => {
   // Reset mocks
   storagePutMock.mockClear();
   storageGetMock.mockClear();
-  storagePutMock.mockResolvedValue({ key: deterministicKey, url: "https://cdn.example.com/ref.txt" });
-  storageGetMock.mockResolvedValue({ key: deterministicKey, url: "https://cdn.example.com/ref.txt" });
+  storagePutMock.mockResolvedValue({ key: mockS3Key, url: "https://cdn.example.com/ref.txt" });
+  storageGetMock.mockResolvedValue({ key: mockS3Key, url: "https://cdn.example.com/ref.txt" });
 
   fetchMock = vi.fn().mockResolvedValue({
     ok: true,
@@ -147,8 +147,8 @@ function createAuthContext(): TrpcContext {
 
 // ---- Tests ----
 
-describe("crossCheck S3-primary: updateReferenceDoc", () => {
-  it("uploads to deterministic S3 key on save", async () => {
+describe("crossCheck DB-primary: updateReferenceDoc", () => {
+  it("saves content to DB (primary) and S3 (backup) on update", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -158,22 +158,22 @@ describe("crossCheck S3-primary: updateReferenceDoc", () => {
       referenceDocName: "Medicare Ref 2026",
     });
 
-    // S3 upload should use deterministic key (no timestamp)
+    // S3 backup upload should have been called with timestamped key
     expect(storagePutMock).toHaveBeenCalledTimes(1);
     expect(storagePutMock).toHaveBeenCalledWith(
-      deterministicKey,
+      expect.stringContaining("reference-docs/project-1-"),
       mockRefDocContent,
       "text/plain"
     );
 
-    // DB should also have content cached
+    // DB should have content saved (primary source of truth)
     expect(mockProject.referenceDocContent).toBe(mockRefDocContent);
     expect(mockProject.referenceDocName).toBe("Medicare Ref 2026");
     expect(mockProject.referenceDocLength).toBe(mockRefDocContent.length);
-    expect(mockProject.referenceDocS3Key).toBe(deterministicKey);
+    expect(mockProject.referenceDocS3Key).toEqual(expect.stringContaining("reference-docs/project-1-"));
   });
 
-  it("saves content to DB even when S3 upload fails", async () => {
+  it("saves content to DB even when S3 backup upload fails", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -186,21 +186,21 @@ describe("crossCheck S3-primary: updateReferenceDoc", () => {
       referenceDocName: "Medicare Ref 2026",
     });
 
-    // DB should still have content (fallback)
+    // DB should still have content (it's the primary source)
     expect(mockProject.referenceDocContent).toBe(mockRefDocContent);
     expect(mockProject.referenceDocName).toBe("Medicare Ref 2026");
     expect(mockProject.referenceDocLength).toBe(mockRefDocContent.length);
-    // S3 key should still be set (deterministic, even though upload failed)
-    expect(mockProject.referenceDocS3Key).toBe(deterministicKey);
+    // S3 key should be null since upload failed
+    expect(mockProject.referenceDocS3Key).toBeNull();
   });
 
-  it("clears both DB content and S3 key on removal", async () => {
+  it("clears DB content on removal (S3 orphans are harmless)", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
     // First save a doc
     mockProject.referenceDocContent = mockRefDocContent;
-    mockProject.referenceDocS3Key = deterministicKey;
+    mockProject.referenceDocS3Key = mockS3Key;
     mockProject.referenceDocName = "Test";
     mockProject.referenceDocLength = 100;
 
@@ -215,19 +215,22 @@ describe("crossCheck S3-primary: updateReferenceDoc", () => {
     expect(mockProject.referenceDocS3Key).toBeNull();
     expect(mockProject.referenceDocName).toBeNull();
     expect(mockProject.referenceDocLength).toBeNull();
+
+    // S3 should NOT have been called for deletion (orphans are harmless)
+    expect(storagePutMock).not.toHaveBeenCalled();
   });
 });
 
-describe("crossCheck S3-primary: getReferenceDoc", () => {
-  it("fetches from S3 deterministic key as primary source (even when DB has content)", async () => {
+describe("crossCheck DB-primary: getReferenceDoc", () => {
+  it("returns content from DB when available (primary source)", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Set up project with DB content AND S3 key
+    // Set up project with DB content
     mockProject.referenceDocContent = mockRefDocContent;
     mockProject.referenceDocName = "Medicare Ref 2026";
     mockProject.referenceDocLength = mockRefDocContent.length;
-    mockProject.referenceDocS3Key = deterministicKey;
+    mockProject.referenceDocS3Key = mockS3Key;
 
     const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
 
@@ -236,126 +239,109 @@ describe("crossCheck S3-primary: getReferenceDoc", () => {
     expect(result.hasMetadata).toBe(true);
     expect(result.s3FetchFailed).toBe(false);
 
-    // S3 deterministic key should ALWAYS be tried first (it's the primary source)
-    expect(storageGetMock).toHaveBeenCalledWith(deterministicKey);
+    // Should NOT have called S3 since DB had content
+    expect(storageGetMock).not.toHaveBeenCalled();
   });
 
-  it("falls back to DB content when S3 is unavailable", async () => {
+  it("falls back to S3 when DB content is null but S3 key exists", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Set up project with DB content
-    mockProject.referenceDocContent = mockRefDocContent;
+    // Set up project with only S3 key (no DB content)
+    mockProject.referenceDocContent = null;
     mockProject.referenceDocName = "Medicare Ref 2026";
     mockProject.referenceDocLength = mockRefDocContent.length;
-
-    // Make S3 fail
-    storageGetMock.mockRejectedValue(new Error("S3 unavailable"));
+    mockProject.referenceDocS3Key = mockS3Key;
 
     const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
 
-    // Should fall back to DB content
-    expect(result.referenceDoc).toBe(mockRefDocContent);
-    expect(result.hasMetadata).toBe(true);
-  });
-
-  it("self-heals DB when S3 has content but DB is wiped (deployment scenario)", async () => {
-    const ctx = createAuthContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Simulate post-deployment: DB columns wiped, but S3 still has the doc
-    mockProject.referenceDocContent = null;
-    mockProject.referenceDocName = null;
-    mockProject.referenceDocLength = null;
-    mockProject.referenceDocS3Key = null;
-
-    const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
-
-    // Content should be returned from S3 deterministic key
     expect(result.referenceDoc).toBe(mockRefDocContent);
     expect(result.hasMetadata).toBe(true);
 
-    // Self-heal: DB should now have the content backfilled
-    expect(mockProject.referenceDocContent).toBe(mockRefDocContent);
-    expect(mockProject.referenceDocS3Key).toBe(deterministicKey);
+    // Should have called S3 as fallback
+    expect(storageGetMock).toHaveBeenCalledWith(mockS3Key);
   });
 
-  it("returns empty state when S3 has no content and DB is also empty", async () => {
+  it("returns empty state when neither DB nor S3 has content", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    // No content anywhere
+    // Project has no reference doc at all
     mockProject.referenceDocContent = null;
     mockProject.referenceDocS3Key = null;
     mockProject.referenceDocName = null;
-
-    // S3 returns 404
-    fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => "" });
 
     const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
 
     expect(result.referenceDoc).toBeNull();
     expect(result.hasMetadata).toBe(false);
+    expect(result.s3FetchFailed).toBe(false);
   });
 
-  it("handles S3 fetch failure gracefully and falls back to DB", async () => {
+  it("handles S3 fallback failure gracefully", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    // DB has content, S3 will fail
-    mockProject.referenceDocContent = mockRefDocContent;
+    // Set up project with only S3 key, but S3 will fail
+    mockProject.referenceDocContent = null;
     mockProject.referenceDocName = "Medicare Ref 2026";
+    mockProject.referenceDocS3Key = mockS3Key;
 
     storageGetMock.mockRejectedValue(new Error("S3 unavailable"));
 
     const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
 
-    // Should fall back to DB content
-    expect(result.referenceDoc).toBe(mockRefDocContent);
+    expect(result.referenceDoc).toBeNull();
+    expect(result.s3FetchFailed).toBe(true);
     expect(result.hasMetadata).toBe(true);
   });
 
-  it("migrates legacy timestamped S3 key to deterministic key", async () => {
+  it("self-heals DB content when S3 fallback succeeds", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const legacyKey = "reference-docs/project-1-1234567890.txt";
-
-    // S3 deterministic key returns 404, but legacy key works
-    fetchMock
-      .mockResolvedValueOnce({ ok: false, status: 404, text: async () => "" }) // deterministic key fails
-      .mockResolvedValueOnce({ ok: true, text: async () => mockRefDocContent, status: 200 }); // legacy key succeeds
-
-    // DB has no content but has legacy S3 key
+    // Set up project with only S3 key (no DB content)
     mockProject.referenceDocContent = null;
     mockProject.referenceDocName = "Medicare Ref 2026";
     mockProject.referenceDocLength = mockRefDocContent.length;
-    mockProject.referenceDocS3Key = legacyKey;
-
-    // storageGet should be called twice: once for deterministic, once for legacy
-    storageGetMock
-      .mockResolvedValueOnce({ key: deterministicKey, url: "https://cdn.example.com/deterministic.txt" })
-      .mockResolvedValueOnce({ key: legacyKey, url: "https://cdn.example.com/legacy.txt" });
+    mockProject.referenceDocS3Key = mockS3Key;
 
     const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
 
-    // Content should be returned from legacy key
+    // Content should be returned from S3
     expect(result.referenceDoc).toBe(mockRefDocContent);
 
-    // Should have migrated to deterministic key via storagePut
-    expect(storagePutMock).toHaveBeenCalledWith(deterministicKey, mockRefDocContent, "text/plain");
+    // Self-heal: DB should now have the content backfilled
+    expect(mockProject.referenceDocContent).toBe(mockRefDocContent);
+  });
+
+  it("hasMetadata is true when DB content exists even without S3 key", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // DB content but no S3 key (e.g., S3 upload failed)
+    mockProject.referenceDocContent = mockRefDocContent;
+    mockProject.referenceDocName = "Medicare Ref 2026";
+    mockProject.referenceDocLength = mockRefDocContent.length;
+    mockProject.referenceDocS3Key = null;
+
+    const result = await caller.crossCheck.getReferenceDoc({ projectId: 1 });
+
+    expect(result.referenceDoc).toBe(mockRefDocContent);
+    expect(result.hasMetadata).toBe(true);
+    expect(result.s3FetchFailed).toBe(false);
   });
 });
 
-describe("crossCheck S3-primary: checkArticle", () => {
-  it("fetches reference doc from S3 deterministic key for cross-check", async () => {
+describe("crossCheck DB-primary: checkArticle", () => {
+  it("uses DB content for cross-check when available", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
     // Set up project with DB content
     mockProject.referenceDocContent = mockRefDocContent;
     mockProject.referenceDocName = "Medicare Ref 2026";
-    mockProject.referenceDocS3Key = deterministicKey;
+    mockProject.referenceDocS3Key = mockS3Key;
 
     const { getArticleById } = await import("./db");
     vi.mocked(getArticleById).mockResolvedValueOnce({
@@ -379,29 +365,26 @@ describe("crossCheck S3-primary: checkArticle", () => {
     });
 
     // The checkArticle will try to invoke LLM, which will fail in test env
-    // But we can verify it fetches from S3 deterministic key
+    // But we can verify it doesn't try to call S3
     try {
       await caller.crossCheck.checkArticle({ articleId: 1 });
     } catch (e: any) {
-      // Expected to fail at LLM call, but should NOT fail at reference doc fetch
+      // Expected to fail at LLM call, but should NOT fail at S3 fetch
       expect(e.message).not.toContain("Failed to retrieve reference document");
       expect(e.message).not.toContain("No reference document found");
     }
 
-    // S3 deterministic key should have been called (primary source)
-    expect(storageGetMock).toHaveBeenCalledWith(deterministicKey);
+    // S3 should NOT have been called since DB had content
+    expect(storageGetMock).not.toHaveBeenCalled();
   });
 
-  it("throws clear error when no reference doc exists anywhere", async () => {
+  it("throws clear error when no reference doc exists at all", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    // No reference doc anywhere
+    // No reference doc
     mockProject.referenceDocContent = null;
     mockProject.referenceDocS3Key = null;
-
-    // S3 deterministic key returns 404
-    fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => "" });
 
     const { getArticleById } = await import("./db");
     vi.mocked(getArticleById).mockResolvedValueOnce({
@@ -431,10 +414,18 @@ describe("crossCheck S3-primary: checkArticle", () => {
 });
 
 describe("getReferenceDocS3Key helper", () => {
-  it("generates deterministic key from project ID", async () => {
+  it("generates timestamped key from project ID", async () => {
     const { getReferenceDocS3Key } = await import("./routers");
-    expect(getReferenceDocS3Key(1)).toBe("reference-docs/project-1.txt");
-    expect(getReferenceDocS3Key(42)).toBe("reference-docs/project-42.txt");
-    expect(getReferenceDocS3Key(999)).toBe("reference-docs/project-999.txt");
+    const key = getReferenceDocS3Key(1);
+    expect(key).toMatch(/^reference-docs\/project-1-\d+\.txt$/);
+  });
+
+  it("generates unique keys on each call", async () => {
+    const { getReferenceDocS3Key } = await import("./routers");
+    const key1 = getReferenceDocS3Key(1);
+    // Small delay to ensure different timestamp
+    await new Promise(r => setTimeout(r, 5));
+    const key2 = getReferenceDocS3Key(1);
+    expect(key1).not.toBe(key2);
   });
 });

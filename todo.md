@@ -1061,3 +1061,10 @@
 - [x] Added extractJSON helper with 4-step fallback parsing (strip fences → regex array match → regex object match → bracket slicing)
 - [x] Updated stripMarkdownFences to handle ```json fences
 - [x] Applied extractJSON to suggestReplacement and checkCoverage procedures
+
+## Cross-Reference Doc Rebuild
+- [x] Document current cross-reference implementation (DB, backend, settings UI, article gen usage)
+- [x] Extract CrossCheckTab component from ProjectSettings.tsx into standalone client/src/components/CrossCheckTab.tsx
+- [x] Import standalone CrossCheckTab in ProjectSettings.tsx with single line
+- [x] Added dark mode support to CrossCheckTab (violet info card, amber warning, icon backgrounds)
+- [x] TypeScript: 0 errors, 472 tests passing, no regressions

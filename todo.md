@@ -1083,3 +1083,14 @@
 - [x] Pass useReferenceDoc flag from frontend to backend generate procedure
 - [x] Also inject into scheduler's generateArticleForScheduler (always enabled when doc exists)
 - [x] TypeScript: 0 errors, 485 tests passing
+
+## Bug: Cross-Reference Doc Data Keeps Disappearing
+- [x] Check if reference doc data exists in the database right now (confirmed: null in DB)
+- [x] Check if the project.update procedure is wiping referenceDoc fields (confirmed: separate functions, no interference)
+- [x] Check if any other save/update operation clears the fields (no code path found — likely lost during migration/deployment)
+- [x] Added confirmation dialog (AlertDialog) before Remove button to prevent accidental deletion
+- [x] Added server-side audit logging ([RefDoc SAVE/DELETE/VERIFIED] console logs)
+- [x] Added save verification — re-reads DB after write, throws error if data didn't persist
+- [x] Added storage status indicator ("Stored in database with cloud backup")
+- [x] S3 self-heal fallback already existed in getReferenceDoc (backfills DB from S3 if DB empty)
+- [x] TypeScript: 0 errors, 485 tests passing

@@ -1,14 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Pencil, Trash2, Loader2, Upload, FileText, FileCheck,
-  AlertTriangle, Info,
+  AlertTriangle, Info, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 export default function CrossCheckTab({ projectId }: { projectId: number }) {
@@ -19,12 +30,24 @@ export default function CrossCheckTab({ projectId }: { projectId: number }) {
   const [isEditing, setIsEditing] = useState(false);
 
   const updateMut = trpc.crossCheck.updateReferenceDoc.useMutation({
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       utils.crossCheck.getReferenceDoc.invalidate();
       setIsEditing(false);
-      toast.success("Reference document updated");
+      if (variables.referenceDoc) {
+        toast.success("Reference document saved successfully", {
+          description: `${variables.referenceDoc.length.toLocaleString()} characters saved to database and backed up to cloud storage.`,
+          duration: 5000,
+        });
+      } else {
+        toast.success("Reference document removed");
+      }
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      toast.error("Failed to save reference document", {
+        description: err.message,
+        duration: 8000,
+      });
+    },
   });
 
   const startEditing = () => {
@@ -80,6 +103,8 @@ export default function CrossCheckTab({ projectId }: { projectId: number }) {
     );
   }
 
+  const hasDoc = !!(refDoc?.referenceDoc || refDoc?.hasMetadata);
+
   return (
     <div className="space-y-6">
       {/* Info Card */}
@@ -98,7 +123,7 @@ export default function CrossCheckTab({ projectId }: { projectId: number }) {
       </Card>
 
       {/* Current Reference Doc or Upload */}
-      {!isEditing && (refDoc?.referenceDoc || refDoc?.hasMetadata) ? (
+      {!isEditing && hasDoc ? (
         <Card>
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
@@ -122,17 +147,49 @@ export default function CrossCheckTab({ projectId }: { projectId: number }) {
                 <Button variant="outline" size="sm" onClick={startEditing} className="gap-1.5">
                   <Pencil className="w-3.5 h-3.5" /> Edit
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:text-destructive gap-1.5"
-                  onClick={handleRemove}
-                  disabled={updateMut.isPending}
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Remove
-                </Button>
+                {/* Confirmation dialog before removing */}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive gap-1.5"
+                      disabled={updateMut.isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Remove
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove Reference Document?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete your reference document
+                        {refDoc?.referenceDocName ? ` "${refDoc.referenceDocName}"` : ""} 
+                        ({(refDoc?.referenceDocLength ?? refDoc?.referenceDoc?.length ?? 0).toLocaleString()} characters).
+                        This action cannot be undone. Articles that were already cross-checked will keep their results, 
+                        but you won't be able to run new cross-checks until you upload a new document.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleRemove}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Yes, Remove Document
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
+
+            {/* Storage status indicator */}
+            <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+              <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+              <span>Stored in database with cloud backup</span>
+            </div>
+
             {refDoc?.s3FetchFailed && !refDoc?.referenceDoc ? (
               <div className="bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">

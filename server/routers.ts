@@ -1726,25 +1726,35 @@ Existing pages (${allUrls.length} total):\n${urlList}`
       }))
       .mutation(async ({ input }) => {
         if (input.referenceDoc) {
+          console.log(`[RefDoc SAVE] project=${input.projectId} name="${input.referenceDocName}" chars=${input.referenceDoc.length} at=${new Date().toISOString()}`);
           // Upload to S3 as backup (non-blocking — DB is source of truth)
           let s3Key: string | null = null;
           try {
             s3Key = `reference-docs/project-${input.projectId}-${Date.now()}.txt`;
             await storagePut(s3Key, input.referenceDoc, "text/plain");
+            console.log(`[RefDoc S3] Backup uploaded: ${s3Key}`);
           } catch (e) {
-            console.warn("S3 upload failed (non-critical, DB has content):", e);
-            s3Key = null; // Don't save a broken S3 key
+            console.warn("[RefDoc S3] Upload failed (non-critical, DB has content):", e);
+            s3Key = null;
           }
           // Save content to DB (primary) + S3 key (backup reference)
-          return updateProjectReferenceDocMeta(
+          const result = await updateProjectReferenceDocMeta(
             input.projectId,
             s3Key,
             input.referenceDocName,
             input.referenceDoc.length,
             input.referenceDoc
           );
+          // Verify the save persisted
+          const verify = await getProjectById(input.projectId);
+          if (!verify?.referenceDocContent) {
+            console.error(`[RefDoc VERIFY FAILED] project=${input.projectId} — DB write did not persist!`);
+            throw new Error("Reference document save failed — data did not persist to database. Please try again.");
+          }
+          console.log(`[RefDoc VERIFIED] project=${input.projectId} dbChars=${verify.referenceDocContent.length} s3Key=${verify.referenceDocS3Key ?? 'none'}`);
+          return result;
         } else {
-          // Clear reference doc from both DB and S3 metadata
+          console.log(`[RefDoc DELETE] project=${input.projectId} at=${new Date().toISOString()}`);
           return updateProjectReferenceDocMeta(input.projectId, null, null, null, null);
         }
       }),

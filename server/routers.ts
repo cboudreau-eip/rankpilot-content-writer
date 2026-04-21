@@ -1823,6 +1823,14 @@ Existing pages (${allUrls.length} total):\n${urlList}`
           return result;
         } else {
           console.log(`[RefDoc DELETE] project=${input.projectId} at=${new Date().toISOString()}`);
+          // Overwrite S3 deterministic key with empty content to prevent self-heal from restoring it
+          try {
+            const s3Key = getReferenceDocS3Key(input.projectId);
+            await storagePut(s3Key, "", "text/plain");
+            console.log(`[RefDoc S3] Cleared deterministic key: ${s3Key}`);
+          } catch (e) {
+            console.warn(`[RefDoc S3] Failed to clear deterministic key:`, e);
+          }
           return updateProjectReferenceDocMeta(input.projectId, null, null, null, null);
         }
       }),

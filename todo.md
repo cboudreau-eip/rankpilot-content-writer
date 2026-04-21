@@ -1120,3 +1120,8 @@
 - [x] Copied existing doc to deterministic key `reference-docs/project-1.txt` (3,496 chars verified)
 - [x] Updated 12 crosscheck-storage tests + 1 new helper test, 494 total tests passing
 - [x] TypeScript: 0 errors
+
+## Fix: Remove Button Not Clearing S3 Deterministic Key
+- [x] Updated updateReferenceDoc removal branch to overwrite S3 deterministic key with empty content
+- [x] Prevents self-heal from restoring a removed doc on next page load
+- [x] 494 tests passing, 0 TS errors

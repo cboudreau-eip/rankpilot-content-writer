@@ -1135,3 +1135,9 @@
 - [x] Load: DB first, S3 fallback only if DB is null and S3 key exists
 - [x] Delete: Just clear DB, old S3 files are harmless orphans
 - [x] 13 crosscheck-storage tests + 495 total tests passing, 0 TS errors
+
+## Bug: JSON Parse Error on LLM Responses
+- [x] Replaced ALL raw JSON.parse calls on LLM output with extractJSON helper (robust 4-step parser)
+- [x] Fixed: outline generation (2), keyword suggestions (2), scheduler outline, research findings (2), meta generation (2), cross-check, redundancy check, entity analysis (2), semantic analysis (2), grading (2), apply edits (3), auto-grade loop (2) — 22 total replacements
+- [x] Only JSON.parse remaining: inside extractJSON helper itself (4) + JSON-LD HTML parser (1, not LLM output)
+- [x] 495 tests passing, 0 TS errors

@@ -880,13 +880,8 @@ IMPORTANT RULES:
         const content = typeof rawContent === 'string' ? rawContent.trim() : '';
         if (!content) throw new Error("No research results generated");
 
-        let findings: any;
-        try {
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
-          findings = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
-        } catch {
-          throw new Error("Failed to parse research findings");
-        }
+        const findings = extractJSON(content);
+        if (!findings) throw new Error("Failed to parse research findings");
 
         const result: ResearchFindings = {
           topic: input.topic,
@@ -958,16 +953,13 @@ Rules:
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
         const text = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
-        try {
-          const parsed = JSON.parse(text);
-          return {
-            secondary: (parsed.secondary || []).slice(0, 8) as string[],
-            lsi: (parsed.lsi || []).slice(0, 8) as string[],
-            longTail: (parsed.longTail || []).slice(0, 5) as string[],
-          };
-        } catch {
-          throw new Error("Failed to parse keyword suggestions");
-        }
+        const parsed = extractJSON(text);
+        if (!parsed) throw new Error("Failed to parse keyword suggestions");
+        return {
+          secondary: (parsed.secondary || []).slice(0, 8) as string[],
+          lsi: (parsed.lsi || []).slice(0, 8) as string[],
+          longTail: (parsed.longTail || []).slice(0, 5) as string[],
+        };
       }),
 
     /** AI-powered outline generation */
@@ -1237,7 +1229,8 @@ Return ONLY valid JSON, no markdown code blocks.`;
         if (!rawOutlineContent) throw new Error("No response from AI");
         const content = typeof rawOutlineContent === "string" ? rawOutlineContent : (rawOutlineContent as any)[0]?.text ?? "";
 
-        const parsed = JSON.parse(content);
+        const parsed = extractJSON(content);
+        if (!parsed) throw new Error("Failed to parse outline from AI response");
 
         // Save the outline to the database
         const outline = await createOutline({
@@ -1885,10 +1878,8 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         const contentStr = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
 
         // Parse JSON from response
-        const jsonMatch = contentStr.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse cross-check response");
-
-        const results = JSON.parse(jsonMatch[0]);
+        const results = extractJSON(contentStr);
+        if (!results) throw new Error("Failed to parse cross-check response");
 
         return {
           results,
@@ -1986,10 +1977,8 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         if (!rawContent) throw new Error("No response from AI");
         const contentStr = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
 
-        const jsonMatch = contentStr.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse redundancy check response");
-
-        const results = JSON.parse(jsonMatch[0]);
+        const results = extractJSON(contentStr);
+        if (!results) throw new Error("Failed to parse redundancy check response");
 
         return { results };
       }),
@@ -2903,11 +2892,11 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         let metaTitle = outline.title;
         let metaDescription = "";
         if (metaContent) {
-          try {
-            const meta = JSON.parse(metaContent);
+          const meta = extractJSON(metaContent);
+          if (meta) {
             metaTitle = meta.metaTitle || outline.title;
             metaDescription = meta.metaDescription || "";
-          } catch {}
+          }
         }
 
         // Generate slug
@@ -3444,9 +3433,9 @@ Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
         }, input.projectId);
 
         const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse entity analysis response");
-        return JSON.parse(jsonMatch[0]) as EntityAnalysisResult;
+        const entityResult = extractJSON(llmResponse);
+        if (!entityResult) throw new Error("Failed to parse entity analysis response");
+        return entityResult as EntityAnalysisResult;
       }),
 
     /** Analyze an existing article by ID */
@@ -3478,9 +3467,9 @@ Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
         }, article.projectId);
 
         const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse entity analysis response");
-        return JSON.parse(jsonMatch[0]) as EntityAnalysisResult;
+        const entityResult = extractJSON(llmResponse);
+        if (!entityResult) throw new Error("Failed to parse entity analysis response");
+        return entityResult as EntityAnalysisResult;
       }),
 
     /** Semantic analysis — 4-layer framework */
@@ -3502,9 +3491,9 @@ Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
         }, input.projectId);
 
         const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse semantic analysis response");
-        return JSON.parse(jsonMatch[0]) as SemanticAnalysisResult;
+        const semanticResult = extractJSON(llmResponse);
+        if (!semanticResult) throw new Error("Failed to parse semantic analysis response");
+        return semanticResult as SemanticAnalysisResult;
       }),
 
     /** Semantic analysis for an existing article by ID */
@@ -3535,9 +3524,9 @@ Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
         }, article.projectId);
 
         const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse semantic analysis response");
-        return JSON.parse(jsonMatch[0]) as SemanticAnalysisResult;
+        const semanticResult = extractJSON(llmResponse);
+        if (!semanticResult) throw new Error("Failed to parse semantic analysis response");
+        return semanticResult as SemanticAnalysisResult;
       }),
 
     /** Apply selected entity/salience fixes to an article — surgical editing */
@@ -3622,9 +3611,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         const rawResponse = (llmResponse.choices?.[0]?.message?.content || "") as string;
         let edits: Array<{ fix: string; original: string; replacement: string }> = [];
         try {
-          const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-          if (jsonMatch) {
-            edits = JSON.parse(jsonMatch[0]);
+          const parsedEdits = extractJSON(rawResponse);
+          if (parsedEdits && Array.isArray(parsedEdits)) {
+            edits = parsedEdits;
           } else {
             throw new Error("No JSON array found");
           }
@@ -4013,7 +4002,8 @@ Return ONLY valid JSON, no markdown code blocks.`;
         const rawContent = response.choices[0]?.message?.content;
         if (!rawContent) throw new Error("No response from AI");
         const content = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
-        const parsed = JSON.parse(content);
+        const parsed = extractJSON(content);
+        if (!parsed) throw new Error("Failed to parse outline from AI response");
 
         // Save the outline to the database
         const outline = await createOutline({
@@ -4252,9 +4242,9 @@ Respond in this exact JSON format:
         });
 
         const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse grading response");
-        return JSON.parse(jsonMatch[0]);
+        const gradeResult = extractJSON(llmResponse);
+        if (!gradeResult) throw new Error("Failed to parse grading response");
+        return gradeResult;
       }),
 
     /** Per-article grader — 6+2 categories with Brand Voice + ICP conditional scoring */
@@ -4483,9 +4473,8 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
         }, article.projectId);
 
         const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-        const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Failed to parse grading response");
-        const raw = JSON.parse(jsonMatch[0]);
+        const raw = extractJSON(llmResponse);
+        if (!raw) throw new Error("Failed to parse grading response");
 
         // Normalize: the LLM returns categories as top-level keys. Restructure into { categories, totalScore, ... }
         const categoryKeys = ["eeatTrust", "accuracy", "aioReadiness", "readabilityUx", "seoEntityCoverage", "riskHygiene", "brandVoiceAlignment", "icpAlignment"];
@@ -4618,9 +4607,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         const rawResponse = (llmResponse.choices?.[0]?.message?.content || "") as string;
         let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
         try {
-          const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-          if (jsonMatch) {
-            edits = JSON.parse(jsonMatch[0]);
+          const parsedEdits = extractJSON(rawResponse);
+          if (parsedEdits && Array.isArray(parsedEdits)) {
+            edits = parsedEdits;
           } else {
             throw new Error("No JSON array found");
           }
@@ -4729,9 +4718,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
 
         let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
         try {
-          const jsonMatch = rawResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-          if (jsonMatch) {
-            edits = JSON.parse(jsonMatch[0]);
+          const parsedEdits = extractJSON(rawResponse);
+          if (parsedEdits && Array.isArray(parsedEdits)) {
+            edits = parsedEdits;
           } else {
             throw new Error("No JSON array found");
           }
@@ -5226,7 +5215,8 @@ Rules:
   if (!rawContent) return { related: [], lsi: [], longTail: [] };
   const text = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
   try {
-    const parsed = JSON.parse(text);
+    const parsed = extractJSON(text);
+    if (!parsed) return { related: [], lsi: [], longTail: [] };
     const secondary: string[] = (parsed.secondary || []).slice(0, 8);
     const lsi: string[] = (parsed.lsi || []).slice(0, 8);
     const longTail: string[] = (parsed.longTail || []).slice(0, 5);
@@ -5304,8 +5294,7 @@ IMPORTANT: The current year is ${currentYear}. Prefer ${currentYear} data.`;
   const content = typeof rawContent === "string" ? rawContent.trim() : "";
   if (!content) return null;
   try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    return extractJSON(content);
   } catch {
     return null;
   }
@@ -5624,10 +5613,8 @@ Return a JSON object with this structure:
   const rawOutlineContent = outlineResult.choices[0]?.message?.content;
   const outlineText = typeof rawOutlineContent === "string" ? rawOutlineContent : (rawOutlineContent as any)?.[0]?.text ?? "";
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(outlineText);
-  } catch {
+  const parsed = extractJSON(outlineText);
+  if (!parsed) {
     throw new Error("Failed to parse outline from LLM response");
   }
 
@@ -6079,11 +6066,11 @@ Return ONLY the ${outputFormat === "plaintext" ? "plain text" : "HTML"} content 
   let metaTitle = outline.title;
   let metaDescription = "";
   if (metaContent) {
-    try {
-      const meta = JSON.parse(metaContent);
+    const meta = extractJSON(metaContent);
+    if (meta) {
       metaTitle = meta.metaTitle || outline.title;
       metaDescription = meta.metaDescription || "";
-    } catch {}
+    }
   }
 
   // Generate slug
@@ -6222,8 +6209,8 @@ async function runAutoGradeLoop({
     const gradeJsonMatch = gradeRaw.match(/\{[\s\S]*\}/);
     if (!gradeJsonMatch) break;
 
-    let gradeData: any;
-    try { gradeData = JSON.parse(gradeJsonMatch[0]); } catch { break; }
+    let gradeData: any = extractJSON(gradeJsonMatch[0]);
+    if (!gradeData) break;
 
     finalGrade = gradeData.gradeBand || "?";
     iterationsRun++;
@@ -6266,7 +6253,9 @@ async function runAutoGradeLoop({
     if (!applyJsonMatch) continue;
 
     let edits: Array<{ improvement: string; original: string; replacement: string }> = [];
-    try { edits = JSON.parse(applyJsonMatch[0]); } catch { continue; }
+    const parsedAutoEdits = extractJSON(applyJsonMatch[0]);
+    if (!parsedAutoEdits || !Array.isArray(parsedAutoEdits)) continue;
+    edits = parsedAutoEdits;
 
     let improvedContent = article.content || "";
     let appliedCount = 0;

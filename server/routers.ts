@@ -45,6 +45,38 @@ import type { EntityAnalysisResult, SemanticAnalysisResult } from "../shared/ent
 import type { ResearchFindings } from "../shared/research-types";
 import { parseGscExcel, computeNearJump } from "./gsc-parser";
 
+/**
+ * Get the deterministic S3 key for a project's reference doc.
+ * This key can be reconstructed from just the project ID — no DB lookup needed.
+ * Even if the DB is completely wiped by a deployment, S3 content survives.
+ */
+export function getReferenceDocS3Key(projectId: number): string {
+  return `reference-docs/project-${projectId}.txt`;
+}
+
+/**
+ * Fetch a project's reference document from S3 using the deterministic key.
+ * Returns the content string, or null if not found / fetch failed.
+ * This is the PRIMARY source of truth — DB content is treated as a cache.
+ */
+export async function fetchReferenceDocFromS3(projectId: number): Promise<string | null> {
+  try {
+    const key = getReferenceDocS3Key(projectId);
+    const { url } = await storageGet(key);
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      console.warn(`[RefDoc S3] Fetch returned ${resp.status} for deterministic key: ${key}`);
+      return null;
+    }
+    const content = await resp.text();
+    if (!content || content.trim().length === 0) return null;
+    return content;
+  } catch (e) {
+    console.warn(`[RefDoc S3] Failed to fetch from deterministic key for project ${projectId}:`, e);
+    return null;
+  }
+}
+
 /** Build a research section string to inject into the outline prompt */
 function buildResearchSection(research: any): string {
   const currentYear = new Date().getFullYear();
@@ -1689,38 +1721,58 @@ Existing pages (${allUrls.length} total):\n${urlList}`
 
         let referenceDoc: string | null = null;
         let s3FetchFailed = false;
-        const hasMetadata = !!(project.referenceDocName && (project.referenceDocS3Key || project.referenceDocContent));
 
-        // Primary source: database column (always available, survives deployments)
-        if (project.referenceDocContent) {
+        // PRIMARY source: S3 with deterministic key (survives DB wipes from deployments)
+        referenceDoc = await fetchReferenceDocFromS3(input.projectId);
+
+        if (referenceDoc) {
+          // Self-heal: if DB is missing content (e.g., after deployment wipe), backfill it
+          if (!project.referenceDocContent || !project.referenceDocName) {
+            try {
+              await updateProjectReferenceDocMeta(
+                input.projectId,
+                getReferenceDocS3Key(input.projectId),
+                project.referenceDocName || "Reference Document",
+                referenceDoc.length,
+                referenceDoc
+              );
+              console.log(`[RefDoc SELF-HEAL] Backfilled DB from S3 for project ${input.projectId}`);
+            } catch { /* non-critical */ }
+          }
+        }
+        // Fallback: DB content (in case S3 is temporarily unavailable)
+        else if (project.referenceDocContent) {
           referenceDoc = project.referenceDocContent;
         }
-        // Fallback: S3 (for backward compatibility / if DB column was somehow empty)
+        // Legacy fallback: old timestamped S3 key stored in DB
         else if (project.referenceDocS3Key) {
           try {
             const { url } = await storageGet(project.referenceDocS3Key);
             const resp = await fetch(url);
             if (resp.ok) {
               referenceDoc = await resp.text();
-              // Self-heal: backfill DB column from S3 so future reads are instant
+              // Migrate to deterministic key
               try {
+                const newKey = getReferenceDocS3Key(input.projectId);
+                await storagePut(newKey, referenceDoc, "text/plain");
                 await updateProjectReferenceDocMeta(
                   input.projectId,
-                  project.referenceDocS3Key,
+                  newKey,
                   project.referenceDocName,
                   referenceDoc.length,
                   referenceDoc
                 );
+                console.log(`[RefDoc MIGRATE] Copied legacy key to deterministic key: ${newKey}`);
               } catch { /* non-critical */ }
             } else {
-              console.warn(`S3 fetch returned ${resp.status} for key: ${project.referenceDocS3Key}`);
               s3FetchFailed = true;
             }
-          } catch (e) {
-            console.warn("Failed to fetch reference doc from S3:", e);
+          } catch {
             s3FetchFailed = true;
           }
         }
+
+        const hasMetadata = referenceDoc !== null || !!(project.referenceDocName && (project.referenceDocS3Key || project.referenceDocContent));
 
         return {
           referenceDoc,
@@ -1732,7 +1784,7 @@ Existing pages (${allUrls.length} total):\n${urlList}`
         };
       }),
 
-    /** Update the reference document for a project (dual-storage: DB + S3) */
+    /** Update the reference document for a project (S3-primary, DB as cache) */
     updateReferenceDoc: publicProcedure
       .input(z.object({
         projectId: z.number(),
@@ -1742,17 +1794,16 @@ Existing pages (${allUrls.length} total):\n${urlList}`
       .mutation(async ({ input }) => {
         if (input.referenceDoc) {
           console.log(`[RefDoc SAVE] project=${input.projectId} name="${input.referenceDocName}" chars=${input.referenceDoc.length} at=${new Date().toISOString()}`);
-          // Upload to S3 as backup (non-blocking — DB is source of truth)
-          let s3Key: string | null = null;
+          // Upload to S3 as PRIMARY storage using deterministic key (survives DB wipes)
+          const s3Key = getReferenceDocS3Key(input.projectId);
           try {
-            s3Key = `reference-docs/project-${input.projectId}-${Date.now()}.txt`;
             await storagePut(s3Key, input.referenceDoc, "text/plain");
-            console.log(`[RefDoc S3] Backup uploaded: ${s3Key}`);
+            console.log(`[RefDoc S3] Primary upload to deterministic key: ${s3Key}`);
           } catch (e) {
-            console.warn("[RefDoc S3] Upload failed (non-critical, DB has content):", e);
-            s3Key = null;
+            console.error(`[RefDoc S3] CRITICAL: Upload failed for ${s3Key}:`, e);
+            // Still save to DB as fallback, but warn
           }
-          // Save content to DB (primary) + S3 key (backup reference)
+          // Save metadata + content to DB (cache — S3 is source of truth)
           const result = await updateProjectReferenceDocMeta(
             input.projectId,
             s3Key,
@@ -1760,13 +1811,15 @@ Existing pages (${allUrls.length} total):\n${urlList}`
             input.referenceDoc.length,
             input.referenceDoc
           );
-          // Verify the save persisted
-          const verify = await getProjectById(input.projectId);
-          if (!verify?.referenceDocContent) {
-            console.error(`[RefDoc VERIFY FAILED] project=${input.projectId} — DB write did not persist!`);
-            throw new Error("Reference document save failed — data did not persist to database. Please try again.");
-          }
-          console.log(`[RefDoc VERIFIED] project=${input.projectId} dbChars=${verify.referenceDocContent.length} s3Key=${verify.referenceDocS3Key ?? 'none'}`);
+          // Verify S3 has the content (more important than DB verification)
+          try {
+            const verifyContent = await fetchReferenceDocFromS3(input.projectId);
+            if (verifyContent && verifyContent.length > 0) {
+              console.log(`[RefDoc VERIFIED] project=${input.projectId} s3Chars=${verifyContent.length} s3Key=${s3Key}`);
+            } else {
+              console.warn(`[RefDoc VERIFY WARN] project=${input.projectId} — S3 content empty after upload`);
+            }
+          } catch { /* non-critical */ }
           return result;
         } else {
           console.log(`[RefDoc DELETE] project=${input.projectId} at=${new Date().toISOString()}`);
@@ -1784,23 +1837,13 @@ Existing pages (${allUrls.length} total):\n${urlList}`
         const project = await getProjectById(article.projectId);
         if (!project) throw new Error("Project not found");
 
-        if (!project.referenceDocContent && !project.referenceDocS3Key) {
-          throw new Error("No reference document found for this project. Add one in Project Settings > Cross Check tab.");
-        }
-
-        // Read reference doc: DB first (primary), S3 fallback
-        let referenceDoc: string;
-        if (project.referenceDocContent) {
+        // Read reference doc: S3 deterministic key (primary), DB (fallback)
+        let referenceDoc: string | null = await fetchReferenceDocFromS3(article.projectId);
+        if (!referenceDoc && project.referenceDocContent) {
           referenceDoc = project.referenceDocContent;
-        } else {
-          try {
-            const { url } = await storageGet(project.referenceDocS3Key!);
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error(`S3 fetch failed: ${resp.status}`);
-            referenceDoc = await resp.text();
-          } catch (e) {
-            throw new Error("Failed to retrieve reference document. Please re-upload it in Project Settings > Cross Check tab.");
-          }
+        }
+        if (!referenceDoc) {
+          throw new Error("No reference document found for this project. Add one in Project Settings > Cross Check tab.");
         }
         const referenceDocName = project.referenceDocName || "Reference Document";
 
@@ -2679,20 +2722,11 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         // Build reference document section if enabled
         let referenceDocSection = "";
         if (input.useReferenceDoc && project) {
-          let refDocContent: string | null = null;
-          // Primary source: database column
-          if (project.referenceDocContent) {
+          // Primary source: S3 deterministic key (survives DB wipes)
+          let refDocContent: string | null = await fetchReferenceDocFromS3(project.id);
+          // Fallback: DB content
+          if (!refDocContent && project.referenceDocContent) {
             refDocContent = project.referenceDocContent;
-          }
-          // Fallback: S3
-          else if (project.referenceDocS3Key) {
-            try {
-              const { url } = await storageGet(project.referenceDocS3Key);
-              const resp = await fetch(url);
-              if (resp.ok) refDocContent = await resp.text();
-            } catch (e) {
-              console.warn("[ArticleGen] Failed to fetch reference doc from S3:", e);
-            }
           }
 
           if (refDocContent && project.referenceDocName) {
@@ -5900,17 +5934,11 @@ CRITICAL: Do NOT reuse any specific phrases, sentences, statistics, or openings 
   // Build reference document section (always enabled for scheduler if project has one)
   let referenceDocSection = "";
   if (project) {
-    let refDocContent: string | null = null;
-    if (project.referenceDocContent) {
+    // Primary source: S3 deterministic key (survives DB wipes)
+    let refDocContent: string | null = await fetchReferenceDocFromS3(project.id);
+    // Fallback: DB content
+    if (!refDocContent && project.referenceDocContent) {
       refDocContent = project.referenceDocContent;
-    } else if (project.referenceDocS3Key) {
-      try {
-        const { url } = await storageGet(project.referenceDocS3Key);
-        const resp = await fetch(url);
-        if (resp.ok) refDocContent = await resp.text();
-      } catch (e) {
-        logFn?.("reference-doc", `Failed to fetch reference doc from S3: ${e}`, "warn");
-      }
     }
     if (refDocContent && project.referenceDocName) {
       const maxChars = 80000;

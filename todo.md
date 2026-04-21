@@ -1106,3 +1106,17 @@
 - [x] Added stripTargetBlank() post-processing function that removes target="_blank" and rel="noopener noreferrer"
 - [x] Applied to 4 backend locations: article generation, section regeneration, scheduler, auto-grade apply
 - [x] 8 unit tests for stripTargetBlank, 493 total tests passing
+
+## S3-Primary Reference Doc Storage (Deployment-Proof)
+- [x] Created deterministic S3 key helper: `getReferenceDocS3Key(projectId)` → `reference-docs/project-{id}.txt`
+- [x] Created `fetchReferenceDocFromS3(projectId)` helper that fetches from deterministic key
+- [x] Updated updateReferenceDoc: uploads to deterministic S3 key (overwrites), DB is cache
+- [x] Updated getReferenceDoc: S3 deterministic key is primary, DB fallback, legacy key migration
+- [x] Updated checkArticle: S3 deterministic key first, DB fallback
+- [x] Updated articles.generate: S3 deterministic key first, DB fallback
+- [x] Updated generateArticleForScheduler: S3 deterministic key first, DB fallback
+- [x] Self-heal: backfills DB from S3 when DB is wiped (post-deployment recovery)
+- [x] Legacy migration: auto-copies old timestamped keys to deterministic key
+- [x] Copied existing doc to deterministic key `reference-docs/project-1.txt` (3,496 chars verified)
+- [x] Updated 12 crosscheck-storage tests + 1 new helper test, 494 total tests passing
+- [x] TypeScript: 0 errors

@@ -929,7 +929,7 @@ export default function ArticleEditor() {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save

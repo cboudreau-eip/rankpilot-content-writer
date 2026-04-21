@@ -151,9 +151,8 @@ export default function CrossCheckTab({ projectId }: { projectId: number }) {
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
-                      variant="outline"
                       size="sm"
-                      className="text-destructive hover:text-destructive gap-1.5"
+                      className="bg-red-600 text-white hover:bg-red-700 gap-1.5"
                       disabled={updateMut.isPending}
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Remove

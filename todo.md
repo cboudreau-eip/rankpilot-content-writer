@@ -1068,3 +1068,10 @@
 - [x] Import standalone CrossCheckTab in ProjectSettings.tsx with single line
 - [x] Added dark mode support to CrossCheckTab (violet info card, amber warning, icon backgrounds)
 - [x] TypeScript: 0 errors, 472 tests passing, no regressions
+
+## Fix: Unwanted <strong> Tags in Article Output
+- [x] Trace all backend procedures that modify article HTML (applyImprovements, crossCheck, redundancy, etc.)
+- [x] Find the source of <strong> tag injection — LLM wrapping changed text in bold during replacement
+- [x] Fix LLM prompts to explicitly prohibit adding <strong> tags (4 prompts updated: applyImprovements, applyContentImprovements, applyEntityFixes, crossCheck, redundancy)
+- [x] Add post-processing safety net stripWrappingStrongTags() — applied in 5 backend locations + 2 frontend handlers
+- [x] 13 unit tests for stripWrappingStrongTags, 485 total tests passing

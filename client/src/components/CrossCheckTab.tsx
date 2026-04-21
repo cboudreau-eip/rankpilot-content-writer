@@ -110,6 +110,11 @@ export default function CrossCheckTab({ projectId }: { projectId: number }) {
                   <h3 className="text-lg font-semibold">{refDoc?.referenceDocName || "Reference Document"}</h3>
                   <p className="text-sm text-muted-foreground">
                     {(refDoc?.referenceDocLength ?? refDoc?.referenceDoc?.length ?? 0).toLocaleString()} characters
+                    {refDoc?.referenceDocUpdatedAt && (
+                      <span className="ml-2 text-muted-foreground/60">
+                        &middot; Last updated {new Date(refDoc.referenceDocUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

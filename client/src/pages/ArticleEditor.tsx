@@ -46,6 +46,24 @@ import {
 import { useActiveProject } from "@/components/AppLayout";
 
 /**
+ * Strips unwanted <strong>/<b> wrapping that LLMs sometimes add to "highlight" edits.
+ * Only strips tags that wrap an ENTIRE block element's content.
+ * Preserves legitimate inline bold (e.g., "The cost is <strong>$202.90</strong> per month").
+ */
+function stripWrappingStrongTags(content: string): string {
+  let result = content;
+  result = result.replace(
+    /(<(?:p|h[1-6]|li|td|th|div|blockquote)(?:\s[^>]*)?>)\s*<(?:strong|b)>((?:(?!<\/(?:strong|b)>).)*)<\/(?:strong|b)>\s*(<\/(?:p|h[1-6]|li|td|th|div|blockquote)>)/gi,
+    '$1$2$3'
+  );
+  result = result.replace(
+    /^<(?:strong|b)>((?:(?!<(?:strong|b)[\s>]).)*)<\/(?:strong|b)>$/gm,
+    '$1'
+  );
+  return result;
+}
+
+/**
  * Robust find-and-replace in HTML content.
  * Strips HTML tags to build plain text, finds the search phrase (with normalized
  * whitespace fallback), then surgically replaces the matched text in the original
@@ -1153,6 +1171,8 @@ export default function ArticleEditor() {
                 toast.info("Could not find the text to replace \u2014 it may have been edited since the cross-check");
                 return;
               }
+              // Safety net: strip unwanted <strong>/<b> wrapping from LLM corrections
+              html = stripWrappingStrongTags(html);
               const highlightedHtml = buildHighlightedHtml(oldHtml, html);
               editor.commands.setContent(highlightedHtml);
               setHasHighlights(true);
@@ -1197,6 +1217,8 @@ export default function ArticleEditor() {
                 toast.info("Could not find the text to replace \u2014 it may have been edited since the check");
                 return;
               }
+              // Safety net: strip unwanted <strong>/<b> wrapping from LLM fixes
+              html = stripWrappingStrongTags(html);
               const highlightedHtml = buildHighlightedHtml(oldHtml, html);
               editor.commands.setContent(highlightedHtml);
               setHasHighlights(true);

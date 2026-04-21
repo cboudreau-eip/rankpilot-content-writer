@@ -250,6 +250,38 @@ function stripShortAnswerPrefix(content: string): string {
 }
 
 /**
+ * Strips unwanted <strong>/<b> wrapping that LLMs sometimes add to "highlight" their edits.
+ * Only strips <strong>/<b> tags that wrap an ENTIRE block-level element's content
+ * (e.g., <p><strong>entire paragraph</strong></p> or <h3><strong>heading</strong></h3>).
+ * Preserves legitimate inline bold usage (e.g., "The cost is <strong>$202.90</strong> per month").
+ */
+function stripWrappingStrongTags(content: string): string {
+  // Pattern: <strong> or <b> that wraps the entire content of a block element
+  // Match: <p><strong>...entire content...</strong></p>
+  // Match: <h2><strong>...entire content...</strong></h2>
+  // Match: <li><strong>...entire content...</strong></li>
+  // Don't match: <p>Some text <strong>bold word</strong> more text</p>
+  let result = content;
+  
+  // Strip <strong>/<b> that wraps entire content inside block tags
+  // This regex matches when <strong> is immediately after an opening block tag
+  // and </strong> is immediately before the closing block tag
+  result = result.replace(
+    /(<(?:p|h[1-6]|li|td|th|div|blockquote)(?:\s[^>]*)?>)\s*<(?:strong|b)>((?:(?!<\/(?:strong|b)>).)*)<\/(?:strong|b)>\s*(<\/(?:p|h[1-6]|li|td|th|div|blockquote)>)/gi,
+    '$1$2$3'
+  );
+  
+  // Also handle standalone lines that are entirely wrapped: <strong>Full sentence here.</strong>
+  // (when not inside any block tag — the LLM sometimes returns bare wrapped text)
+  result = result.replace(
+    /^<(?:strong|b)>((?:(?!<(?:strong|b)[\s>]).)*)<\/(?:strong|b)>$/gm,
+    '$1'
+  );
+  
+  return result;
+}
+
+/**
  * Pre-processes LLM HTML output to fix common malformations before further processing:
  * 1. Removes spaces inside URLs in href attributes (e.g. "https://www. example.com" → "https://www.example.com")
  * 2. Rejoins <a href> tags that were split across newlines by the LLM
@@ -1679,6 +1711,7 @@ Existing pages (${allUrls.length} total):\n${urlList}`
           referenceDoc,
           referenceDocName: project.referenceDocName,
           referenceDocLength: project.referenceDocLength,
+          referenceDocUpdatedAt: hasMetadata ? project.updatedAt : null,
           s3FetchFailed,
           hasMetadata,
         };
@@ -1764,6 +1797,7 @@ CRITICAL TEXT QUOTING RULES:
 - "correction" MUST be the EXACT replacement text that should replace "articleText" word-for-word. It must be ready to directly substitute into the article.
 - "correction" must NOT be a description of what to change (e.g., "Change X to Y"). It must be the actual corrected text itself.
 - The "correction" should be the same length and structure as "articleText" — only the inaccurate parts should differ.
+- NEVER add <strong>, <b>, <em>, or <i> tags to correction text. Do NOT bold or emphasize changed text — the correction must use plain text matching the original formatting.
 
 Respond in this exact JSON format:
 {
@@ -1867,6 +1901,7 @@ CRITICAL TEXT QUOTING RULES:
 - Copy the COMPLETE sentence or phrase — never abbreviate with "..." or "[...]".
 - "suggestedFix" MUST be the EXACT replacement text ready to directly substitute into the article.
 - "suggestedFix" must NOT be a description of what to change. It must be the actual corrected text itself.
+- NEVER add <strong>, <b>, <em>, or <i> tags to suggestedFix text. Do NOT bold or emphasize changed text — the fix must use plain text matching the original formatting.
 
 Respond in this exact JSON format:
 {
@@ -3471,6 +3506,7 @@ Rules:
 - The "original" field must be an EXACT substring of the article content (character-for-character match)
 - If a fix requires adding NEW content (e.g., a new definition paragraph), set "original" to the sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the fix. Only change what is necessary to address the specific entity/salience issue.
+- NEVER add <strong>, <b>, <em>, or <i> tags to replacement text unless the original text already had them. Do NOT bold or emphasize changed text — the replacement must use the exact same formatting as the original.
 - Maintain the original HTML formatting, tone, and style
 - Keep all existing links, formatting tags, and structure intact
 
@@ -3531,6 +3567,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         if (appliedCount === 0) {
           throw new Error("Could not match any sections in the article. Please try again.");
         }
+
+        // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
+        improvedContent = stripWrappingStrongTags(improvedContent);
 
         const wordCount = improvedContent.split(/\s+/).filter((w: string) => w.length > 0).length;
 
@@ -4463,7 +4502,8 @@ Rules:
 - When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", or the source name). Link to a specific deep page URL, NOT the homepage.
 - ANCHOR TEXT LENGTH: All link anchor text must be 2-7 words. NEVER wrap an entire sentence as a link. Link only the key phrase or concept.
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
-- Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
+- NEVER add <strong>, <b>, <em>, or <i> tags to replacement text unless the original text already had them. Do NOT bold or emphasize changed text — the replacement must use the exact same formatting as the original.
+- Output ONLY the same HTML structure as the original. NEVER introduce new HTML wrapper tags.
 - Maintain the original tone, perspective, and formatting style
 
 Respond with ONLY a JSON array:
@@ -4527,6 +4567,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
           throw new Error("Could not match any sections in the article. Please try again.");
         }
 
+        // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
+        improvedContent = stripWrappingStrongTags(improvedContent);
+
         const wordCount = improvedContent.split(/\s+/).filter((w: string) => w.length > 0).length;
 
         await db.update(articles).set({
@@ -4569,7 +4612,8 @@ Rules:
 - When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", "Find out more", or just the source name). Link to a specific deep page URL, NOT a homepage.
 - ANCHOR TEXT LENGTH: All link anchor text must be 2-7 words. NEVER wrap an entire sentence as a link. Link only the key phrase or concept.
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
-- Output ONLY pure markdown in replacement text. NEVER output HTML tags except for citation links (<a> tags).
+- NEVER add <strong>, <b>, <em>, or <i> tags to replacement text unless the original text already had them. Do NOT bold or emphasize changed text — the replacement must use the exact same formatting as the original.
+- Output ONLY the same HTML structure as the original. NEVER introduce new HTML wrapper tags.
 - Maintain the original tone, perspective, and formatting style
 
 Respond with ONLY a JSON array:
@@ -4626,6 +4670,9 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         if (appliedCount === 0) {
           throw new Error("Could not match any sections in the content. Please try again.");
         }
+
+        // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
+        improvedContent = stripWrappingStrongTags(improvedContent);
 
         return {
           success: true,
@@ -6128,6 +6175,8 @@ async function runAutoGradeLoop({
     }
 
     if (appliedCount > 0) {
+      // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
+      improvedContent = stripWrappingStrongTags(improvedContent);
       const newWordCount = improvedContent.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
       await db.update(articles).set({ content: improvedContent, wordCount: newWordCount }).where(eq(articles.id, articleId));
       console.log(`[AutoGrade] Applied ${appliedCount} edits in iteration ${i + 1}.`);

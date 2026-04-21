@@ -282,6 +282,21 @@ function stripWrappingStrongTags(content: string): string {
 }
 
 /**
+ * Removes target="_blank" and rel="noopener noreferrer" from all <a> tags
+ * so that links open in the same tab.
+ */
+function stripTargetBlank(content: string): string {
+  // Remove target="_blank" (with or without surrounding whitespace)
+  let result = content.replace(/\s*target="_blank"/gi, '');
+  // Remove target='_blank' (single quotes)
+  result = result.replace(/\s*target='_blank'/gi, '');
+  // Remove rel="noopener noreferrer" that was added alongside target="_blank"
+  result = result.replace(/\s*rel="noopener noreferrer"/gi, '');
+  result = result.replace(/\s*rel='noopener noreferrer'/gi, '');
+  return result;
+}
+
+/**
  * Pre-processes LLM HTML output to fix common malformations before further processing:
  * 1. Removes spaces inside URLs in href attributes (e.g. "https://www. example.com" → "https://www.example.com")
  * 2. Rejoins <a href> tags that were split across newlines by the LLM
@@ -2285,6 +2300,7 @@ RULES:
 
         // Post-processing: strip em dashes from regenerated section content
         newSectionContent = stripEmDashes(newSectionContent);
+        newSectionContent = stripTargetBlank(newSectionContent);
 
         // --- Splice the new section into the full article ---
         const updatedContent = content.slice(0, sectionStart) + newSectionContent + "\n" + content.slice(sectionEnd);
@@ -2841,6 +2857,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         // Post-processing: strip em dashes and "Short Answer:" prefix from generated content
         articleContent = stripEmDashes(articleContent);
         articleContent = stripShortAnswerPrefix(articleContent);
+        articleContent = stripTargetBlank(articleContent);
 
         // Count words (exclude image tags from word count)
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
@@ -6021,6 +6038,7 @@ Return ONLY the ${outputFormat === "plaintext" ? "plain text" : "HTML"} content 
   // Post-processing: strip em dashes and "Short Answer:" prefix from generated content
   content = stripEmDashes(content);
   content = stripShortAnswerPrefix(content);
+  content = stripTargetBlank(content);
 
   // Count words
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -6263,6 +6281,8 @@ async function runAutoGradeLoop({
     if (appliedCount > 0) {
       // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
       improvedContent = stripWrappingStrongTags(improvedContent);
+      improvedContent = stripTargetBlank(improvedContent);
+
       const newWordCount = improvedContent.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
       await db.update(articles).set({ content: improvedContent, wordCount: newWordCount }).where(eq(articles.id, articleId));
       console.log(`[AutoGrade] Applied ${appliedCount} edits in iteration ${i + 1}.`);

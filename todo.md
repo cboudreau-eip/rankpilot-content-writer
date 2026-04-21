@@ -1100,3 +1100,9 @@
 - [x] Add distinct colors per source type: Government=blue, Research=purple, Industry=slate, News=amber, Academic=indigo, Medical=emerald, Legal=red, Technical=cyan, Other=gray
 - [x] Applied to both the citation card display and the category selection badges in the create/edit dialog
 - [x] Selected category gets ring highlight + font-semibold; unselected are slightly transparent
+
+## Fix: Citation Links Opening in New Tab
+- [x] Find all backend locations where citation links are generated with target="_blank" (LLM was adding it autonomously)
+- [x] Added stripTargetBlank() post-processing function that removes target="_blank" and rel="noopener noreferrer"
+- [x] Applied to 4 backend locations: article generation, section regeneration, scheduler, auto-grade apply
+- [x] 8 unit tests for stripTargetBlank, 493 total tests passing

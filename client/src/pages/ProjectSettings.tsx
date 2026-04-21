@@ -23,6 +23,25 @@ import CrossCheckTab from "@/components/CrossCheckTab";
 
 type Tab = "icp" | "voice" | "cta" | "sitemaps" | "citations" | "crosscheck" | "llm";
 
+// ---- Category Color Coding ----
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  government: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+  research: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" },
+  industry: { bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200" },
+  news: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+  academic: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200" },
+  medical: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+  legal: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+  technical: { bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200" },
+  other: { bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200" },
+};
+
+function getCategoryClasses(cat: string, isSelected?: boolean) {
+  const c = CATEGORY_COLORS[cat.toLowerCase()] ?? CATEGORY_COLORS.other;
+  if (isSelected) return `${c.bg} ${c.text} border ${c.border} font-semibold`;
+  return `${c.bg} ${c.text} border ${c.border}`;
+}
+
 // ---- Tag Input Component ----
 function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
   const [input, setInput] = useState("");
@@ -835,8 +854,8 @@ function CitationForm({ projectId, existing, onClose }: { projectId: number; exi
           {categoryOptions.map((c) => (
             <Badge
               key={c}
-              variant={category === c.toLowerCase() ? "default" : "outline"}
-              className="cursor-pointer text-sm py-1.5 px-3"
+              variant="outline"
+              className={`cursor-pointer text-sm py-1.5 px-3 ${getCategoryClasses(c, category === c.toLowerCase())} ${category === c.toLowerCase() ? 'ring-2 ring-offset-1 ring-current' : 'opacity-70 hover:opacity-100'}`}
               onClick={() => setCategory(c.toLowerCase())}
             >
               {c}
@@ -1623,7 +1642,7 @@ export default function ProjectSettings() {
                       </div>
                       {citation.description && <p className="text-muted-foreground mb-3">{citation.description}</p>}
                       <div className="flex flex-wrap gap-2 text-sm">
-                        {citation.category && <Badge variant="outline" className="capitalize">{citation.category}</Badge>}
+                        {citation.category && <Badge variant="outline" className={`capitalize ${getCategoryClasses(citation.category)}`}>{citation.category}</Badge>}
                       </div>
                     </div>
                     <div className="flex gap-2">

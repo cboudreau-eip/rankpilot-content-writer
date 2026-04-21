@@ -1094,3 +1094,9 @@
 - [x] Added storage status indicator ("Stored in database with cloud backup")
 - [x] S3 self-heal fallback already existed in getReferenceDoc (backfills DB from S3 if DB empty)
 - [x] TypeScript: 0 errors, 485 tests passing
+
+## Color-Code Citation Source Type Pills
+- [x] Find where citation source type badges/pills are rendered (ProjectSettings.tsx line 1626 + dialog line 839)
+- [x] Add distinct colors per source type: Government=blue, Research=purple, Industry=slate, News=amber, Academic=indigo, Medical=emerald, Legal=red, Technical=cyan, Other=gray
+- [x] Applied to both the citation card display and the category selection badges in the create/edit dialog
+- [x] Selected category gets ring highlight + font-semibold; unselected are slightly transparent

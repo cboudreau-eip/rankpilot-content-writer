@@ -671,6 +671,7 @@ export const appRouter = router({
         llmProvider: z.enum(["builtin", "claude"]).optional(),
         llmModel: z.string().max(128).optional(),
         bannedPhrases: z.array(z.string()).optional(),
+        minInternalLinks: z.number().int().min(0).max(20).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
@@ -2679,7 +2680,10 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           }
 
           if (resolvedPageUrls.length > 0) {
-            linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nInsert EXACTLY ${effectiveAutoLinkCount} internal links (no more, no fewer) chosen from the following REAL page URLs. You MUST ONLY use URLs from this list — do NOT invent or guess URLs:\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}\nChoose URLs that are contextually relevant to the article topic and link them naturally within the content. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence. CRITICAL: Only use exact URLs from the list above. Never fabricate URLs.`;
+            const minInternal = project?.minInternalLinks ?? 3;
+            const effectiveInternalCount = Math.min(effectiveAutoLinkCount, resolvedPageUrls.length);
+            const guaranteedInternal = Math.min(minInternal, resolvedPageUrls.length);
+            linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING (MANDATORY):\nYou MUST insert a MINIMUM of ${guaranteedInternal} internal link${guaranteedInternal !== 1 ? 's' : ''} from the SITE PAGES list below. Internal links are REQUIRED — they take priority over external citation links when both options exist for the same claim.\n\nTarget total internal links: ${effectiveInternalCount} (minimum guaranteed: ${guaranteedInternal}).\nChoose URLs that are contextually relevant to the article topic. Use <a href="URL">anchor text</a> format.\nIMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.\nCRITICAL: Only use exact URLs from the list below. NEVER fabricate or invent URLs.\n\nSITE PAGES (internal links MUST come from this list ONLY):\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}`;
           } else {
             // Fallback: if no parsed URLs found, skip auto-linking rather than hallucinate
             console.warn(`[Article Generate] No parsed URLs found for sitemaps: ${effectiveSitemapUrls.join(', ')}. Skipping auto-linking.`);
@@ -5883,7 +5887,10 @@ CRITICAL: Do NOT reuse any specific phrases, sentences, statistics, or openings 
       }
     }
     if (resolvedPageUrls.length > 0) {
-      linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING:\nInsert EXACTLY ${effectiveAutoLinkCount} internal links from these REAL page URLs. ONLY use URLs from this list:\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}\nAnchor text must be 2-7 words. CRITICAL: Only use exact URLs from the list above.`;
+      const minInternal = project?.minInternalLinks ?? 3;
+      const effectiveInternalCount = Math.min(effectiveAutoLinkCount, resolvedPageUrls.length);
+      const guaranteedInternal = Math.min(minInternal, resolvedPageUrls.length);
+      linkingInstructions += `\n\nAUTOMATIC INTERNAL LINKING (MANDATORY):\nYou MUST insert a MINIMUM of ${guaranteedInternal} internal link${guaranteedInternal !== 1 ? 's' : ''} from the SITE PAGES list below. Internal links are REQUIRED — they take priority over external citation links when both options exist for the same claim.\n\nTarget total internal links: ${effectiveInternalCount} (minimum guaranteed: ${guaranteedInternal}).\nChoose URLs that are contextually relevant to the article topic. Use <a href="URL">anchor text</a> format.\nIMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.\nCRITICAL: Only use exact URLs from the list below. NEVER fabricate or invent URLs.\n\nSITE PAGES (internal links MUST come from this list ONLY):\n${resolvedPageUrls.map(u => `  - ${u}`).join("\n")}`;
     }
   }
 

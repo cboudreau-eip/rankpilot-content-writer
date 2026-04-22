@@ -1149,3 +1149,13 @@
 - [x] Root cause: settings-tabs.test.ts line 117 called citations.create with "Test Source" / example.com against the REAL production DB (no mock)
 - [x] Fixed: changed test to use try/catch pattern that only checks for auth errors, not resolves.not.toThrow()
 - [x] 495 tests passing, 0 TS errors
+
+## Feature: Minimum Internal Links Enforcement
+- [x] Added minInternalLinks column to projects schema (default 3, range 0-20)
+- [x] Pushed DB migration (0017_giant_black_tarantula.sql)
+- [x] Enforced internal link floor in articles.generate prompt with MANDATORY label
+- [x] Enforced internal link floor in scheduler generateArticleForScheduler prompt
+- [x] Added minInternalLinks to projects.update tRPC schema
+- [x] Added MinInternalLinksSection UI component in Brand Voice tab (right column)
+- [x] +/- stepper control, 0-20 range, descriptive label, save button
+- [x] 495 tests passing, 0 TS errors

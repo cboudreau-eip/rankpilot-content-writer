@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `minInternalLinks` int DEFAULT 3 NOT NULL;

@@ -120,6 +120,13 @@
       "when": 1776270206245,
       "tag": "0016_pink_crusher_hogan",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1776862813151,
+      "tag": "0017_giant_black_tarantula",
+      "breakpoints": true
     }
   ]
 }

@@ -1302,6 +1302,78 @@ function BannedPhrasesSection({ projectId }: { projectId: number }) {
   );
 }
 
+// ---- Min Internal Links Section ----
+function MinInternalLinksSection({ projectId }: { projectId: number }) {
+  const { data: project } = trpc.projects.getById.useQuery({ id: projectId });
+  const utils = trpc.useUtils();
+  const updateMut = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      utils.projects.getById.invalidate({ id: projectId });
+      toast.success("Internal link settings saved");
+    },
+  });
+
+  const [value, setValue] = useState<number>(3);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (project && !initialized) {
+      setValue(project.minInternalLinks ?? 3);
+      setInitialized(true);
+    }
+  }, [project, initialized]);
+
+  const handleSave = () => {
+    updateMut.mutate({ id: projectId, minInternalLinks: value });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+            <Link2 className="w-4 h-4 text-blue-500" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Internal Link Minimum</CardTitle>
+            <CardDescription className="text-sm">Minimum internal links the AI must include per article.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center border rounded-lg overflow-hidden">
+            <button
+              className="px-3 py-2 text-lg font-medium hover:bg-muted transition-colors disabled:opacity-40"
+              onClick={() => setValue(v => Math.max(0, v - 1))}
+              disabled={value <= 0}
+            >−</button>
+            <span className="px-4 py-2 text-base font-semibold min-w-[3rem] text-center">{value}</span>
+            <button
+              className="px-3 py-2 text-lg font-medium hover:bg-muted transition-colors disabled:opacity-40"
+              onClick={() => setValue(v => Math.min(20, v + 1))}
+              disabled={value >= 20}
+            >+</button>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {value === 0 ? "No minimum — AI decides" : `At least ${value} internal link${value !== 1 ? 's' : ''} per article`}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The AI will be instructed to include at least this many internal links from your sitemap. Set to 0 to let the AI decide freely. Default is 3.
+        </p>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleSave} disabled={updateMut.isPending} className="gap-2">
+            {updateMut.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+            <Save className="w-3 h-3" />
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---- Main Settings Page ----
 export default function ProjectSettings() {
   const { activeProject } = useActiveProject();
@@ -1545,9 +1617,10 @@ export default function ProjectSettings() {
 
           </div>
 
-          {/* Right column: Banned Phrases */}
-          <div>
+          {/* Right column: Banned Phrases + Internal Links */}
+          <div className="space-y-6">
             <BannedPhrasesSection projectId={activeProjectId!} />
+            <MinInternalLinksSection projectId={activeProjectId!} />
           </div>
         </div>
       )}

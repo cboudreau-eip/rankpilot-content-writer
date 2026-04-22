@@ -57,6 +57,8 @@ export const projects = mysqlTable("projects", {
   llmProvider: varchar("llmProvider", { length: 32 }).default("builtin").notNull(),
   /** Claude model to use when llmProvider is 'claude' */
   llmModel: varchar("llmModel", { length: 128 }),
+  /** Minimum number of internal links the LLM must include per generated article (0 = no floor) */
+  minInternalLinks: int("minInternalLinks").default(3).notNull(),
   userId: int("userId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

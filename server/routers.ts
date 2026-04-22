@@ -750,6 +750,46 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const currentYear = new Date().getFullYear();
+
+        // Fetch reference doc if project has one
+        let referenceDocSection = '';
+        try {
+          const project = await getProjectById(input.projectId);
+          if (project) {
+            let refDocContent: string | null = project.referenceDocContent || null;
+            if (!refDocContent && project.referenceDocS3Key) {
+              refDocContent = await fetchReferenceDocFromS3(project.referenceDocS3Key);
+            }
+            if (refDocContent && project.referenceDocName) {
+              const maxChars = 40000;
+              const truncated = refDocContent.length > maxChars
+                ? refDocContent.substring(0, maxChars) + '\n[... document truncated for length ...]'
+                : refDocContent;
+              referenceDocSection = `
+REFERENCE DOCUMENT — USE AS SUPPLEMENTARY FACTUAL SOURCE ("${project.referenceDocName}")
+================================================================
+The following reference document contains verified facts, figures, rules, and details about the topic.
+Use this document to SUPPLEMENT and GROUND your research findings.
+
+RULES FOR USING THE REFERENCE DOCUMENT IN RESEARCH:
+1. Extract specific statistics, data points, and figures from this document and include them in your statistics section — these are VERIFIED facts.
+2. If the document cites specific sources or URLs, include those in your authoritative sources section.
+3. Use the document's content to inform your key takeaways — ground them in real facts rather than generic observations.
+4. If the document mentions specific experts, organizations, or programs, reference them in your findings.
+5. The document should SUPPLEMENT your research, not replace it — still find additional external sources and data points beyond what the document covers.
+6. When a statistic from the document conflicts with your training data, PREFER the document's version.
+
+=== REFERENCE DOCUMENT CONTENT ===
+${truncated}
+=== END REFERENCE DOCUMENT ===
+`;
+              console.log(`[Research] Reference doc injected: "${project.referenceDocName}" (${refDocContent.length} chars)`);
+            }
+          }
+        } catch (e) {
+          console.warn('[Research] Failed to fetch reference doc:', e);
+        }
+
         const researchPrompt = `You are an expert research assistant conducting comprehensive topic research for content creation.
 
 CURRENT DATE: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -758,7 +798,7 @@ CURRENT YEAR: ${currentYear}
 RESEARCH TOPIC: "${input.topic}"
 ${input.keyword ? `PRIMARY KEYWORD: "${input.keyword}"` : ""}
 ${input.niche ? `INDUSTRY/NICHE: "${input.niche}"` : ""}
-
+${referenceDocSection}
 Conduct thorough research and provide findings in these categories:
 
 1. STATISTICS & DATA POINTS
@@ -5478,12 +5518,33 @@ async function researchTopicForScheduler(
   const project = await getProjectById(job.projectId);
   const currentYear = new Date().getFullYear();
 
+  // Fetch reference doc if project has one
+  let referenceDocSection = '';
+  if (project) {
+    try {
+      let refDocContent: string | null = project.referenceDocContent || null;
+      if (!refDocContent && project.referenceDocS3Key) {
+        refDocContent = await fetchReferenceDocFromS3(project.referenceDocS3Key);
+      }
+      if (refDocContent && project.referenceDocName) {
+        const maxChars = 40000;
+        const truncated = refDocContent.length > maxChars
+          ? refDocContent.substring(0, maxChars) + '\n[... document truncated for length ...]'
+          : refDocContent;
+        referenceDocSection = `\nREFERENCE DOCUMENT \u2014 USE AS SUPPLEMENTARY FACTUAL SOURCE ("${project.referenceDocName}")\n================================================================\nUse this document to SUPPLEMENT and GROUND your research findings.\n\nRULES:\n1. Extract specific statistics, data points, and figures from this document \u2014 these are VERIFIED facts.\n2. If the document cites sources or URLs, include them in authoritative sources.\n3. Ground key takeaways in real facts from this document.\n4. The document should SUPPLEMENT research, not replace it \u2014 still find additional external data.\n5. When a statistic from the document conflicts with training data, PREFER the document.\n\n=== REFERENCE DOCUMENT CONTENT ===\n${truncated}\n=== END REFERENCE DOCUMENT ===\n`;
+        console.log(`[Scheduler Research] Reference doc injected: "${project.referenceDocName}" (${refDocContent.length} chars)`);
+      }
+    } catch (e) {
+      console.warn('[Scheduler Research] Failed to fetch reference doc:', e);
+    }
+  }
+
   const researchPrompt = `Research the topic: "${keyword}"
 ${settings.contentType ? `Content type: ${settings.contentType}` : ""}
 ${settings.targetAudience ? `Target audience: ${settings.targetAudience}` : ""}
 ${settings.targetLocation ? `Target location: ${settings.targetLocation}` : ""}
 ${project?.domain ? `Website domain: ${project.domain}` : ""}
-
+${referenceDocSection}
 Conduct thorough research and provide findings in these categories:
 
 1. STATISTICS & DATA - Find 5-8 relevant statistics with sources and URLs

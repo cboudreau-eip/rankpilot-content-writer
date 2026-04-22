@@ -1174,3 +1174,9 @@
 - [x] Frontend: LinksAuditPanel sidebar with 3-stat header (total/internal/external), collapsible link lists, suggestion cards
 - [x] Wired into ArticleEditor dropdown menu ("Links Audit" item) and sidebar panel system
 - [x] 495 tests passing, 0 TS errors
+
+## Feature: Inject Reference Doc into Research Step
+- [x] Injected reference doc into manual researchTopic prompt as supplementary context
+- [x] Injected reference doc into scheduler researchTopicForScheduler prompt
+- [x] Research-specific rules: extract real stats/data from doc, use doc's cited sources, ground key takeaways in doc facts, supplement (not replace) external research
+- [x] 495 tests passing, 0 TS errors

@@ -1166,3 +1166,11 @@
 - [x] Injected reference doc into scheduler outline generation (generateOutlineForScheduler) — always enabled if project has one
 - [x] Outline-specific rules: create dedicated sections for doc subtopics, mirror doc structure, ground FAQ in doc answers
 - [x] 495 tests passing, 0 TS errors
+
+## Feature: Links Audit Tab in Article Editor
+- [x] Backend: tRPC linksAudit.analyze — classifies links as internal/external using sitemap domains
+- [x] Backend: tRPC linksAudit.suggest — LLM-powered internal link suggestions from unlinked sitemap pages
+- [x] Backend: tRPC linksAudit.insertLink — one-click link insertion into article HTML (avoids existing <a> tags)
+- [x] Frontend: LinksAuditPanel sidebar with 3-stat header (total/internal/external), collapsible link lists, suggestion cards
+- [x] Wired into ArticleEditor dropdown menu ("Links Audit" item) and sidebar panel system
+- [x] 495 tests passing, 0 TS errors

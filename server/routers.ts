@@ -3221,6 +3221,198 @@ Suggest 3 replacement URLs. Respond with ONLY a JSON array, no other text.`;
       }),
   }),
 
+  // ---- Links Audit ----
+  linksAudit: router({
+    /** Analyze all links in an article — classify as internal vs external */
+    analyze: publicProcedure
+      .input(z.object({
+        articleId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+        const content = (article.content as string) || "";
+        if (!content) return { internalLinks: [], externalLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
+
+        // Get project sitemap URLs to classify internal vs external
+        const projectId = article.projectId;
+        let sitemapDomains: string[] = [];
+        let sitemapUrlSet = new Set<string>();
+        if (projectId) {
+          const projectSitemaps = await getSitemapsByProject(projectId);
+          for (const sm of projectSitemaps) {
+            const urls = (sm.parsedUrls || []) as { url: string; title?: string }[];
+            for (const u of urls) {
+              sitemapUrlSet.add(u.url.toLowerCase());
+              try {
+                const domain = new URL(u.url).hostname.replace(/^www\./, "");
+                if (!sitemapDomains.includes(domain)) sitemapDomains.push(domain);
+              } catch {}
+            }
+          }
+        }
+
+        // Extract all links from HTML
+        const linkRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
+        const internalLinks: { url: string; anchorText: string; matchesSitemap: boolean }[] = [];
+        const externalLinks: { url: string; anchorText: string; domain: string }[] = [];
+        let match;
+        while ((match = linkRegex.exec(content)) !== null) {
+          const url = match[1].trim();
+          const anchorText = match[2].replace(/<[^>]*>/g, "").trim();
+          if (!url.startsWith("http://") && !url.startsWith("https://")) continue;
+
+          let linkDomain = "";
+          try { linkDomain = new URL(url).hostname.replace(/^www\./, ""); } catch { continue; }
+
+          const isInternal = sitemapDomains.some(d => linkDomain === d || linkDomain.endsWith("." + d));
+          if (isInternal) {
+            internalLinks.push({
+              url,
+              anchorText,
+              matchesSitemap: sitemapUrlSet.has(url.toLowerCase()),
+            });
+          } else {
+            externalLinks.push({ url, anchorText, domain: linkDomain });
+          }
+        }
+
+        return {
+          internalLinks,
+          externalLinks,
+          internalCount: internalLinks.length,
+          externalCount: externalLinks.length,
+          totalCount: internalLinks.length + externalLinks.length,
+        };
+      }),
+
+    /** Suggest internal links from sitemap that are not yet in the article */
+    suggest: publicProcedure
+      .input(z.object({
+        articleId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+        const content = (article.content as string) || "";
+        const projectId = article.projectId;
+        if (!projectId) return { suggestions: [] };
+
+        // Get all sitemap URLs
+        const projectSitemaps = await getSitemapsByProject(projectId);
+        const allSitemapUrls: { url: string; title?: string }[] = [];
+        for (const sm of projectSitemaps) {
+          const urls = (sm.parsedUrls || []) as { url: string; title?: string }[];
+          allSitemapUrls.push(...urls);
+        }
+        if (allSitemapUrls.length === 0) return { suggestions: [] };
+
+        // Find URLs already linked in the article
+        const linkRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi;
+        const linkedUrls = new Set<string>();
+        let m;
+        while ((m = linkRegex.exec(content)) !== null) {
+          linkedUrls.add(m[1].trim().toLowerCase());
+        }
+
+        // Filter to unlinked sitemap URLs
+        const unlinkedUrls = allSitemapUrls.filter(u => !linkedUrls.has(u.url.toLowerCase()));
+        if (unlinkedUrls.length === 0) return { suggestions: [] };
+
+        // Use LLM to find the best matches between article content and unlinked pages
+        const articleText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 6000);
+        const urlList = unlinkedUrls.slice(0, 50).map(u => `- ${u.url}${u.title ? ` (${u.title})` : ""}`).join("\n");
+
+        const llmResponse = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are an internal linking specialist. Given an article and a list of unlinked internal pages, find phrases in the article that should link to those pages.
+
+Rules:
+- Only suggest links where the phrase is naturally relevant to the target page
+- Choose anchor text that is 2-7 words, a descriptive key phrase
+- Maximum 8 suggestions
+- Each suggestion must use a different target URL
+- The phrase must actually exist in the article text
+
+Return JSON array:
+[{"phrase": "exact phrase from article", "targetUrl": "URL from the list", "reason": "brief explanation"}]`,
+            },
+            {
+              role: "user",
+              content: `ARTICLE TEXT:\n${articleText}\n\nAVAILABLE INTERNAL PAGES (not yet linked):\n${urlList}`,
+            },
+          ],
+        });
+
+        const llmContent = (llmResponse?.choices?.[0]?.message?.content || "") as string;
+        const suggestions = extractJSON(llmContent) || [];
+
+        // Validate suggestions — ensure phrases exist in article and URLs are from sitemap
+        const validSuggestions = (Array.isArray(suggestions) ? suggestions : []).filter((s: any) => {
+          if (!s.phrase || !s.targetUrl) return false;
+          const phraseExists = articleText.toLowerCase().includes(s.phrase.toLowerCase());
+          const urlValid = unlinkedUrls.some(u => u.url.toLowerCase() === s.targetUrl.toLowerCase());
+          return phraseExists && urlValid;
+        }).slice(0, 8);
+
+        return { suggestions: validSuggestions };
+      }),
+
+    /** Insert an internal link into article HTML at the first occurrence of a phrase */
+    insertLink: publicProcedure
+      .input(z.object({
+        articleId: z.number(),
+        phrase: z.string(),
+        targetUrl: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+        let content = (article.content as string) || "";
+        if (!content) throw new TRPCError({ code: "BAD_REQUEST", message: "Article has no content" });
+
+        // Find the phrase in text nodes (not inside existing links or tags)
+        // Use a regex that matches the phrase NOT inside an <a> tag
+        const escapedPhrase = input.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        // Match phrase that is NOT already wrapped in an <a> tag
+        const phraseRegex = new RegExp(
+          `(?<!<a[^>]*>(?:[^<]*))\\b(${escapedPhrase})\\b`,
+          "i"
+        );
+
+        // Simpler approach: find first occurrence not inside an <a> tag
+        // Split by <a...>...</a> tags, only replace in non-link segments
+        const parts = content.split(/(<a\s[^>]*>.*?<\/a>)/gi);
+        let replaced = false;
+        for (let i = 0; i < parts.length; i++) {
+          // Skip parts that are <a> tags
+          if (parts[i].match(/^<a\s/i)) continue;
+          // Try to replace the first occurrence of the phrase in this text segment
+          const regex = new RegExp(`(${escapedPhrase})`, "i");
+          if (regex.test(parts[i])) {
+            parts[i] = parts[i].replace(regex, `<a href="${input.targetUrl}">$1</a>`);
+            replaced = true;
+            break;
+          }
+        }
+
+        if (!replaced) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Could not find the phrase in the article text" });
+        }
+
+        const updatedContent = parts.join("");
+        const wordCount = updatedContent.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
+        await updateArticle(input.articleId, { content: updatedContent, wordCount });
+
+        return { success: true, updatedContent };
+      }),
+  }),
+
   // ---- Thin Content Analyzer ----
   thinContent: router({
     /** Analyze a sitemap URL for thin content issues */

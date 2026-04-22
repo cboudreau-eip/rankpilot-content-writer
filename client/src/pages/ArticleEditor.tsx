@@ -24,7 +24,7 @@ import {
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
   FileCheck, Info, ExternalLink, Repeat2, MoreVertical, Download, Scan, Image, ImagePlus, Trash2, RefreshCw, Palette,
-  ListTree, FolderKanban, Unlink,
+  ListTree, FolderKanban, Unlink, Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -495,6 +495,9 @@ export default function ArticleEditor() {
   const [showBrokenLinks, setShowBrokenLinks] = useState(false);
   const [brokenLinksResult, setBrokenLinksResult] = useState<any>(null);
 
+  // Links Audit state
+  const [showLinksAudit, setShowLinksAudit] = useState(false);
+
   const brokenLinksMutation = trpc.brokenLinks.check.useMutation({
     onSuccess: (data) => {
       setBrokenLinksResult(data);
@@ -904,6 +907,15 @@ export default function ArticleEditor() {
                 )}
                 Broken Links
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setShowLinksAudit(!showLinksAudit);
+                }}
+                className={showLinksAudit ? "bg-blue-50 text-blue-700" : ""}
+              >
+                <Link2 className="w-4 h-4 mr-2 text-blue-600" />
+                Links Audit
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => {
@@ -1289,6 +1301,19 @@ export default function ArticleEditor() {
                 wordCount,
               });
             }}
+          />
+        )}
+
+        {/* Links Audit Sidebar */}
+        {showLinksAudit && (
+          <LinksAuditPanel
+            articleId={articleId}
+            onClose={() => setShowLinksAudit(false)}
+            onLinkInserted={() => {
+              // Refetch article to sync editor
+              refetch();
+            }}
+            editor={editor}
           />
         )}
 
@@ -2649,6 +2674,266 @@ function EntityPanelSkeleton({
     </div>
   );
 }
+
+/* ── Links Audit Panel Component ── */
+function LinksAuditPanel({
+  articleId,
+  onClose,
+  onLinkInserted,
+  editor,
+}: {
+  articleId: number;
+  onClose: () => void;
+  onLinkInserted: () => void;
+  editor: any;
+}) {
+  const [showExternal, setShowExternal] = useState(false);
+  const [showInternal, setShowInternal] = useState(true);
+  const [insertingPhrase, setInsertingPhrase] = useState<string | null>(null);
+
+  // Analyze links query
+  const { data: analysis, isLoading: isAnalyzing, refetch: refetchAnalysis } = trpc.linksAudit.analyze.useQuery(
+    { articleId },
+    { refetchOnWindowFocus: false }
+  );
+
+  // Suggest internal links mutation
+  const suggestMutation = trpc.linksAudit.suggest.useMutation({
+    onError: (err) => toast.error(err.message || "Failed to get suggestions"),
+  });
+
+  // Insert link mutation
+  const insertMutation = trpc.linksAudit.insertLink.useMutation({
+    onSuccess: (data) => {
+      toast.success("Internal link inserted!");
+      setInsertingPhrase(null);
+      // Update editor content
+      if (editor && data.updatedContent) {
+        editor.commands.setContent(data.updatedContent);
+      }
+      // Refetch analysis to update counts
+      refetchAnalysis();
+      onLinkInserted();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to insert link");
+      setInsertingPhrase(null);
+    },
+  });
+
+  const internalCount = analysis?.internalCount ?? 0;
+  const externalCount = analysis?.externalCount ?? 0;
+  const totalCount = analysis?.totalCount ?? 0;
+  const internalLinks = analysis?.internalLinks ?? [];
+  const externalLinks = analysis?.externalLinks ?? [];
+  const suggestions = suggestMutation.data?.suggestions ?? [];
+
+  return (
+    <div className="w-[420px] bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden max-h-[calc(100vh-120px)] flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-cyan-500/5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-blue-600" />
+            Links Audit
+          </h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Summary Stats */}
+        {isAnalyzing ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Analyzing links...
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-blue-50 rounded-lg p-2.5 text-center">
+              <p className="text-2xl font-bold text-blue-700">{totalCount}</p>
+              <p className="text-[10px] font-medium text-blue-600">Total Links</p>
+            </div>
+            <div className="bg-emerald-50 rounded-lg p-2.5 text-center">
+              <p className="text-2xl font-bold text-emerald-700">{internalCount}</p>
+              <p className="text-[10px] font-medium text-emerald-600">Internal</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-2.5 text-center">
+              <p className="text-2xl font-bold text-purple-700">{externalCount}</p>
+              <p className="text-[10px] font-medium text-purple-600">External</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Internal Links Section */}
+        <div>
+          <button
+            onClick={() => setShowInternal(!showInternal)}
+            className="w-full flex items-center justify-between text-sm font-semibold text-foreground mb-2"
+          >
+            <span className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              Internal Links ({internalCount})
+            </span>
+            {showInternal ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {showInternal && (
+            <div className="space-y-1.5">
+              {internalLinks.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-2">No internal links found in this article.</p>
+              ) : (
+                internalLinks.map((link: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                    <ExternalLink className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground truncate">{link.anchorText || "(no anchor text)"}</p>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-600 hover:underline truncate block">
+                        {link.url}
+                      </a>
+                      {link.matchesSitemap && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium mt-0.5 inline-block">In Sitemap</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* External Links Section */}
+        <div>
+          <button
+            onClick={() => setShowExternal(!showExternal)}
+            className="w-full flex items-center justify-between text-sm font-semibold text-foreground mb-2"
+          >
+            <span className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-purple-500" />
+              External Links ({externalCount})
+            </span>
+            {showExternal ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {showExternal && (
+            <div className="space-y-1.5">
+              {externalLinks.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-2">No external links found.</p>
+              ) : (
+                externalLinks.map((link: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-purple-50/50 border border-purple-100">
+                    <ExternalLink className="w-3.5 h-3.5 text-purple-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground truncate">{link.anchorText || "(no anchor text)"}</p>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-purple-600 hover:underline truncate block">
+                        {link.url}
+                      </a>
+                      <span className="text-[9px] text-muted-foreground">{link.domain}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border/40" />
+
+        {/* Suggestions Section */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-semibold flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              Internal Link Suggestions
+            </h4>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => suggestMutation.mutate({ articleId })}
+              disabled={suggestMutation.isPending}
+              className="h-7 text-xs gap-1"
+            >
+              {suggestMutation.isPending ? (
+                <><Loader2 className="w-3 h-3 animate-spin" /> Finding...</>
+              ) : suggestions.length > 0 ? (
+                <><RefreshCw className="w-3 h-3" /> Refresh</>
+              ) : (
+                <><Wand2 className="w-3 h-3" /> Find Suggestions</>
+              )}
+            </Button>
+          </div>
+
+          {suggestMutation.isPending && (
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="p-3 rounded-lg border border-amber-100 bg-amber-50/30 space-y-2">
+                  <div className="h-3 w-3/4 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+                  <div className="h-2 w-full bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 150 + 75}ms` }} />
+                  <div className="h-2 w-1/2 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 150 + 150}ms` }} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!suggestMutation.isPending && suggestions.length === 0 && !suggestMutation.data && (
+            <p className="text-xs text-muted-foreground italic py-2">
+              Click "Find Suggestions" to discover internal linking opportunities from your sitemap.
+            </p>
+          )}
+
+          {!suggestMutation.isPending && suggestMutation.data && suggestions.length === 0 && (
+            <p className="text-xs text-muted-foreground italic py-2">
+              No additional internal link opportunities found. All relevant sitemap pages may already be linked.
+            </p>
+          )}
+
+          {!suggestMutation.isPending && suggestions.length > 0 && (
+            <div className="space-y-2">
+              {suggestions.map((s: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg border border-amber-100 bg-amber-50/30">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <p className="text-xs font-medium text-foreground">
+                      <span className="bg-amber-200/60 px-1 py-0.5 rounded">"{s.phrase}"</span>
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] gap-1 shrink-0 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      disabled={insertMutation.isPending && insertingPhrase === s.phrase}
+                      onClick={() => {
+                        setInsertingPhrase(s.phrase);
+                        insertMutation.mutate({
+                          articleId,
+                          phrase: s.phrase,
+                          targetUrl: s.targetUrl,
+                        });
+                      }}
+                    >
+                      {insertMutation.isPending && insertingPhrase === s.phrase ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <><Link2 className="w-3 h-3" /> Insert</>
+                      )}
+                    </Button>
+                  </div>
+                  <a href={s.targetUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline block truncate mb-1">
+                    {s.targetUrl}
+                  </a>
+                  {s.reason && (
+                    <p className="text-[10px] text-muted-foreground">{s.reason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function ScanPanelSkeleton({
   title,

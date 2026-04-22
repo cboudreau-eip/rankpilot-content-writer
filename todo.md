@@ -1159,3 +1159,10 @@
 - [x] Added MinInternalLinksSection UI component in Brand Voice tab (right column)
 - [x] +/- stepper control, 0-20 range, descriptive label, save button
 - [x] 495 tests passing, 0 TS errors
+
+## Feature: Inject Reference Doc into Outline Generation
+- [x] Added useReferenceDoc input param to articles.generate outline procedure
+- [x] Injected reference doc into manual outline generation prompt with outline-specific rules
+- [x] Injected reference doc into scheduler outline generation (generateOutlineForScheduler) — always enabled if project has one
+- [x] Outline-specific rules: create dedicated sections for doc subtopics, mirror doc structure, ground FAQ in doc answers
+- [x] 495 tests passing, 0 TS errors

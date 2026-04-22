@@ -984,6 +984,7 @@ Rules:
         icpProfileId: z.number().optional(),
         secondaryKeywords: z.array(z.string()).optional(),
         research: z.any().optional(),
+        useReferenceDoc: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         // Auto-fetch ICP from project and brand voice (use selected or default)
@@ -1124,6 +1125,40 @@ BRAND VOICE REQUIREMENTS FOR OUTLINE:
 
         const currentYear = new Date().getFullYear();
 
+        // Build reference document section for outline if enabled
+        let outlineReferenceDocSection = '';
+        if (input.useReferenceDoc && project) {
+          let refDocContent: string | null = project.referenceDocContent || null;
+          if (!refDocContent && project.referenceDocS3Key) {
+            refDocContent = await fetchReferenceDocFromS3(project.referenceDocS3Key);
+          }
+          if (refDocContent && project.referenceDocName) {
+            // For outline, use a condensed version (first 40k chars) to keep prompt focused
+            const maxChars = 40000;
+            const truncated = refDocContent.length > maxChars
+              ? refDocContent.substring(0, maxChars) + '\n[... document truncated for length ...]'
+              : refDocContent;
+            outlineReferenceDocSection = `
+REFERENCE DOCUMENT — USE TO GROUND THE OUTLINE ("${project.referenceDocName}")
+================================================================
+The following reference document contains verified facts, figures, rules, and details about the topic.
+Use this document to inform the outline structure and key points.
+
+RULES FOR USING THE REFERENCE DOCUMENT IN THE OUTLINE:
+1. When the reference document covers specific subtopics, eligibility rules, costs, procedures, or categories — create dedicated sections or key points for them.
+2. Key points in each section should reference specific facts from the document rather than generic talking points.
+3. If the reference document has a natural structure (e.g., categories, steps, eligibility tiers), mirror that structure in the outline where appropriate.
+4. FAQ questions should address real questions that the reference document answers.
+5. Do NOT just summarize the reference document — create an SEO-optimized outline that USES the document as a factual foundation.
+
+=== REFERENCE DOCUMENT CONTENT ===
+${truncated}
+=== END REFERENCE DOCUMENT ===
+`;
+            console.log(`[OutlineGen] Reference doc injected: "${project.referenceDocName}" (${refDocContent.length} chars${refDocContent.length > maxChars ? ', truncated to ' + maxChars : ''})`);
+          }
+        }
+
         // Resolve sitemap XML URLs to actual parsed page URLs for internal linking
         let resolvedSitemapSection = '';
         if (input.sitemapUrls?.length) {
@@ -1173,6 +1208,7 @@ ${resolvedSitemapSection}
 ${icpSection}
 ${brandVoiceSection}
 ${input.research ? buildResearchSection(input.research) : ''}
+${outlineReferenceDocSection}
 
 Return ONLY valid JSON, no markdown code blocks.`;
 
@@ -5564,6 +5600,23 @@ async function generateOutlineForScheduler(
     researchSection = buildResearchSection(researchFindings);
   }
 
+  // Build reference document section for outline (always enabled for scheduler if project has one)
+  let outlineReferenceDocSection = '';
+  if (project) {
+    let refDocContent: string | null = project.referenceDocContent || null;
+    if (!refDocContent && project.referenceDocS3Key) {
+      refDocContent = await fetchReferenceDocFromS3(project.referenceDocS3Key);
+    }
+    if (refDocContent && project.referenceDocName) {
+      const maxChars = 40000;
+      const truncated = refDocContent.length > maxChars
+        ? refDocContent.substring(0, maxChars) + '\n[... document truncated for length ...]'
+        : refDocContent;
+      outlineReferenceDocSection = `\nREFERENCE DOCUMENT \u2014 USE TO GROUND THE OUTLINE ("${project.referenceDocName}")\n================================================================\nUse this document to inform the outline structure and key points.\n\nRULES:\n1. Create dedicated sections or key points for specific subtopics, rules, costs, or procedures from this document.\n2. Key points should reference specific facts rather than generic talking points.\n3. Mirror the document's natural structure where appropriate.\n4. FAQ questions should address real questions the document answers.\n5. Create an SEO-optimized outline that USES the document as a factual foundation.\n\n=== REFERENCE DOCUMENT CONTENT ===\n${truncated}\n=== END REFERENCE DOCUMENT ===\n`;
+      console.log(`[Scheduler OutlineGen] Reference doc injected: "${project.referenceDocName}" (${refDocContent.length} chars)`);
+    }
+  }
+
   const numSections = settings.numSections ?? 8;
   const numFaqs = settings.numFaqs ?? 5;
   const targetWordCount = settings.targetWordCount ?? 2000;
@@ -5589,6 +5642,7 @@ ${settings.additionalInstructions ? `- Additional instructions: ${settings.addit
 ${icpSection}
 ${voiceSection}
 ${researchSection}
+${outlineReferenceDocSection}
 
 Return a JSON object with this structure:
 {

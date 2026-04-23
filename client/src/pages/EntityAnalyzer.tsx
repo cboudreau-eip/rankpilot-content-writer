@@ -18,6 +18,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, Cpu, Lightbulb, Wrench, FileText,
   ChevronDown, ChevronUp, ArrowRight, Zap, BarChart3, Search, BookOpen,
   Shield, Eye, Repeat2, LayoutGrid, Globe, ListTree, FolderKanban,
+  Plus, Minus, Users, Trophy, Star, Hash, ExternalLink,
 } from "lucide-react";
 import type {
   EntityAnalysisResult, SemanticAnalysisResult, EntityItem,
@@ -590,7 +591,7 @@ function SemanticFixes({ fixes }: { fixes: string[] }) {
 export default function EntityAnalyzer() {
   const { activeProject, projects } = useActiveProject();
   const activeProjectId = activeProject?.id ?? null;
-  const [inputMode, setInputMode] = useState<"text" | "article" | "url">("text");
+  const [inputMode, setInputMode] = useState<"text" | "article" | "url" | "competitors">("text");
   const [textContent, setTextContent] = useState("");
   const [primaryKeyword, setPrimaryKeyword] = useState("");
   const [selectedArticleId, setSelectedArticleId] = useState<string>("");
@@ -600,6 +601,11 @@ export default function EntityAnalyzer() {
   const [entityResult, setEntityResult] = useState<EntityAnalysisResult | null>(null);
   const [semanticResult, setSemanticResult] = useState<SemanticAnalysisResult | null>(null);
   const [showOutlineDialog, setShowOutlineDialog] = useState(false);
+
+  // ---- Competitor Analysis State ----
+  const [competitorUrls, setCompetitorUrls] = useState<string[]>(["", ""]);
+  const [competitorResult, setCompetitorResult] = useState<any>(null);
+  const [showCompetitorOutlineDialog, setShowCompetitorOutlineDialog] = useState(false);
 
   // Fetch articles for the active project
   const articlesQuery = trpc.articles.list.useQuery(
@@ -652,9 +658,53 @@ export default function EntityAnalyzer() {
     onError: (err: any) => toast.error(err.message || "Failed to fetch URL content"),
   });
 
+  // ---- Competitor Analysis Mutation ----
+  const competitorMutation = trpc.entity.analyzeCompetitorUrls.useMutation({
+    onSuccess: (data: any) => {
+      setCompetitorResult(data);
+      toast.success(`Analyzed ${data.analyses.length} competitor URLs successfully`);
+    },
+    onError: (err: any) => toast.error(err.message || "Competitor analysis failed"),
+  });
+
   const isFetchingUrl = fetchUrlMutation.isPending;
   const isAnalyzing = entityMutation.isPending || articleEntityMutation.isPending;
   const isSemanticAnalyzing = semanticMutation.isPending || articleSemanticMutation.isPending;
+  const isCompetitorAnalyzing = competitorMutation.isPending;
+
+  const handleCompetitorAnalysis = () => {
+    const validUrls = competitorUrls.filter(u => u.trim()).map(u => {
+      let url = u.trim();
+      if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+      return url;
+    });
+    if (validUrls.length < 2) {
+      toast.error("Please enter at least 2 competitor URLs");
+      return;
+    }
+    setCompetitorResult(null);
+    competitorMutation.mutate({
+      urls: validUrls,
+      keyword: primaryKeyword.trim() || undefined,
+      projectId: activeProjectId || undefined,
+    });
+  };
+
+  const updateCompetitorUrl = (index: number, value: string) => {
+    setCompetitorUrls(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const addCompetitorUrl = () => {
+    if (competitorUrls.length < 3) setCompetitorUrls(prev => [...prev, ""]);
+  };
+
+  const removeCompetitorUrl = (index: number) => {
+    if (competitorUrls.length > 2) setCompetitorUrls(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleFetchUrl = () => {
     if (!urlInput.trim()) {
@@ -724,11 +774,14 @@ export default function EntityAnalyzer() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
-            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "text" | "article" | "url")} className="w-auto">
+            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "text" | "article" | "url" | "competitors")} className="w-auto">
               <TabsList className="h-8">
                 <TabsTrigger value="text" className="text-xs px-3 h-7">Paste Text</TabsTrigger>
                 <TabsTrigger value="article" className="text-xs px-3 h-7">Select Article</TabsTrigger>
                 <TabsTrigger value="url" className="text-xs px-3 h-7">Fetch URL</TabsTrigger>
+                <TabsTrigger value="competitors" className="text-xs px-3 h-7 gap-1">
+                  <Users className="w-3 h-3" /> Competitors
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -854,30 +907,95 @@ export default function EntityAnalyzer() {
             </>
           )}
 
-          <div className="flex gap-3">
-            <Button
-              onClick={handleEntityAnalysis}
-              disabled={isAnalyzing || isSemanticAnalyzing || isFetchingUrl || (inputMode === "url" && !fetchedUrlContent)}
-              className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
-            >
-              {isAnalyzing ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing Entities...</>
-              ) : (
-                <><Zap className="w-4 h-4 mr-2" /> Analyze Entities</>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleSemanticAnalysis}
-              disabled={isAnalyzing || isSemanticAnalyzing || isFetchingUrl || (inputMode === "url" && !fetchedUrlContent)}
-            >
-              {isSemanticAnalyzing ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing Semantics...</>
-              ) : (
-                <><Eye className="w-4 h-4 mr-2" /> Analyze Semantics</>
-              )}
-            </Button>
-          </div>
+          {inputMode === "competitors" && (
+            <>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Competitor URLs (2-3)</Label>
+                  {competitorUrls.length < 3 && (
+                    <Button variant="ghost" size="sm" onClick={addCompetitorUrl} className="text-xs h-7 gap-1">
+                      <Plus className="w-3 h-3" /> Add URL
+                    </Button>
+                  )}
+                </div>
+                {competitorUrls.map((url, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                      {i + 1}
+                    </div>
+                    <Input
+                      placeholder={`https://competitor${i + 1}.com/their-article`}
+                      value={url}
+                      onChange={(e) => updateCompetitorUrl(i, e.target.value)}
+                      className="flex-1"
+                    />
+                    {competitorUrls.length > 2 && (
+                      <Button variant="ghost" size="icon" onClick={() => removeCompetitorUrl(i)} className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-500">
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Enter 2-3 top-ranking competitor URLs. We'll fetch each, run entity analysis, and merge the results to find consensus topics, unique angles, and entity gaps.
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Target Keyword (optional)</Label>
+                <Input
+                  placeholder="e.g., Medicare Advantage"
+                  value={primaryKeyword}
+                  onChange={(e) => setPrimaryKeyword(e.target.value)}
+                  className="max-w-md"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  The keyword you're targeting. Helps the analysis identify relevant entities and topic gaps.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Action Buttons */}
+          {inputMode !== "competitors" ? (
+            <div className="flex gap-3">
+              <Button
+                onClick={handleEntityAnalysis}
+                disabled={isAnalyzing || isSemanticAnalyzing || isFetchingUrl || (inputMode === "url" && !fetchedUrlContent)}
+                className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
+              >
+                {isAnalyzing ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing Entities...</>
+                ) : (
+                  <><Zap className="w-4 h-4 mr-2" /> Analyze Entities</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSemanticAnalysis}
+                disabled={isAnalyzing || isSemanticAnalyzing || isFetchingUrl || (inputMode === "url" && !fetchedUrlContent)}
+              >
+                {isSemanticAnalyzing ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing Semantics...</>
+                ) : (
+                  <><Eye className="w-4 h-4 mr-2" /> Analyze Semantics</>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <Button
+                onClick={handleCompetitorAnalysis}
+                disabled={isCompetitorAnalyzing || competitorUrls.filter(u => u.trim()).length < 2}
+                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700"
+              >
+                {isCompetitorAnalyzing ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing Competitors...</>
+                ) : (
+                  <><Users className="w-4 h-4 mr-2" /> Analyze Competitors</>
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1042,8 +1160,50 @@ export default function EntityAnalyzer() {
         />
       )}
 
+      {/* ========== COMPETITOR ANALYSIS RESULTS ========== */}
+      {competitorResult && (
+        <CompetitorResults
+          data={competitorResult}
+          keyword={primaryKeyword}
+          onGenerateOutline={() => setShowCompetitorOutlineDialog(true)}
+        />
+      )}
+
+      {/* Competitor Outline Dialog */}
+      {showCompetitorOutlineDialog && competitorResult && (
+        <CompetitorOutlineDialog
+          competitorData={competitorResult.merged}
+          analyses={competitorResult.analyses}
+          keyword={primaryKeyword}
+          projectId={activeProjectId}
+          projects={projects}
+          onClose={() => setShowCompetitorOutlineDialog(false)}
+        />
+      )}
+
+      {/* Loading state for competitor analysis */}
+      {isCompetitorAnalyzing && (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <Loader2 className="w-10 h-10 text-purple-500 animate-spin mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Analyzing Competitors...</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Fetching content from {competitorUrls.filter(u => u.trim()).length} URLs, running entity analysis on each, and merging results. This may take 30-60 seconds.
+            </p>
+            <div className="flex justify-center gap-6 mt-6">
+              {competitorUrls.filter(u => u.trim()).map((url, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="truncate max-w-[200px]">{new URL(url.startsWith('http') ? url : 'https://' + url).hostname}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Empty State */}
-      {!entityResult && !semanticResult && !isAnalyzing && !isSemanticAnalyzing && (
+      {!entityResult && !semanticResult && !competitorResult && !isAnalyzing && !isSemanticAnalyzing && !isCompetitorAnalyzing && (
         <Card className="border-dashed">
           <CardContent className="py-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 flex items-center justify-center mx-auto mb-4">
@@ -1365,6 +1525,672 @@ function StandaloneOutlineDialog({
             onClick={handleGenerate}
             disabled={generateMutation.isPending || !selectedProjectId || !keyword.trim()}
             className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600"
+          >
+            {generateMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                Generating Outline...
+              </>
+            ) : (
+              <>
+                <ListTree className="w-4 h-4 mr-1.5" />
+                Generate Outline
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// ============================================================
+// COMPETITOR ANALYSIS RESULTS
+// ============================================================
+
+function CompetitorResults({
+  data,
+  keyword,
+  onGenerateOutline,
+}: {
+  data: any;
+  keyword: string;
+  onGenerateOutline: () => void;
+}) {
+  const merged = data.merged;
+  const analyses = data.analyses as Array<{
+    url: string;
+    title: string;
+    wordCount: number;
+    scores: { overallScore: number };
+    primaryEntity: { name: string; type: string };
+    entityCount: number;
+  }>;
+
+  const avgScore = analyses.reduce((sum: number, a: any) => sum + a.scores.overallScore, 0) / analyses.length;
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <Card className="border-purple-200 bg-gradient-to-r from-purple-50/50 to-indigo-50/50">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+              <Users className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">Competitive Analysis</h3>
+              <p className="text-sm text-muted-foreground">
+                {analyses.length} competitor{analyses.length > 1 ? "s" : ""} analyzed
+                {keyword ? ` for "${keyword}"` : ""}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className={`text-3xl font-bold ${getScoreColor(avgScore).text}`}>
+                {Math.round(avgScore)}
+              </div>
+              <p className="text-xs text-muted-foreground">Avg Score</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Per-URL Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {analyses.map((a: any, i: number) => (
+          <Card key={i} className="overflow-hidden">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center text-xs font-bold text-purple-700 shrink-0">
+                    {i + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{a.title || "Untitled"}</p>
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 truncate"
+                    >
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                      {new URL(a.url).hostname}
+                    </a>
+                  </div>
+                </div>
+                <div className={`text-xl font-bold ${getScoreColor(a.scores.overallScore).text}`}>
+                  {Math.round(a.scores.overallScore)}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Hash className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Words:</span>
+                  <span className="font-medium">{a.wordCount?.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Target className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Entities:</span>
+                  <span className="font-medium">{a.entityCount}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs">
+                <Shield className="w-3 h-3 text-indigo-500" />
+                <span className="text-muted-foreground">Primary:</span>
+                <Badge variant="outline" className="text-[10px] h-5">{a.primaryEntity.name}</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Competitive Insights */}
+      {merged.competitiveInsights && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-500" />
+              Competitive Insights
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                <p className="text-[11px] font-semibold text-emerald-700 mb-1 uppercase tracking-wide">Strongest Area</p>
+                <p className="text-sm">{merged.competitiveInsights.strongestArea}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-red-50/50 border border-red-100">
+                <p className="text-[11px] font-semibold text-red-700 mb-1 uppercase tracking-wide">Weakest Area (Your Opportunity)</p>
+                <p className="text-sm">{merged.competitiveInsights.weakestArea}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-purple-50/50 border border-purple-100 md:col-span-2">
+                <p className="text-[11px] font-semibold text-purple-700 mb-1 uppercase tracking-wide">Differentiation Opportunity</p>
+                <p className="text-sm">{merged.competitiveInsights.differentiationOpportunity}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Consensus Topics */}
+      {merged.consensusTopics?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              Consensus Topics
+              <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 ml-1">
+                Must Include
+              </Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Topics that appear in ALL competitors — these are required for any new article.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {merged.consensusTopics.map((t: any, i: number) => (
+              <div key={i} className="flex gap-3 items-start p-3 rounded-lg bg-emerald-50/30 border border-emerald-100 hover:bg-emerald-50/50 transition-colors">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{t.topic}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>
+                </div>
+                {t.appearsIn && (
+                  <div className="flex gap-1 shrink-0">
+                    {t.appearsIn.map((url: string, j: number) => (
+                      <div key={j} className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700" title={url}>
+                        {j + 1}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Common Topics */}
+      {merged.commonTopics?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-500" />
+              Common Topics
+              <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 ml-1">
+                Should Include
+              </Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Topics that appear in most competitors.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {merged.commonTopics.map((t: any, i: number) => (
+              <div key={i} className="flex gap-3 items-start p-3 rounded-lg bg-blue-50/30 border border-blue-100">
+                <Layers className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{t.topic}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Unique Topics + Entity Gaps side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Unique Topics */}
+        {merged.uniqueTopics?.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-500" />
+                Unique Topics
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Topics from only one competitor — differentiation opportunities.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {merged.uniqueTopics.map((t: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg bg-amber-50/30 border border-amber-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-medium">{t.topic}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{t.description}</p>
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    Source: {(() => { try { return new URL(t.source).hostname; } catch { return t.source; } })()}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Entity Gaps */}
+        {merged.entityGaps?.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-500" />
+                Entity Gaps
+                <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200 ml-1">
+                  Opportunity
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Entities missing from ALL competitors — your competitive edge.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {merged.entityGaps.map((g: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg bg-purple-50/30 border border-purple-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-medium">{g.entity}</p>
+                    <Badge variant="outline" className="text-[10px]">{g.type}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{g.rationale}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Recommended Sections */}
+      {merged.recommendedSections?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ListTree className="w-4 h-4 text-indigo-500" />
+              Recommended Section Structure
+            </CardTitle>
+            <CardDescription className="text-xs">
+              The ideal section structure to outrank all competitors.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-10">#</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Section</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-28">Priority</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Rationale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {merged.recommendedSections.map((s: any, i: number) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
+                      <td className="px-4 py-3 font-medium">{s.heading}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className={`text-[10px] ${
+                          s.priority === "must-have" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                          s.priority === "recommended" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                          "bg-gray-50 text-gray-600 border-gray-200"
+                        }`}>
+                          {s.priority}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell max-w-xs">{s.rationale}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Merged Entities */}
+      {merged.mergedEntities?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4 text-teal-500" />
+              Merged Entity Map ({merged.mergedEntities.length})
+            </CardTitle>
+            <CardDescription className="text-xs">
+              All entities found across competitors, ranked by frequency and prominence.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {merged.mergedEntities.slice(0, 30).map((e: any, i: number) => (
+                <Badge
+                  key={i}
+                  variant="outline"
+                  className={`text-xs ${
+                    e.frequency >= analyses.length ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                    e.frequency >= 2 ? "bg-blue-50 text-blue-700 border-blue-200" :
+                    "bg-gray-50 text-gray-600 border-gray-200"
+                  }`}
+                >
+                  {e.name}
+                  <span className="ml-1 text-[10px] opacity-60">
+                    ({e.frequency}/{analyses.length})
+                  </span>
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Generate Outline CTA */}
+      <Card className="border-purple-200 bg-gradient-to-r from-purple-50/50 to-indigo-50/50">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+                <ListTree className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">Generate Outline from Competitor Analysis</h3>
+                <p className="text-xs text-muted-foreground">
+                  Create an optimized outline that covers all consensus topics, fills entity gaps, and outranks all competitors.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={onGenerateOutline}
+              className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-600 hover:to-indigo-600 shrink-0"
+            >
+              <ListTree className="w-4 h-4 mr-2" />
+              Generate Outline
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPETITOR OUTLINE DIALOG
+// ============================================================
+
+function CompetitorOutlineDialog({
+  competitorData,
+  analyses,
+  keyword: initialKeyword,
+  projectId: initialProjectId,
+  projects,
+  onClose,
+}: {
+  competitorData: any;
+  analyses: any[];
+  keyword?: string;
+  projectId?: number | null;
+  projects: Array<{ id: number; name: string }>;
+  onClose: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(initialProjectId ?? null);
+  const [keyword, setKeyword] = useState(initialKeyword || "");
+  const [targetWordCount, setTargetWordCount] = useState("2500");
+  const [numSections, setNumSections] = useState("10");
+  const [numFaqs, setNumFaqs] = useState("5");
+
+  const { data: brandVoices = [] } = trpc.brandVoices.list.useQuery(
+    { projectId: selectedProjectId! },
+    { enabled: !!selectedProjectId }
+  );
+  const { data: icpProfiles = [] } = trpc.icpProfiles.list.useQuery(
+    { projectId: selectedProjectId! },
+    { enabled: !!selectedProjectId }
+  );
+
+  const [selectedBrandVoiceId, setSelectedBrandVoiceId] = useState<number | null>(null);
+  const [selectedIcpId, setSelectedIcpId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (brandVoices.length > 0 && !selectedBrandVoiceId) {
+      const defaultVoice = (brandVoices as any[]).find((v) => v.isDefault === 1) || brandVoices[0];
+      if (defaultVoice) setSelectedBrandVoiceId((defaultVoice as any).id);
+    }
+  }, [brandVoices, selectedBrandVoiceId]);
+
+  useEffect(() => {
+    if (icpProfiles.length > 0 && !selectedIcpId) {
+      const defaultIcp = (icpProfiles as any[]).find((p) => p.isDefault === 1) || icpProfiles[0];
+      if (defaultIcp) setSelectedIcpId((defaultIcp as any).id);
+    }
+  }, [icpProfiles, selectedIcpId]);
+
+  const generateMutation = trpc.entity.generateOutlineFromCompetitors.useMutation({
+    onSuccess: (data: any) => {
+      if (data) {
+        toast.success("Outline generated from competitor analysis! Redirecting to review...");
+        sessionStorage.setItem("entityOutlineData", JSON.stringify({
+          outlineId: data.id,
+          title: data.title,
+          sections: data.sections,
+          keyword,
+          projectId: selectedProjectId,
+        }));
+        navigate("/generate?fromEntityAnalysis=1");
+        onClose();
+      }
+    },
+    onError: (err: any) => {
+      const msg = err.message || "";
+      if (/overloaded|529|rate.?limit|too many|capacity/i.test(msg)) {
+        toast.error("The AI service is currently overloaded. Please wait a moment and try again.");
+      } else {
+        toast.error(msg || "Failed to generate outline from competitor analysis");
+      }
+    },
+  });
+
+  const handleGenerate = () => {
+    if (!selectedProjectId) {
+      toast.error("Please select a project");
+      return;
+    }
+    if (!keyword.trim()) {
+      toast.error("Please enter a keyword");
+      return;
+    }
+    generateMutation.mutate({
+      competitorData,
+      analyses: analyses.map((a: any) => ({
+        url: a.url,
+        title: a.title,
+        scores: { overallScore: a.scores.overallScore },
+        primaryEntity: { name: a.primaryEntity.name, type: a.primaryEntity.type },
+      })),
+      keyword: keyword.trim(),
+      projectId: selectedProjectId,
+      brandVoiceId: selectedBrandVoiceId ?? undefined,
+      icpProfileId: selectedIcpId ?? undefined,
+      targetWordCount: parseInt(targetWordCount) || 2500,
+      numSections: parseInt(numSections) || 10,
+      numFaqs: parseInt(numFaqs) || 5,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-purple-600" />
+            Generate Outline from Competitors
+          </DialogTitle>
+          <DialogDescription>
+            Create an outline that covers all consensus topics, fills entity gaps, and outranks all {analyses.length} competitors.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Competitor Summary */}
+          <div className="rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 p-3">
+            <p className="text-[11px] font-semibold text-purple-700 mb-2 flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5" />
+              Competitor Overview
+            </p>
+            <div className="space-y-1.5">
+              {analyses.map((a: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <div className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-700">{i + 1}</div>
+                  <span className="font-medium truncate flex-1">{a.title || "Untitled"}</span>
+                  <span className={`font-bold ${getScoreColor(a.scores.overallScore).text}`}>{Math.round(a.scores.overallScore)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* What the outline will cover */}
+          <div className="rounded-lg border p-3 space-y-2">
+            <p className="text-xs font-semibold flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              What the Outline Will Cover
+            </p>
+            <div className="space-y-1.5 max-h-[120px] overflow-y-auto">
+              {competitorData.consensusTopics?.slice(0, 5).map((t: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span>{t.topic}</span>
+                </div>
+              ))}
+              {competitorData.entityGaps?.slice(0, 3).map((g: any, i: number) => (
+                <div key={`gap-${i}`} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500 mt-0.5 shrink-0" />
+                  <span>{g.entity} (gap — competitive edge)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Project Selector */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold flex items-center gap-1.5">
+              <FolderKanban className="w-3.5 h-3.5 text-muted-foreground" />
+              Project
+            </Label>
+            <Select
+              value={selectedProjectId?.toString() || ""}
+              onValueChange={(v) => {
+                setSelectedProjectId(parseInt(v));
+                setSelectedBrandVoiceId(null);
+                setSelectedIcpId(null);
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a project..." />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Target Keyword</Label>
+            <Input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="e.g., Medicare Supplement Plans"
+              className="h-9"
+            />
+          </div>
+
+          {selectedProjectId && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Brand Voice</Label>
+                <Select
+                  value={selectedBrandVoiceId?.toString() || ""}
+                  onValueChange={(v) => setSelectedBrandVoiceId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(brandVoices as any[]).map((v) => (
+                      <SelectItem key={v.id} value={v.id.toString()}>
+                        {v.name} {v.isDefault === 1 ? "(default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">ICP Profile</Label>
+                <Select
+                  value={selectedIcpId?.toString() || ""}
+                  onValueChange={(v) => setSelectedIcpId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(icpProfiles as any[]).map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.name} {p.isDefault === 1 ? "(default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Word Count</Label>
+              <Input
+                type="number"
+                value={targetWordCount}
+                onChange={(e) => setTargetWordCount(e.target.value)}
+                className="h-9"
+                min={500}
+                max={10000}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Sections</Label>
+              <Input
+                type="number"
+                value={numSections}
+                onChange={(e) => setNumSections(e.target.value)}
+                className="h-9"
+                min={3}
+                max={20}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">FAQs</Label>
+              <Input
+                type="number"
+                value={numFaqs}
+                onChange={(e) => setNumFaqs(e.target.value)}
+                className="h-9"
+                min={0}
+                max={15}
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={generateMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleGenerate}
+            disabled={generateMutation.isPending || !selectedProjectId || !keyword.trim()}
+            className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-600 hover:to-indigo-600"
           >
             {generateMutation.isPending ? (
               <>

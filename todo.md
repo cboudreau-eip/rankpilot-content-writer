@@ -1180,3 +1180,13 @@
 - [x] Injected reference doc into scheduler researchTopicForScheduler prompt
 - [x] Research-specific rules: extract real stats/data from doc, use doc's cited sources, ground key takeaways in doc facts, supplement (not replace) external research
 - [x] 495 tests passing, 0 TS errors
+
+## Feature: Multi-URL Competitor Analysis + Outline Generation
+- [x] Read current Entity Analyzer frontend and backend code
+- [x] Backend: multi-URL fetch and parallel analysis procedure (analyzeCompetitorUrls)
+- [x] Backend: merge entity/section data across URLs (consensus, common, unique topics + entity gaps)
+- [x] Backend: generate outline from merged competitor analysis (generateOutlineFromCompetitors)
+- [x] Frontend: multi-URL input UI (2-3 URLs) in Entity Analyzer "Competitors" tab
+- [x] Frontend: merged results display showing consensus/common/unique topics, entity gaps, recommended sections, competitive insights
+- [x] Frontend: "Generate Outline from Competitors" button + dialog with project/brand voice/ICP/word count settings
+- [x] TypeScript check — 0 errors

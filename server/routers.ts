@@ -4407,6 +4407,453 @@ Return ONLY valid JSON, no markdown code blocks.`;
           metaKeywords,
         };
       }),
+
+
+    /**
+     * Multi-URL Competitor Analysis — fetch 2-3 competitor URLs in parallel,
+     * run entity analysis on each, then merge results to identify consensus
+     * topics, unique topics, and entity gaps.
+     */
+    analyzeCompetitorUrls: publicProcedure
+      .input(z.object({
+        urls: z.array(z.string().url("Please enter a valid URL")).min(2, "At least 2 URLs required").max(3, "Maximum 3 URLs"),
+        keyword: z.string().optional(),
+        projectId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { Readability } = await import("@mozilla/readability");
+        const { parseHTML } = await import("linkedom");
+
+        // ---- Step 1: Fetch all URLs in parallel ----
+        const fetchOne = async (url: string) => {
+          try {
+            const resp = await fetch(url, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; RankPilot/1.0; +https://rankpilot.app)",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+              },
+              signal: AbortSignal.timeout(15000),
+              redirect: "follow",
+            });
+            if (!resp.ok) return { url, error: `HTTP ${resp.status}`, content: "", title: "", wordCount: 0 };
+            const contentType = resp.headers.get("content-type") || "";
+            if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+              return { url, error: "Not an HTML page", content: "", title: "", wordCount: 0 };
+            }
+            const html = await resp.text();
+            const { document } = parseHTML(html);
+            const pageTitle = document.querySelector("title")?.textContent?.trim() || "";
+            const reader = new Readability(document as any, { charThreshold: 100 });
+            const article = reader.parse();
+            if (article && article.textContent && article.textContent.trim().length >= 50) {
+              const clean = article.textContent.replace(/\s+/g, " ").trim();
+              return { url, error: null, content: clean.slice(0, 8000), title: article.title || pageTitle, wordCount: clean.split(/\s+/).filter((w: string) => w.length > 0).length };
+            }
+            // Fallback
+            const fallback = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+            return { url, error: null, content: fallback.slice(0, 8000), title: pageTitle, wordCount: fallback.split(/\s+/).filter((w: string) => w.length > 0).length };
+          } catch (e: any) {
+            return { url, error: e.name === "TimeoutError" ? "Timed out" : e.message, content: "", title: "", wordCount: 0 };
+          }
+        };
+
+        const fetched = await Promise.all(input.urls.map(fetchOne));
+        const successful = fetched.filter(f => !f.error && f.content.length >= 50);
+        if (successful.length < 2) {
+          const errors = fetched.filter(f => f.error).map(f => `${f.url}: ${f.error}`).join("; ");
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Could not extract content from enough URLs (need at least 2). Errors: ${errors}`,
+          });
+        }
+
+        // ---- Step 2: Run entity analysis on each URL in parallel ----
+        const analyzeOne = async (item: { url: string; content: string; title: string }) => {
+          const prompt = getEntityAnalysisPrompt(item.content, input.keyword || undefined);
+          const response = await callLLM({
+            messages: [
+              { role: "system", content: "You are an expert SEO entity analyst. Respond with raw JSON only." },
+              { role: "user", content: prompt },
+            ],
+          }, input.projectId);
+          const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+          const parsed = extractJSON(llmResponse);
+          if (!parsed) return null;
+          return { url: item.url, title: item.title, wordCount: item.content.split(/\s+/).length, analysis: parsed as EntityAnalysisResult };
+        };
+
+        const analyses = (await Promise.all(successful.map(analyzeOne))).filter((a): a is NonNullable<typeof a> => a !== null);
+        if (analyses.length < 2) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Entity analysis failed for too many URLs" });
+        }
+
+        // ---- Step 3: Merge with LLM — find consensus, unique, and gaps ----
+        const mergeInput = analyses.map((a, i) => `
+=== COMPETITOR ${i + 1}: ${a.url} ===
+Title: ${a.title}
+Word Count: ${a.wordCount}
+Primary Entity: ${a.analysis.primaryEntity.name} (${a.analysis.primaryEntity.type})
+Overall Score: ${a.analysis.scores.overallScore}
+
+Entities (${a.analysis.entities.length}):
+${a.analysis.entities.map(e => `- ${e.name} (${e.type}, ${e.prominence})`).join('\n')}
+
+Actionable Fixes:
+${a.analysis.actionableFixes.map((f, j) => `${j + 1}. ${f}`).join('\n')}
+
+Supporting Coverage: ${a.analysis.supportingCoverage.grade}
+- Sub-entities: ${a.analysis.supportingCoverage.relatedSubEntities.join(', ') || 'None'}
+- Missing: ${a.analysis.supportingCoverage.missingComponents.join(', ') || 'None'}
+
+GEO Extractability: ${a.analysis.geoExtractability.grade}
+- ${a.analysis.geoExtractability.evaluation}
+
+Advanced Recommendations:
+- Refined Entity: ${a.analysis.advancedRecommendations.refinedPrimaryEntity}
+- Suggested Title: ${a.analysis.advancedRecommendations.suggestedTitleRewrite}
+- Missing Supporting: ${a.analysis.advancedRecommendations.missingSupportingEntities.join(', ')}
+`).join('\n');
+
+        const mergePrompt = `You are an expert SEO competitive analyst. You have been given entity/salience analysis results for ${analyses.length} top-ranking competitor articles${input.keyword ? ` for the keyword "${input.keyword}"` : ''}.
+
+Your job is to synthesize these analyses into a competitive intelligence report that identifies:
+
+1. **Consensus Topics** — sections/entities that appear in ALL competitors (these are REQUIRED for any new article)
+2. **Common Topics** — sections/entities that appear in MOST competitors (2 out of 3, or both if 2 URLs)
+3. **Unique Topics** — sections/entities that appear in only ONE competitor (potential differentiation opportunities)
+4. **Entity Gaps** — entities or topics that are MISSING from all competitors (opportunity to outperform)
+5. **Recommended Sections** — the ideal section structure for a new article that would outrank all competitors
+
+${mergeInput}
+
+Return a JSON object with this structure:
+{
+  "consensusTopics": [{ "topic": "string", "description": "why this is essential", "appearsIn": ["url1", "url2"] }],
+  "commonTopics": [{ "topic": "string", "description": "string", "appearsIn": ["url1"] }],
+  "uniqueTopics": [{ "topic": "string", "source": "url", "description": "why this could add value" }],
+  "entityGaps": [{ "entity": "string", "type": "string", "rationale": "why competitors are missing this" }],
+  "mergedEntities": [{ "name": "string", "type": "string", "frequency": 2, "avgProminence": "High|Medium|Low" }],
+  "recommendedSections": [{ "heading": "string", "rationale": "string", "priority": "must-have|recommended|optional" }],
+  "competitiveInsights": {
+    "avgScore": 75,
+    "strongestArea": "string",
+    "weakestArea": "string",
+    "differentiationOpportunity": "string"
+  }
+}
+
+Respond with raw JSON only.`;
+
+        const mergeResponse = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert SEO competitive analyst. Respond with raw JSON only." },
+            { role: "user", content: mergePrompt },
+          ],
+        }, input.projectId);
+
+        const mergeRaw = (mergeResponse.choices?.[0]?.message?.content || "") as string;
+        const merged = extractJSON(mergeRaw);
+        if (!merged) throw new Error("Failed to parse merged competitor analysis");
+
+        return {
+          urls: fetched.map(f => ({ url: f.url, title: f.title, wordCount: f.wordCount, error: f.error })),
+          analyses: analyses.map(a => ({
+            url: a.url,
+            title: a.title,
+            wordCount: a.wordCount,
+            scores: a.analysis.scores,
+            primaryEntity: a.analysis.primaryEntity,
+            entityCount: a.analysis.entities.length,
+          })),
+          merged,
+        };
+      }),
+
+    /**
+     * Generate an outline from merged competitor analysis.
+     * Takes the merged competitive intelligence and creates an outline
+     * that covers all consensus topics and selectively adds unique depth.
+     */
+    generateOutlineFromCompetitors: publicProcedure
+      .input(z.object({
+        /** The merged competitor analysis data */
+        competitorData: z.object({
+          consensusTopics: z.array(z.object({ topic: z.string(), description: z.string() })),
+          commonTopics: z.array(z.object({ topic: z.string(), description: z.string() })).optional(),
+          uniqueTopics: z.array(z.object({ topic: z.string(), source: z.string(), description: z.string() })),
+          entityGaps: z.array(z.object({ entity: z.string(), type: z.string(), rationale: z.string() })),
+          recommendedSections: z.array(z.object({ heading: z.string(), rationale: z.string(), priority: z.string() })),
+          competitiveInsights: z.object({
+            avgScore: z.number(),
+            strongestArea: z.string(),
+            weakestArea: z.string(),
+            differentiationOpportunity: z.string(),
+          }).optional(),
+        }),
+        /** Per-URL analysis summaries */
+        analyses: z.array(z.object({
+          url: z.string(),
+          title: z.string(),
+          scores: z.object({ overallScore: z.number() }),
+          primaryEntity: z.object({ name: z.string(), type: z.string() }),
+        })),
+        keyword: z.string().min(1),
+        projectId: z.number(),
+        brandVoiceId: z.number().optional(),
+        icpProfileId: z.number().optional(),
+        targetWordCount: z.number().optional(),
+        numSections: z.number().optional(),
+        numFaqs: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const cd = input.competitorData;
+
+        // ---- Build Competitor Context ----
+        const competitorContext = `
+=== COMPETITIVE ANALYSIS RESULTS ===
+These are the top-ranking competitors for "${input.keyword}". Your outline must BEAT all of them.
+
+COMPETITOR SUMMARIES:
+${input.analyses.map((a, i) => `${i + 1}. ${a.title} (${a.url}) — Score: ${a.scores.overallScore}, Primary Entity: ${a.primaryEntity.name}`).join('\n')}
+
+CONSENSUS TOPICS (appear in ALL competitors — MUST include):
+${cd.consensusTopics.map(t => `- ${t.topic}: ${t.description}`).join('\n') || '- None identified'}
+
+${cd.commonTopics?.length ? `COMMON TOPICS (appear in most competitors — SHOULD include):
+${cd.commonTopics.map(t => `- ${t.topic}: ${t.description}`).join('\n')}` : ''}
+
+UNIQUE TOPICS (appear in only one competitor — selective inclusion for depth):
+${cd.uniqueTopics.map(t => `- ${t.topic} (from ${t.source}): ${t.description}`).join('\n') || '- None identified'}
+
+ENTITY GAPS (missing from ALL competitors — OPPORTUNITY to outperform):
+${cd.entityGaps.map(g => `- ${g.entity} (${g.type}): ${g.rationale}`).join('\n') || '- None identified'}
+
+RECOMMENDED SECTION STRUCTURE:
+${cd.recommendedSections.map(s => `- [${s.priority.toUpperCase()}] ${s.heading}: ${s.rationale}`).join('\n')}
+
+${cd.competitiveInsights ? `COMPETITIVE INSIGHTS:
+- Average competitor score: ${cd.competitiveInsights.avgScore}
+- Strongest area across competitors: ${cd.competitiveInsights.strongestArea}
+- Weakest area (your opportunity): ${cd.competitiveInsights.weakestArea}
+- Key differentiation: ${cd.competitiveInsights.differentiationOpportunity}` : ''}
+`;
+
+        // ---- Fetch Brand Voice & ICP (reuse existing logic) ----
+        const project = await getProjectById(input.projectId);
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = input.brandVoiceId
+          ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
+          : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+        let icpSection = "";
+        const formatList = (items: string[] | null | undefined, label: string): string => {
+          if (!items?.length) return '';
+          return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+        };
+
+        if (input.icpProfileId) {
+          const icpProfile = await getICPById(input.icpProfileId);
+          if (icpProfile) {
+            const demographics = icpProfile.demographics;
+            const demoLines = demographics ? [
+              demographics.ageRange ? `Age Range: ${demographics.ageRange}` : '',
+              demographics.location ? `Location: ${demographics.location}` : '',
+              demographics.income ? `Income: ${demographics.income}` : '',
+              demographics.education ? `Education: ${demographics.education}` : '',
+              demographics.occupation ? `Occupation: ${demographics.occupation}` : '',
+              demographics.other ? `Other: ${demographics.other}` : '',
+            ].filter(Boolean).join('\n') : '';
+
+            icpSection = `
+=== IDEAL CUSTOMER PROFILE (ICP) ===
+TARGET AUDIENCE: ${icpProfile.name}
+${icpProfile.description ? `Who They Are: ${icpProfile.description}` : ''}
+${demoLines ? `\nDEMOGRAPHICS:\n${demoLines}` : ''}
+
+${formatList(icpProfile.painPoints, 'PAIN POINTS (structure H2 headings around these)')}
+${formatList(icpProfile.goals, 'GOALS (address these in content sections)')}
+${formatList(icpProfile.objections, 'OBJECTIONS (create FAQ questions from these)')}
+${icpProfile.searchBehavior ? `SEARCH BEHAVIOR: ${icpProfile.searchBehavior}\n` : ''}
+${formatList(icpProfile.contentPreferences, 'CONTENT PREFERENCES')}
+`;
+          }
+        } else if (project?.icpPrimaryName) {
+          icpSection = `
+=== IDEAL CUSTOMER PROFILE (ICP) ===
+TARGET AUDIENCE: ${project.icpPrimaryName}
+${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}
+
+${formatList(project.icpPains as string[] | null, 'PAIN POINTS (structure H2 headings around these)')}
+${formatList(project.icpGoals as string[] | null, 'GOALS (address these in content sections)')}
+${formatList(project.icpObjections as string[] | null, 'OBJECTIONS (create FAQ questions from these)')}
+${formatList(project.icpDecisionTriggers as string[] | null, 'DECISION TRIGGERS')}
+${formatList(project.icpTrustSignals as string[] | null, 'TRUST SIGNALS')}
+`;
+        }
+
+        let brandVoiceSection = "";
+        if (brandVoice) {
+          const perspectiveMap: Record<string, string> = {
+            first: "First person (we/our/us)",
+            second: "Second person (you/your)",
+            third: "Third person (they/their)",
+          };
+          const styleMap: Record<string, string> = {
+            short: "Concise, punchy sentences. Paragraphs of 1-3 sentences only.",
+            mixed: "Varied sentence lengths with natural rhythm. Paragraphs of 2-5 sentences only.",
+            detailed: "Detailed, explanatory sentences. Paragraphs of 3-6 sentences maximum.",
+          };
+
+          const AVOID_LABELS: Record<string, string> = {
+            jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+            fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+            cliches: "Industry clichés", passive: "Passive voice",
+            buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+            unverified: "Unverified statistics", competitor: "Competitor comparisons",
+          };
+          let avoidItems: string[] = [];
+          const avoidList = brandVoice.avoidList || "";
+          if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+            const parts = avoidList.split("|");
+            for (const part of parts) {
+              if (part.startsWith("PRESETS:")) {
+                const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+                avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+              } else if (part.startsWith("CUSTOM:")) {
+                const custom = part.replace("CUSTOM:", "").trim();
+                if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+              }
+            }
+          } else if (avoidList) {
+            avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+          }
+
+          brandVoiceSection = `
+=== BRAND VOICE GUIDELINES ===
+Voice Name: ${brandVoice.name}
+TONE TRAITS: ${brandVoice.toneTraits || 'Professional'}
+WRITING PERSPECTIVE: ${perspectiveMap[brandVoice.perspective] || brandVoice.perspective}
+SENTENCE STYLE: ${styleMap[brandVoice.sentenceStyle] || brandVoice.sentenceStyle}
+${avoidItems.length > 0 ? `AVOID:\n${avoidItems.map(item => `- ${item}`).join('\n')}` : ''}
+`;
+        }
+
+        const currentYear = new Date().getFullYear();
+        const numSections = input.numSections ?? 8;
+        const numFaqs = input.numFaqs ?? 5;
+        const targetWordCount = input.targetWordCount ?? 2000;
+
+        const systemPrompt = `You are an expert SEO content strategist. You have been given competitive analysis results from ${input.analyses.length} top-ranking articles. Your job is to create an outline that would OUTRANK all of them by:
+
+1. Covering ALL consensus topics (required by all competitors)
+2. Including the best unique topics for added depth
+3. Filling entity gaps that no competitor covers (your competitive advantage)
+4. Addressing the weakest areas across competitors
+
+IMPORTANT — CURRENT DATE CONTEXT: The current year is ${currentYear}. All references to dates, years, regulations, trends, and time-sensitive topics MUST treat ${currentYear} as the present year.
+
+${competitorContext}
+${icpSection}
+${brandVoiceSection}
+
+OUTLINE REQUIREMENTS:
+1. Build the outline to BEAT all competitors — not just match them
+2. Create ${numSections} main H2 sections plus a FAQ section with ${numFaqs} questions
+3. Include an introduction that establishes the primary topic within the first 120 words
+4. Every consensus topic MUST have a dedicated section or subsection
+5. Entity gaps should be covered in dedicated sections (this is your competitive edge)
+6. Unique topics from individual competitors should be selectively included where they add genuine value
+7. Target word count: ${targetWordCount} words
+8. Include a conclusion section last
+9. Each section should have 2-4 specific, actionable key points — not generic filler
+10. Structure for maximum GEO/AI extractability: concise definitions, clear Q&A format, clean headings
+
+Return a JSON object with:
+- "title": A compelling, SEO-optimized article title
+- "sections": An array of sections, each with:
+  - "id": A unique string ID (format "s1", "s2", etc.)
+  - "heading": The section heading text
+  - "type": "h2" for main sections
+  - "points": Array of 2-4 key points to cover
+  - "subSections": Array of sub-sections with same structure but type "h3"
+
+Return ONLY valid JSON, no markdown code blocks.`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate an outline for the keyword: "${input.keyword}" that would outrank all ${input.analyses.length} competitors analyzed.` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "article_outline_from_competitors",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "SEO-optimized article title" },
+                  sections: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        heading: { type: "string" },
+                        type: { type: "string", enum: ["h2", "h3"] },
+                        points: { type: "array", items: { type: "string" } },
+                        subSections: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string" },
+                              heading: { type: "string" },
+                              type: { type: "string", enum: ["h2", "h3"] },
+                              points: { type: "array", items: { type: "string" } },
+                            },
+                            required: ["id", "heading", "type", "points"],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ["id", "heading", "type", "points", "subSections"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["title", "sections"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const content = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const parsed = extractJSON(content);
+        if (!parsed) throw new Error("Failed to parse outline from AI response");
+
+        // Save the outline to the database
+        const outline = await createOutline({
+          title: parsed.title,
+          keyword: input.keyword,
+          sections: parsed.sections as OutlineSection[],
+          settings: {
+            contentType: "blog",
+            targetWordCount: input.targetWordCount,
+            numSections: input.numSections,
+            numFaqs: input.numFaqs,
+            additionalInstructions: `Generated from competitor analysis of ${input.analyses.length} URLs. Covers all consensus topics and fills entity gaps.`,
+          },
+          projectId: input.projectId,
+          userId: 1,
+        });
+
+        return outline;
+      }),
   }),
 
   grading: router({

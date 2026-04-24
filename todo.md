@@ -1220,3 +1220,10 @@
 - [x] Add /project-keywords route and sidebar nav entry
 - [x] TypeScript check — 0 errors
 - [x] Vitest tests — 497 passing (35 test files)
+
+## Move Project Keywords into Project Dashboard
+- [x] Review current Dashboard page structure
+- [x] Add Keywords tab to project dashboard with embedded ProjectKeywordsPanel
+- [x] Refactored ProjectKeywords.tsx into reusable ProjectKeywordsPanel component
+- [x] Kept standalone /project-keywords route as alternative access point
+- [x] TypeScript check — 0 errors

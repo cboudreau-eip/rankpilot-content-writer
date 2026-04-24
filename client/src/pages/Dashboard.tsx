@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useActiveProject } from "@/components/AppLayout";
+import { ProjectKeywordsPanel } from "@/pages/ProjectKeywords";
 import {
   FileText,
   CheckCircle2,
@@ -15,6 +17,8 @@ import {
   Plus,
   Settings,
   Timer,
+  KeyRound,
+  LayoutDashboard,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,13 +69,16 @@ const ideas = [
   { title: "How Medicare Part D Lowers Prescription Costs", date: "Feb 25, 2026", color: "text-emerald-500 bg-emerald-50" },
 ];
 
+type DashboardTab = "overview" | "keywords";
+
 export default function Dashboard() {
   const { activeProject } = useActiveProject();
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
 
   return (
     <div>
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -98,151 +105,188 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Row 2: Chart + Clusters/Ideas */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-7">
-        {/* Chart */}
-        <Card className="lg:col-span-3 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-muted-foreground" />
-              Content Production
-            </CardTitle>
-            <span className="text-sm text-primary font-semibold cursor-pointer">This Month</span>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorVal2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="oklch(0.55 0.2 270)" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="oklch(0.55 0.2 270)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.005 260)" />
-                  <XAxis dataKey="day" tick={{ fill: "oklch(0.55 0.015 260)", fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "oklch(0.55 0.015 260)", fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "#fff",
-                      border: "1px solid oklch(0.9 0.005 260)",
-                      borderRadius: 10,
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                    }}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="oklch(0.55 0.2 270)" strokeWidth={2.5} fill="url(#colorVal2)" name="Articles Created" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Clusters + Ideas */}
-        <div className="lg:col-span-2 flex flex-col gap-5">
-          <Card className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Network className="w-4 h-4 text-muted-foreground" />
-                Topic Clusters
-              </CardTitle>
-              <span className="text-sm text-primary font-semibold cursor-pointer">View All</span>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {clusters.map((c) => (
-                <div key={c.name}>
-                  <p className="text-sm font-semibold mb-1.5">{c.name}</p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-                    <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {c.articles} articles</span>
-                    <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {c.done} done</span>
-                  </div>
-                  <div className="h-1 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(c.done / c.articles) * 100}%`, background: c.color }} />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-muted-foreground" />
-                Saved Ideas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {ideas.map((idea) => (
-                <div key={idea.title} className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${idea.color}`}>
-                    <Lightbulb className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold leading-snug">{idea.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{idea.date}</p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+      {/* Tab Navigation */}
+      {activeProject && (
+        <div className="flex items-center gap-1 mb-6 border-b border-border">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "overview"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab("keywords")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "keywords"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+            }`}
+          >
+            <KeyRound className="w-4 h-4" />
+            Keywords
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Row 3: Articles + Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        {/* Recent Articles */}
-        <Card className="lg:col-span-3 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <FileText className="w-4 h-4 text-muted-foreground" />
-              Recent Articles
-            </CardTitle>
-            <span className="text-sm text-primary font-semibold cursor-pointer">View All</span>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-border">
-              {recentArticles.map((a) => (
-                <div key={a.title} className="flex items-center justify-between py-3.5">
-                  <div className="flex-1 min-w-0 mr-4">
-                    <p className="text-sm font-semibold truncate">{a.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{a.words} · {a.time}</p>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap ${a.statusClass}`}>
-                    {a.status}
-                  </span>
+      {/* Tab Content */}
+      {activeTab === "keywords" && activeProject ? (
+        <ProjectKeywordsPanel
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+          embedded
+        />
+      ) : (
+        <>
+          {/* Row 2: Chart + Clusters/Ideas */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-7">
+            {/* Chart */}
+            <Card className="lg:col-span-3 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                  Content Production
+                </CardTitle>
+                <span className="text-sm text-primary font-semibold cursor-pointer">This Month</span>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorVal2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="oklch(0.55 0.2 270)" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="oklch(0.55 0.2 270)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.005 260)" />
+                      <XAxis dataKey="day" tick={{ fill: "oklch(0.55 0.015 260)", fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: "oklch(0.55 0.015 260)", fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#fff",
+                          border: "1px solid oklch(0.9 0.005 260)",
+                          borderRadius: 10,
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                        }}
+                      />
+                      <Area type="monotone" dataKey="value" stroke="oklch(0.55 0.2 270)" strokeWidth={2.5} fill="url(#colorVal2)" name="Articles Created" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Activity Feed */}
-        <Card className="lg:col-span-2 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Zap className="w-4 h-4 text-muted-foreground" />
-              Activity Feed
-            </CardTitle>
-            <span className="text-sm text-primary font-semibold cursor-pointer">View All</span>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-border">
-              {activityFeed.map((item, i) => (
-                <div key={i} className="flex items-start gap-3 py-3">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${item.bg} ${item.color}`}>
-                    <item.icon className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-1">{item.time}</p>
-                  </div>
-                </div>
-              ))}
+            {/* Clusters + Ideas */}
+            <div className="lg:col-span-2 flex flex-col gap-5">
+              <Card className="shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Network className="w-4 h-4 text-muted-foreground" />
+                    Topic Clusters
+                  </CardTitle>
+                  <span className="text-sm text-primary font-semibold cursor-pointer">View All</span>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {clusters.map((c) => (
+                    <div key={c.name}>
+                      <p className="text-sm font-semibold mb-1.5">{c.name}</p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
+                        <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {c.articles} articles</span>
+                        <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {c.done} done</span>
+                      </div>
+                      <div className="h-1 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(c.done / c.articles) * 100}%`, background: c.color }} />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-muted-foreground" />
+                    Saved Ideas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {ideas.map((idea) => (
+                    <div key={idea.title} className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${idea.color}`}>
+                        <Lightbulb className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold leading-snug">{idea.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{idea.date}</p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          {/* Row 3: Articles + Activity */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+            {/* Recent Articles */}
+            <Card className="lg:col-span-3 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  Recent Articles
+                </CardTitle>
+                <span className="text-sm text-primary font-semibold cursor-pointer">View All</span>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-border">
+                  {recentArticles.map((a) => (
+                    <div key={a.title} className="flex items-center justify-between py-3.5">
+                      <div className="flex-1 min-w-0 mr-4">
+                        <p className="text-sm font-semibold truncate">{a.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{a.words} · {a.time}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap ${a.statusClass}`}>
+                        {a.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activity Feed */}
+            <Card className="lg:col-span-2 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-muted-foreground" />
+                  Activity Feed
+                </CardTitle>
+                <span className="text-sm text-primary font-semibold cursor-pointer">View All</span>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-border">
+                  {activityFeed.map((item, i) => (
+                    <div key={i} className="flex items-start gap-3 py-3">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${item.bg} ${item.color}`}>
+                        <item.icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
+                        <p className="text-[11px] text-muted-foreground/70 mt-1">{item.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
-
-

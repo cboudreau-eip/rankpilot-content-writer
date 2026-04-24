@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -111,11 +110,16 @@ function SortHeader({
   );
 }
 
-// ---- Main Component ----
+// ---- Reusable Panel Component ----
 
-export default function ProjectKeywords() {
-  const { activeProject } = useActiveProject();
+interface ProjectKeywordsPanelProps {
+  projectId: number;
+  projectName: string;
+  /** If true, renders without the outer page padding — for embedding in Dashboard */
+  embedded?: boolean;
+}
 
+export function ProjectKeywordsPanel({ projectId, projectName, embedded }: ProjectKeywordsPanelProps) {
   // Search & sort state
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("priority");
@@ -137,8 +141,8 @@ export default function ProjectKeywords() {
   // Query
   const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.entity.getProjectKeywords.useQuery(
-    { projectId: activeProject?.id ?? 0, search: searchQuery || undefined, sortBy, sortDir },
-    { enabled: !!activeProject, refetchOnWindowFocus: false },
+    { projectId, search: searchQuery || undefined, sortBy, sortDir },
+    { enabled: !!projectId, refetchOnWindowFocus: false },
   );
 
   // Mutations
@@ -214,7 +218,6 @@ export default function ProjectKeywords() {
   }, [selectedIds, deleteMutation]);
 
   const handleAddManual = useCallback(() => {
-    if (!activeProject) return;
     const keywords = addKeywordsText
       .split("\n")
       .map(k => k.trim())
@@ -223,11 +226,10 @@ export default function ProjectKeywords() {
       toast.error("Please enter at least one keyword");
       return;
     }
-    addManualMutation.mutate({ projectId: activeProject.id, keywords });
-  }, [activeProject, addKeywordsText, addManualMutation]);
+    addManualMutation.mutate({ projectId, keywords });
+  }, [projectId, addKeywordsText, addManualMutation]);
 
   const handleImport = useCallback(() => {
-    if (!activeProject) return;
     const lines = importText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length === 0) {
       toast.error("Please paste keyword data");
@@ -264,8 +266,8 @@ export default function ProjectKeywords() {
       toast.error("No keywords found in the input");
       return;
     }
-    importMutation.mutate({ projectId: activeProject.id, keywords });
-  }, [activeProject, importText, importMutation]);
+    importMutation.mutate({ projectId, keywords });
+  }, [projectId, importText, importMutation]);
 
   const handleSavePage = useCallback((id: number) => {
     updatePageMutation.mutate({ id, pageUrl: editingPageUrl.trim() || null });
@@ -291,264 +293,251 @@ export default function ProjectKeywords() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${activeProject?.name ?? "project"}-keywords.csv`;
+    a.download = `${projectName}-keywords.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exported");
-  }, [data, activeProject]);
-
-  // No project selected
-  if (!activeProject) {
-    return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <Card>
-          <CardContent className="py-16 flex flex-col items-center justify-center gap-3">
-            <KeyRound className="w-10 h-10 text-muted-foreground" />
-            <h3 className="font-semibold text-lg">No project selected</h3>
-            <p className="text-sm text-muted-foreground">Select a project from the sidebar to manage keywords.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  }, [data, projectName]);
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-5">
-      {/* Header */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                <KeyRound className="w-5 h-5 text-indigo-600" />
+    <>
+      <div className={embedded ? "space-y-5" : "p-6 max-w-[1400px] mx-auto space-y-5"}>
+        {/* Header */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                  <KeyRound className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Project Keywords</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {data ? (
+                      <>
+                        {data.count} keyword{data.count !== 1 ? "s" : ""} saved to {projectName}
+                        {data.totalVolume > 0 && (
+                          <> · <span className="text-emerald-600 font-semibold">{formatTotalVolume(data.totalVolume)} total monthly volume</span></>
+                        )}
+                      </>
+                    ) : (
+                      "Loading..."
+                    )}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-bold">Project Keywords</h1>
-                <p className="text-sm text-muted-foreground">
-                  {data ? (
-                    <>
-                      {data.count} keyword{data.count !== 1 ? "s" : ""} saved to {activeProject.name}
-                      {data.totalVolume > 0 && (
-                        <> · <span className="text-emerald-600 font-semibold">{formatTotalVolume(data.totalVolume)} total monthly volume</span></>
-                      )}
-                    </>
-                  ) : (
-                    "Loading..."
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data || data.keywords.length === 0}>
-                <Download className="w-4 h-4 mr-1.5" />
-                Export
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
-                <Upload className="w-4 h-4 mr-1.5" />
-                Upload File
-              </Button>
-              <Button size="sm" onClick={() => setShowAddDialog(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Keywords
-              </Button>
-            </div>
-          </div>
-
-          {/* Info Banner */}
-          <div className="mt-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-700">
-            <Info className="w-4 h-4 shrink-0" />
-            <span>Supported formats: .txt (one per line), .csv — auto-detects Volume, CPC, Difficulty, Position & Competition columns from SE Ranking, Semrush, Ahrefs & more</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Search + Actions Bar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search keywords..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-10"
-          />
-        </div>
-        {selectedIds.size > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-          >
-            {deleteMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4 mr-1.5" />
-            )}
-            Delete ({selectedIds.size})
-          </Button>
-        )}
-      </div>
-
-      {/* Keywords Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-              <p className="text-sm text-muted-foreground">Loading keywords...</p>
-            </div>
-          ) : error ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3">
-              <p className="text-sm text-red-500">Failed to load keywords: {error.message}</p>
-            </div>
-          ) : data && data.keywords.length === 0 ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
-                <KeyRound className="w-7 h-7 text-indigo-400" />
-              </div>
-              <h3 className="font-semibold text-lg">No keywords yet</h3>
-              <p className="text-sm text-muted-foreground text-center max-w-md">
-                Add keywords manually, import from a file, or save them from Keyword Research.
-              </p>
-              <div className="flex gap-2 mt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add Keywords
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data || data.keywords.length === 0}>
+                  <Download className="w-4 h-4 mr-1.5" />
+                  Export
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
                   <Upload className="w-4 h-4 mr-1.5" />
-                  Import File
+                  Upload File
+                </Button>
+                <Button size="sm" onClick={() => setShowAddDialog(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Add Keywords
                 </Button>
               </div>
             </div>
-          ) : data ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="py-3 pl-4 pr-2 w-10">
-                      <Checkbox
-                        checked={selectedIds.size === data.keywords.length && data.keywords.length > 0}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </th>
-                    <th className="py-3 px-3 text-left">
-                      <SortHeader label="Keyword" field="keyword" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                    </th>
-                    <th className="py-3 px-3 text-right">
-                      <SortHeader label="Volume" field="volume" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                    </th>
-                    <th className="py-3 px-3 text-right">
-                      <SortHeader label="CPC" field="cpc" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                    </th>
-                    <th className="py-3 px-3 text-center">
-                      <SortHeader label="Comp." field="competition" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                    </th>
-                    <th className="py-3 px-3 text-center">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">KD</span>
-                    </th>
-                    <th className="py-3 px-3 text-center">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pos.</span>
-                    </th>
-                    <th className="py-3 px-3 text-center">
-                      <SortHeader label="Priority" field="priority" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                    </th>
-                    <th className="py-3 px-3 text-center">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</span>
-                    </th>
-                    <th className="py-3 px-3 text-center">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1 justify-center"><Link2 className="w-3 h-3" /> Page</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.keywords.map((kw) => (
-                    <tr key={kw.id} className={`border-b last:border-0 hover:bg-muted/20 transition-colors ${selectedIds.has(kw.id) ? "bg-indigo-50/50" : ""}`}>
-                      <td className="py-3.5 pl-4 pr-2">
-                        <Checkbox
-                          checked={selectedIds.has(kw.id)}
-                          onCheckedChange={() => toggleSelect(kw.id)}
-                        />
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <span className="text-sm font-medium">{kw.keyword}</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-right">
-                        <span className="font-semibold text-sm">{formatVolume(kw.volume)}</span>
-                        <span className="text-xs text-muted-foreground ml-0.5">/mo</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-right">
-                        <span className="text-sm">${kw.cpc.toFixed(2)}</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <CompetitionBadge label={kw.competitionLabel} />
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <span className="text-sm text-muted-foreground">{kw.kd ?? "—"}</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <span className="text-sm text-muted-foreground">{kw.position ?? "—"}</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <PriorityBadge priority={kw.priority} label={kw.priorityLabel} />
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <StatusBadge status={kw.status} articleId={kw.articleId} />
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        {editingPageId === kw.id ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={editingPageUrl}
-                              onChange={(e) => setEditingPageUrl(e.target.value)}
-                              placeholder="https://..."
-                              className="h-7 text-xs w-40"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleSavePage(kw.id);
-                                if (e.key === "Escape") setEditingPageId(null);
-                              }}
-                            />
-                            <button onClick={() => handleSavePage(kw.id)} className="text-emerald-600 hover:text-emerald-700">
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => setEditingPageId(null)} className="text-muted-foreground hover:text-foreground">
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : kw.pageUrl ? (
-                          <a
-                            href={kw.pageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 max-w-[120px] truncate"
-                            title={kw.pageUrl}
-                          >
-                            <ExternalLink className="w-3 h-3 shrink-0" />
-                            {new URL(kw.pageUrl).pathname || "/"}
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setEditingPageId(kw.id);
-                              setEditingPageUrl(kw.pageUrl ?? "");
-                            }}
-                            className="text-xs text-muted-foreground hover:text-indigo-600 transition-colors"
-                          >
-                            + Add
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            {/* Info Banner */}
+            <div className="mt-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-700">
+              <Info className="w-4 h-4 shrink-0" />
+              <span>Supported formats: .txt (one per line), .csv — auto-detects Volume, CPC, Difficulty, Position & Competition columns from SE Ranking, Semrush, Ahrefs & more</span>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Search + Actions Bar */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search keywords..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-10"
+            />
+          </div>
+          {selectedIds.size > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-1.5" />
+              )}
+              Delete ({selectedIds.size})
+            </Button>
+          )}
+        </div>
+
+        {/* Keywords Table */}
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <p className="text-sm text-muted-foreground">Loading keywords...</p>
+              </div>
+            ) : error ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-3">
+                <p className="text-sm text-red-500">Failed to load keywords: {error.message}</p>
+              </div>
+            ) : data && data.keywords.length === 0 ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                  <KeyRound className="w-7 h-7 text-indigo-400" />
+                </div>
+                <h3 className="font-semibold text-lg">No keywords yet</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  Add keywords manually, import from a file, or save them from Keyword Research.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Add Keywords
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+                    <Upload className="w-4 h-4 mr-1.5" />
+                    Import File
+                  </Button>
+                </div>
+              </div>
+            ) : data ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="py-3 pl-4 pr-2 w-10">
+                        <Checkbox
+                          checked={selectedIds.size === data.keywords.length && data.keywords.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th className="py-3 px-3 text-left">
+                        <SortHeader label="Keyword" field="keyword" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                      </th>
+                      <th className="py-3 px-3 text-right">
+                        <SortHeader label="Volume" field="volume" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                      </th>
+                      <th className="py-3 px-3 text-right">
+                        <SortHeader label="CPC" field="cpc" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                      </th>
+                      <th className="py-3 px-3 text-center">
+                        <SortHeader label="Comp." field="competition" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                      </th>
+                      <th className="py-3 px-3 text-center">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">KD</span>
+                      </th>
+                      <th className="py-3 px-3 text-center">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pos.</span>
+                      </th>
+                      <th className="py-3 px-3 text-center">
+                        <SortHeader label="Priority" field="priority" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                      </th>
+                      <th className="py-3 px-3 text-center">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</span>
+                      </th>
+                      <th className="py-3 px-3 text-center">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1 justify-center"><Link2 className="w-3 h-3" /> Page</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.keywords.map((kw) => (
+                      <tr key={kw.id} className={`border-b last:border-0 hover:bg-muted/20 transition-colors ${selectedIds.has(kw.id) ? "bg-indigo-50/50" : ""}`}>
+                        <td className="py-3.5 pl-4 pr-2">
+                          <Checkbox
+                            checked={selectedIds.has(kw.id)}
+                            onCheckedChange={() => toggleSelect(kw.id)}
+                          />
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className="text-sm font-medium">{kw.keyword}</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-right">
+                          <span className="font-semibold text-sm">{formatVolume(kw.volume)}</span>
+                          <span className="text-xs text-muted-foreground ml-0.5">/mo</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-right">
+                          <span className="text-sm">${kw.cpc.toFixed(2)}</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <CompetitionBadge label={kw.competitionLabel} />
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span className="text-sm text-muted-foreground">{kw.kd ?? "—"}</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span className="text-sm text-muted-foreground">{kw.position ?? "—"}</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <PriorityBadge priority={kw.priority} label={kw.priorityLabel} />
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <StatusBadge status={kw.status} articleId={kw.articleId} />
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          {editingPageId === kw.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={editingPageUrl}
+                                onChange={(e) => setEditingPageUrl(e.target.value)}
+                                placeholder="https://..."
+                                className="h-7 text-xs w-40"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleSavePage(kw.id);
+                                  if (e.key === "Escape") setEditingPageId(null);
+                                }}
+                              />
+                              <button onClick={() => handleSavePage(kw.id)} className="text-emerald-600 hover:text-emerald-700">
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => setEditingPageId(null)} className="text-muted-foreground hover:text-foreground">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : kw.pageUrl ? (
+                            <a
+                              href={kw.pageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 max-w-[120px] truncate"
+                              title={kw.pageUrl}
+                            >
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                              {(() => { try { return new URL(kw.pageUrl).pathname || "/"; } catch { return kw.pageUrl; } })()}
+                            </a>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingPageId(kw.id);
+                                setEditingPageUrl(kw.pageUrl ?? "");
+                              }}
+                              className="text-xs text-muted-foreground hover:text-indigo-600 transition-colors"
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Add Keywords Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -626,6 +615,28 @@ export default function ProjectKeywords() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
+}
+
+// ---- Page Wrapper (standalone route) ----
+
+export default function ProjectKeywords() {
+  const { activeProject } = useActiveProject();
+
+  if (!activeProject) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center justify-center gap-3">
+            <KeyRound className="w-10 h-10 text-muted-foreground" />
+            <h3 className="font-semibold text-lg">No project selected</h3>
+            <p className="text-sm text-muted-foreground">Select a project from the sidebar to manage keywords.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <ProjectKeywordsPanel projectId={activeProject.id} projectName={activeProject.name} />;
 }

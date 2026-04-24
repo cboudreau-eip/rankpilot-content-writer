@@ -1,0 +1,23 @@
+CREATE TABLE `project_keywords` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`projectId` int NOT NULL,
+	`keyword` varchar(255) NOT NULL,
+	`volume` int NOT NULL DEFAULT 0,
+	`cpc` float NOT NULL DEFAULT 0,
+	`competition` float NOT NULL DEFAULT 0,
+	`competitionLabel` enum('Low','Medium','High') NOT NULL DEFAULT 'Low',
+	`trendDirection` enum('rising','declining','stable') NOT NULL DEFAULT 'stable',
+	`trendData` json,
+	`kd` int,
+	`position` int,
+	`priority` int NOT NULL DEFAULT 0,
+	`priorityLabel` enum('High','Med','Low') NOT NULL DEFAULT 'Low',
+	`keywordStatus` enum('none','article','outline') NOT NULL DEFAULT 'none',
+	`articleId` int,
+	`pageUrl` varchar(1024),
+	`source` varchar(64) NOT NULL DEFAULT 'manual',
+	`userId` int NOT NULL,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `project_keywords_id` PRIMARY KEY(`id`)
+);

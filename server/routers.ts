@@ -28,6 +28,7 @@ import {
   getKeywordQueueByJob, getKeywordQueueItemById, addKeywordToQueue, addKeywordsToQueue, updateKeywordQueueItem, deleteKeywordQueueItem, getNextPendingKeyword, countPendingKeywords,
   getJobRunHistory, createJobRunHistoryEntry, updateJobRunHistoryEntry,
   addSchedulerRunLog, getSchedulerRunLogs, getSchedulerRunLogsByRunId,
+  calculateKeywordPriority, getProjectKeywordsList, addProjectKeywordsBulk, deleteProjectKeywordsBulk, updateProjectKeywordPage, getProjectKeywordsCount, matchKeywordsToArticles,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -37,7 +38,7 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
@@ -4940,6 +4941,213 @@ Return ONLY valid JSON, no markdown code blocks.`;
         if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Keywords Everywhere API key not configured" });
         const credits = await getCreditBalance(apiKey);
         return { credits };
+      }),
+
+    // ---- Project Keywords (Save / Manage) ----
+
+    /** Save selected keywords from research to a project */
+    saveKeywordsToProject: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        keywords: z.array(z.object({
+          keyword: z.string(),
+          volume: z.number().default(0),
+          cpc: z.number().default(0),
+          competition: z.number().default(0),
+          competitionLabel: z.enum(["Low", "Medium", "High"]).default("Low"),
+          trendDirection: z.enum(["rising", "declining", "stable"]).default("stable"),
+          trendData: z.array(z.object({ month: z.string(), year: z.number(), value: z.number() })).optional(),
+        })),
+        source: z.string().default("keyword-research"),
+      }))
+      .mutation(async ({ input }) => {
+        const rows = input.keywords.map(kw => {
+          const { priority, priorityLabel } = calculateKeywordPriority(kw.volume, kw.competition, kw.cpc);
+          return {
+            projectId: input.projectId,
+            keyword: kw.keyword,
+            volume: kw.volume,
+            cpc: kw.cpc,
+            competition: kw.competition,
+            competitionLabel: kw.competitionLabel,
+            trendDirection: kw.trendDirection,
+            trendData: kw.trendData ?? null,
+            priority,
+            priorityLabel,
+            source: input.source,
+            userId: 1,
+          };
+        });
+        const result = await addProjectKeywordsBulk(rows);
+        // Auto-match keywords to existing articles
+        await matchKeywordsToArticles(input.projectId);
+        return result;
+      }),
+
+    /** Get all keywords for a project with search/sort */
+    getProjectKeywords: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        search: z.string().optional(),
+        sortBy: z.string().optional(),
+        sortDir: z.enum(["asc", "desc"]).optional(),
+      }))
+      .query(async ({ input }) => {
+        const keywords = await getProjectKeywordsList(input.projectId, input.search, input.sortBy, input.sortDir);
+        const stats = await getProjectKeywordsCount(input.projectId);
+        return { keywords, ...stats };
+      }),
+
+    /** Bulk delete project keywords */
+    deleteProjectKeywords: publicProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input }) => {
+        await deleteProjectKeywordsBulk(input.ids);
+        return { deleted: input.ids.length };
+      }),
+
+    /** Update page URL for a keyword */
+    updateKeywordPage: publicProcedure
+      .input(z.object({ id: z.number(), pageUrl: z.string().nullable() }))
+      .mutation(async ({ input }) => {
+        await updateProjectKeywordPage(input.id, input.pageUrl);
+        return { success: true };
+      }),
+
+    /** Add keywords manually (typed in by user) */
+    addKeywordsManually: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        keywords: z.array(z.string().min(1)).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        // For manually added keywords, we fetch metrics from KE API if available
+        let enrichedRows: any[] = [];
+        try {
+          const { getKeywordData } = await import("./keywords-everywhere");
+          const apiKey = (await import("./_core/env")).ENV.keywordsEverywhereApiKey;
+          if (apiKey) {
+            const data = await getKeywordData(apiKey, input.keywords, { country: "us", currency: "USD", dataSource: "cli" });
+            enrichedRows = data.data.map((d: any) => {
+              const comp = d.competition ?? 0;
+              const compLabel = comp >= 0.67 ? "High" : comp >= 0.33 ? "Medium" : "Low";
+              const trend = d.trend ?? [];
+              let trendDir: "rising" | "declining" | "stable" = "stable";
+              if (trend.length >= 2) {
+                const recent = trend.slice(-3).reduce((s: number, t: any) => s + (t.value ?? 0), 0) / 3;
+                const older = trend.slice(0, 3).reduce((s: number, t: any) => s + (t.value ?? 0), 0) / 3;
+                if (recent > older * 1.15) trendDir = "rising";
+                else if (recent < older * 0.85) trendDir = "declining";
+              }
+              const { priority, priorityLabel } = calculateKeywordPriority(d.vol ?? 0, comp, d.cpc?.value ?? 0);
+              return {
+                projectId: input.projectId,
+                keyword: d.keyword,
+                volume: d.vol ?? 0,
+                cpc: d.cpc?.value ?? 0,
+                competition: comp,
+                competitionLabel: compLabel as "Low" | "Medium" | "High",
+                trendDirection: trendDir,
+                trendData: trend,
+                priority,
+                priorityLabel,
+                source: "manual" as const,
+                userId: 1,
+              };
+            });
+          }
+        } catch (e) {
+          console.warn("[ProjectKeywords] Failed to enrich manual keywords with KE data:", e);
+        }
+        // Fallback: if enrichment failed, add with zero metrics
+        if (enrichedRows.length === 0) {
+          enrichedRows = input.keywords.map(kw => ({
+            projectId: input.projectId,
+            keyword: kw,
+            volume: 0,
+            cpc: 0,
+            competition: 0,
+            competitionLabel: "Low" as const,
+            trendDirection: "stable" as const,
+            trendData: null,
+            priority: 0,
+            priorityLabel: "Low" as const,
+            source: "manual" as const,
+            userId: 1,
+          }));
+        }
+        const result = await addProjectKeywordsBulk(enrichedRows);
+        await matchKeywordsToArticles(input.projectId);
+        return result;
+      }),
+
+    /** Import keywords from CSV/TXT content (parsed on client, sent as array) */
+    importKeywords: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        keywords: z.array(z.object({
+          keyword: z.string(),
+          volume: z.number().optional(),
+          cpc: z.number().optional(),
+          competition: z.number().optional(),
+          kd: z.number().optional(),
+          position: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        // Try to enrich keywords that don't have volume data
+        const needsEnrichment = input.keywords.filter(k => !k.volume || k.volume === 0);
+        const hasData = input.keywords.filter(k => k.volume && k.volume > 0);
+        let enrichedMap: Record<string, any> = {};
+        if (needsEnrichment.length > 0) {
+          try {
+            const { getKeywordData } = await import("./keywords-everywhere");
+            const apiKey = (await import("./_core/env")).ENV.keywordsEverywhereApiKey;
+            if (apiKey) {
+              const data = await getKeywordData(apiKey, needsEnrichment.map(k => k.keyword), { country: "us", currency: "USD", dataSource: "cli" });
+              for (const d of data.data) {
+                enrichedMap[d.keyword.toLowerCase()] = d;
+              }
+            }
+          } catch (e) {
+            console.warn("[ProjectKeywords] Failed to enrich imported keywords:", e);
+          }
+        }
+        const rows = input.keywords.map(kw => {
+          const enriched = enrichedMap[kw.keyword.toLowerCase()];
+          const vol = kw.volume || enriched?.vol || 0;
+          const cpc = kw.cpc || enriched?.cpc?.value || 0;
+          const comp = kw.competition || enriched?.competition || 0;
+          const compLabel = comp >= 0.67 ? "High" : comp >= 0.33 ? "Medium" : "Low";
+          const trend = enriched?.trend ?? [];
+          let trendDir: "rising" | "declining" | "stable" = "stable";
+          if (trend.length >= 2) {
+            const recent = trend.slice(-3).reduce((s: number, t: any) => s + (t.value ?? 0), 0) / 3;
+            const older = trend.slice(0, 3).reduce((s: number, t: any) => s + (t.value ?? 0), 0) / 3;
+            if (recent > older * 1.15) trendDir = "rising";
+            else if (recent < older * 0.85) trendDir = "declining";
+          }
+          const { priority, priorityLabel } = calculateKeywordPriority(vol, comp, cpc);
+          return {
+            projectId: input.projectId,
+            keyword: kw.keyword,
+            volume: vol,
+            cpc,
+            competition: comp,
+            competitionLabel: compLabel as "Low" | "Medium" | "High",
+            trendDirection: trendDir,
+            trendData: trend.length > 0 ? trend : null,
+            kd: kw.kd ?? null,
+            position: kw.position ?? null,
+            priority,
+            priorityLabel,
+            source: "import" as const,
+            userId: 1,
+          };
+        });
+        const result = await addProjectKeywordsBulk(rows);
+        await matchKeywordsToArticles(input.projectId);
+        return result;
       }),
   }),
 

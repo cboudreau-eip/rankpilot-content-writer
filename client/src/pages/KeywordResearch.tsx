@@ -10,8 +10,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Search, Loader2, TrendingUp, TrendingDown, Minus, Download,
-  Coins, Filter, RotateCcw, ChevronDown,
+  Coins, Filter, RotateCcw, ChevronDown, FolderPlus,
 } from "lucide-react";
+import { useActiveProject } from "@/components/AppLayout";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 // ---- Types ----
 
@@ -120,6 +122,23 @@ export default function KeywordResearch() {
   const [minVolume, setMinVolume] = useState("0");
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
 
+  // Active project
+  const { activeProject, projects } = useActiveProject();
+
+  // Save to project state
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveProjectId, setSaveProjectId] = useState<number | null>(null);
+
+  const saveToProjectMutation = trpc.entity.saveKeywordsToProject.useMutation({
+    onSuccess: (data) => {
+      setShowSaveDialog(false);
+      toast.success(`Saved ${data.inserted} keyword${data.inserted !== 1 ? "s" : ""} to project${data.skipped > 0 ? ` (${data.skipped} duplicates skipped)` : ""}`);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to save keywords");
+    },
+  });
+
   // Credit balance
   const { data: creditData } = trpc.entity.getKeCredits.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -167,6 +186,34 @@ export default function KeywordResearch() {
   }, [searchResults, hideDeclinig, minVolume]);
 
   const hiddenCount = searchResults ? searchResults.results.length - filteredResults.length : 0;
+
+  const handleSaveToProject = useCallback(() => {
+    const targetProjectId = saveProjectId ?? activeProject?.id;
+    if (!targetProjectId) {
+      toast.error("Please select a project");
+      return;
+    }
+    if (selectedKeywords.size === 0) {
+      toast.error("Please select at least one keyword");
+      return;
+    }
+    const keywordsToSave = filteredResults
+      .filter(r => selectedKeywords.has(r.keyword))
+      .map(r => ({
+        keyword: r.keyword,
+        volume: r.volume,
+        cpc: r.cpc,
+        competition: r.competition,
+        competitionLabel: r.competitionLabel,
+        trendDirection: r.trendDirection,
+        trendData: r.trendData,
+      }));
+    saveToProjectMutation.mutate({
+      projectId: targetProjectId,
+      keywords: keywordsToSave,
+      source: "keyword-research",
+    });
+  }, [saveProjectId, activeProject, selectedKeywords, filteredResults, saveToProjectMutation]);
 
   // Selection
   const toggleSelect = useCallback((kw: string) => {
@@ -342,6 +389,19 @@ export default function KeywordResearch() {
                 </p>
               </div>
               <div className="flex gap-2">
+                {selectedKeywords.size > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSaveProjectId(activeProject?.id ?? null);
+                      setShowSaveDialog(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <FolderPlus className="w-4 h-4 mr-1.5" />
+                    Save to Project ({selectedKeywords.size})
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={exportCSV}>
                   <Download className="w-4 h-4 mr-1.5" />
                   Export CSV
@@ -484,6 +544,49 @@ export default function KeywordResearch() {
           </CardContent>
         </Card>
       )}
+      {/* Save to Project Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save Keywords to Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Save {selectedKeywords.size} selected keyword{selectedKeywords.size !== 1 ? "s" : ""} to a project.
+            </p>
+            <div className="space-y-2">
+              <Label>Project</Label>
+              <Select
+                value={saveProjectId?.toString() ?? activeProject?.id?.toString() ?? ""}
+                onValueChange={(v) => setSaveProjectId(parseInt(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handleSaveToProject}
+              disabled={saveToProjectMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {saveToProjectMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Saving...</>
+              ) : (
+                <><FolderPlus className="w-4 h-4 mr-1.5" /> Save Keywords</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

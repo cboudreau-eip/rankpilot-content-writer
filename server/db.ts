@@ -1,6 +1,6 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, like, inArray, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -618,4 +618,148 @@ export async function getSchedulerRunLogsByRunId(runId: number, limit = 200) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.select().from(schedulerRunLogs).where(eq(schedulerRunLogs.runId, runId)).orderBy(schedulerRunLogs.id).limit(limit);
+}
+
+
+// ---- Project Keywords Helpers ----
+
+/**
+ * Calculate priority score (0-100) from volume, competition, and CPC.
+ * High volume + low competition + decent CPC = higher priority.
+ */
+export function calculateKeywordPriority(volume: number, competition: number, cpc: number): { priority: number; priorityLabel: "High" | "Med" | "Low" } {
+  // Volume score: 0-40 (log scale to handle wide range)
+  let volumeScore = 0;
+  if (volume > 0) {
+    volumeScore = Math.min(40, Math.round((Math.log10(volume) / Math.log10(100000)) * 40));
+  }
+  // Competition score: 0-30 (lower competition = higher score)
+  const competitionScore = Math.round((1 - competition) * 30);
+  // CPC score: 0-30 (higher CPC = higher commercial value)
+  let cpcScore = 0;
+  if (cpc > 0) {
+    cpcScore = Math.min(30, Math.round((Math.log10(cpc + 1) / Math.log10(50)) * 30));
+  }
+  const priority = Math.min(100, volumeScore + competitionScore + cpcScore);
+  const priorityLabel: "High" | "Med" | "Low" = priority >= 66 ? "High" : priority >= 33 ? "Med" : "Low";
+  return { priority, priorityLabel };
+}
+
+export async function getProjectKeywordsList(projectId: number, search?: string, sortBy?: string, sortDir?: "asc" | "desc") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(projectKeywords.projectId, projectId)];
+  if (search && search.trim()) {
+    conditions.push(like(projectKeywords.keyword, `%${search.trim()}%`));
+  }
+  const orderCol = sortBy === "volume" ? projectKeywords.volume
+    : sortBy === "cpc" ? projectKeywords.cpc
+    : sortBy === "competition" ? projectKeywords.competition
+    : sortBy === "keyword" ? projectKeywords.keyword
+    : projectKeywords.priority;
+  const orderFn = sortDir === "asc" ? asc : desc;
+  return db.select().from(projectKeywords).where(and(...conditions)).orderBy(orderFn(orderCol));
+}
+
+export async function getProjectKeywordById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.select().from(projectKeywords).where(eq(projectKeywords.id, id));
+  return row ?? null;
+}
+
+export async function addProjectKeyword(data: InsertProjectKeyword) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(projectKeywords).values(data).$returningId();
+  return result;
+}
+
+export async function addProjectKeywordsBulk(rows: InsertProjectKeyword[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (rows.length === 0) return { inserted: 0, skipped: 0 };
+
+  let inserted = 0;
+  let skipped = 0;
+  // Insert one-by-one to handle duplicate (projectId, keyword) gracefully
+  for (const row of rows) {
+    try {
+      // Check if keyword already exists for this project
+      const [existing] = await db.select({ id: projectKeywords.id })
+        .from(projectKeywords)
+        .where(and(
+          eq(projectKeywords.projectId, row.projectId),
+          eq(projectKeywords.keyword, row.keyword),
+        ));
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      await db.insert(projectKeywords).values(row);
+      inserted++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { inserted, skipped };
+}
+
+export async function deleteProjectKeyword(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(projectKeywords).where(eq(projectKeywords.id, id));
+}
+
+export async function deleteProjectKeywordsBulk(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.delete(projectKeywords).where(inArray(projectKeywords.id, ids));
+}
+
+export async function updateProjectKeywordPage(id: number, pageUrl: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(projectKeywords).set({ pageUrl }).where(eq(projectKeywords.id, id));
+}
+
+export async function getProjectKeywordsCount(projectId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.select({ count: sql<number>`COUNT(*)`, totalVolume: sql<number>`COALESCE(SUM(volume), 0)` }).from(projectKeywords).where(eq(projectKeywords.projectId, projectId));
+  return { count: row?.count ?? 0, totalVolume: row?.totalVolume ?? 0 };
+}
+
+/**
+ * Match project keywords against existing articles by keyword.
+ * Updates status and articleId for any matches found.
+ */
+export async function matchKeywordsToArticles(projectId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get all articles for this project
+  const projectArticles = await db.select({ id: articles.id, keyword: articles.keyword })
+    .from(articles)
+    .where(eq(articles.projectId, projectId));
+  if (projectArticles.length === 0) return 0;
+
+  // Get all keywords for this project
+  const keywords = await db.select({ id: projectKeywords.id, keyword: projectKeywords.keyword })
+    .from(projectKeywords)
+    .where(eq(projectKeywords.projectId, projectId));
+
+  let matched = 0;
+  for (const kw of keywords) {
+    const matchingArticle = projectArticles.find(a =>
+      a.keyword && a.keyword.toLowerCase() === kw.keyword.toLowerCase()
+    );
+    if (matchingArticle) {
+      await db.update(projectKeywords)
+        .set({ status: "article", articleId: matchingArticle.id })
+        .where(eq(projectKeywords.id, kw.id));
+      matched++;
+    }
+  }
+  return matched;
 }

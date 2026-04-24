@@ -1204,3 +1204,19 @@
 - [x] Wire up /keywords route to KeywordResearch component
 - [x] TypeScript check — 0 errors
 - [x] Vitest tests for keyword research procedures (credit balance validation)
+
+## Project Keywords (Save to Project + Management Page)
+- [x] Create project_keywords table in drizzle schema with all columns
+- [x] Run pnpm db:push to sync migration
+- [x] Add DB helper functions (CRUD) in server/db.ts
+- [x] Add saveKeywordsToProject procedure with priority scoring + article matching
+- [x] Add getProjectKeywords procedure with search/sort
+- [x] Add deleteProjectKeywords procedure (bulk delete)
+- [x] Add updateKeywordPage procedure (set page URL)
+- [x] Add addKeywordsManually procedure
+- [x] Add importKeywords procedure (CSV/TXT parsing with KE enrichment)
+- [x] Update KeywordResearch.tsx with "Save to Project" button + project selector dialog
+- [x] Build ProjectKeywords.tsx page matching reference screenshot
+- [x] Add /project-keywords route and sidebar nav entry
+- [x] TypeScript check — 0 errors
+- [x] Vitest tests — 497 passing (35 test files)

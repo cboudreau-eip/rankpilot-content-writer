@@ -38,6 +38,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  KeyRound,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation, Link } from "wouter";
@@ -77,6 +78,7 @@ const navSections = [
     title: "SEO Tools",
     items: [
       { icon: Search, label: "Keyword Research", path: "/keywords" },
+      { icon: KeyRound, label: "Project Keywords", path: "/project-keywords" },
       { icon: ShieldCheck, label: "Keyword Auditor", path: "/audit" },
       { icon: Swords, label: "Competitor Analyzer", path: "/competitor-analyzer" },
       { icon: Crosshair, label: "Position Tracker", path: "/kpt" },

@@ -1,4 +1,4 @@
-import { int, json, mediumtext, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, float, json, mediumtext, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -555,3 +555,50 @@ export const schedulerRunLogs = mysqlTable("scheduler_run_logs", {
 
 export type SchedulerRunLog = typeof schedulerRunLogs.$inferSelect;
 export type InsertSchedulerRunLog = typeof schedulerRunLogs.$inferInsert;
+
+/**
+ * Project Keywords — saved keywords associated with a project for tracking and content planning.
+ * Keywords can be added from Keyword Research, manual entry, or CSV/TXT import.
+ */
+export const projectKeywords = mysqlTable("project_keywords", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Reference to the parent project */
+  projectId: int("projectId").notNull(),
+  /** The keyword text */
+  keyword: varchar("keyword", { length: 255 }).notNull(),
+  /** Monthly search volume */
+  volume: int("volume").default(0).notNull(),
+  /** Cost per click (USD) */
+  cpc: float("cpc").default(0).notNull(),
+  /** Raw competition score (0-1) */
+  competition: float("competition").default(0).notNull(),
+  /** Human-readable competition label */
+  competitionLabel: mysqlEnum("competitionLabel", ["Low", "Medium", "High"]).default("Low").notNull(),
+  /** Trend direction based on recent search data */
+  trendDirection: mysqlEnum("trendDirection", ["rising", "declining", "stable"]).default("stable").notNull(),
+  /** 12-month trend data as JSON array of { month, year, value } */
+  trendData: json("trendData").$type<{ month: string; year: number; value: number }[]>(),
+  /** Keyword difficulty score (0-100), nullable for future use */
+  kd: int("kd"),
+  /** Current SERP position, nullable for future use */
+  position: int("position"),
+  /** Calculated priority score (0-100) based on volume, competition, CPC */
+  priority: int("priority").default(0).notNull(),
+  /** Priority bucket label */
+  priorityLabel: mysqlEnum("priorityLabel", ["High", "Med", "Low"]).default("Low").notNull(),
+  /** Content status for this keyword */
+  status: mysqlEnum("keywordStatus", ["none", "article", "outline"]).default("none").notNull(),
+  /** Link to existing article if matched */
+  articleId: int("articleId"),
+  /** Associated page URL on the site */
+  pageUrl: varchar("pageUrl", { length: 1024 }),
+  /** Source of the keyword: keyword-research, manual, import */
+  source: varchar("source", { length: 64 }).default("manual").notNull(),
+  /** Who added this keyword */
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProjectKeyword = typeof projectKeywords.$inferSelect;
+export type InsertProjectKeyword = typeof projectKeywords.$inferInsert;

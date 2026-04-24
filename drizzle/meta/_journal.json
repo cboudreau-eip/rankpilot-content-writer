@@ -127,6 +127,13 @@
       "when": 1776862813151,
       "tag": "0017_giant_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1777056661754,
+      "tag": "0018_absurd_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

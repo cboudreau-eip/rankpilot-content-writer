@@ -4854,6 +4854,93 @@ Return ONLY valid JSON, no markdown code blocks.`;
 
         return outline;
       }),
+
+    // ---- Keyword Research (Keywords Everywhere API) ----
+
+    /** Search for a keyword and get related keywords with full metrics */
+    keywordResearch: publicProcedure
+      .input(z.object({
+        keyword: z.string().min(1).max(200),
+        numRelated: z.number().min(1).max(100).default(10),
+        country: z.string().default("us"),
+        currency: z.string().default("usd"),
+        dataSource: z.enum(["gkp", "cli"]).default("cli"),
+      }))
+      .mutation(async ({ input }) => {
+        const { getRelatedKeywords, getKeywordData } = await import("./keywords-everywhere");
+        const apiKey = (await import("./_core/env")).ENV.keywordsEverywhereApiKey;
+        if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Keywords Everywhere API key not configured" });
+
+        // Step 1: Get related keywords (just strings)
+        const relatedRes = await getRelatedKeywords(apiKey, input.keyword, input.numRelated);
+        const relatedKeywords = relatedRes.data || [];
+        let totalCreditsConsumed = relatedRes.credits_consumed || 0;
+
+        // Step 2: Combine seed + related into one list for metrics lookup
+        const allKeywords = [input.keyword, ...relatedKeywords.filter(k => k.toLowerCase() !== input.keyword.toLowerCase())];
+
+        // Step 3: Get full metrics for all keywords (batch up to 100)
+        const metricsRes = await getKeywordData(apiKey, allKeywords, {
+          country: input.country,
+          currency: input.currency,
+          dataSource: input.dataSource,
+        });
+        totalCreditsConsumed += metricsRes.credits_consumed || 0;
+
+        // Step 4: Build enriched results with type labels
+        const seedLower = input.keyword.toLowerCase();
+        const results = (metricsRes.data || []).map(kw => {
+          const isSeed = kw.keyword.toLowerCase() === seedLower;
+          // Determine trend direction from last 6 months
+          const trend = kw.trend || [];
+          let trendDirection: "rising" | "declining" | "stable" = "stable";
+          if (trend.length >= 4) {
+            const recent = trend.slice(-3);
+            const earlier = trend.slice(-6, -3);
+            const recentAvg = recent.reduce((s, t) => s + t.value, 0) / recent.length;
+            const earlierAvg = earlier.length > 0 ? earlier.reduce((s, t) => s + t.value, 0) / earlier.length : recentAvg;
+            if (earlierAvg > 0) {
+              const change = (recentAvg - earlierAvg) / earlierAvg;
+              if (change > 0.15) trendDirection = "rising";
+              else if (change < -0.15) trendDirection = "declining";
+            }
+          }
+          // Map competition float to label
+          let competitionLabel: "Low" | "Medium" | "High" = "Low";
+          if (kw.competition >= 0.66) competitionLabel = "High";
+          else if (kw.competition >= 0.33) competitionLabel = "Medium";
+
+          return {
+            keyword: kw.keyword,
+            type: isSeed ? "seed" as const : "related" as const,
+            volume: kw.vol,
+            cpc: parseFloat(kw.cpc?.value || "0"),
+            cpcCurrency: kw.cpc?.currency || "$",
+            competition: kw.competition,
+            competitionLabel,
+            trendDirection,
+            trendData: trend.map(t => ({ month: t.month, year: t.year, value: t.value })),
+          };
+        });
+
+        return {
+          results,
+          seedKeyword: input.keyword,
+          totalResults: allKeywords.length,
+          creditsConsumed: totalCreditsConsumed,
+          creditsRemaining: metricsRes.credits ?? null,
+        };
+      }),
+
+    /** Get Keywords Everywhere credit balance */
+    getKeCredits: publicProcedure
+      .query(async () => {
+        const { getCreditBalance } = await import("./keywords-everywhere");
+        const apiKey = (await import("./_core/env")).ENV.keywordsEverywhereApiKey;
+        if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Keywords Everywhere API key not configured" });
+        const credits = await getCreditBalance(apiKey);
+        return { credits };
+      }),
   }),
 
   grading: router({

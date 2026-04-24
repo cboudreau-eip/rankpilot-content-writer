@@ -20,6 +20,7 @@ import GscAnalyzer from "./pages/GscAnalyzer";
 import ProjectScheduler from "./pages/ProjectScheduler";
 import AdminUsers from "./pages/AdminUsers";
 import Login from "./pages/Login";
+import KeywordResearch from "./pages/KeywordResearch";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -82,7 +83,7 @@ function App() {
                       <Route path="/settings" component={GeneralSettings} />
                       <Route path="/admin/users" component={AdminUsers} />
                       <Route path="/calendar">{() => <ComingSoon title="Calendar" description="Plan and schedule your content pipeline with a visual calendar." />}</Route>
-                      <Route path="/keywords">{() => <ComingSoon title="Keyword Research" description="Discover high-value keywords and search opportunities for your content." />}</Route>
+                      <Route path="/keywords" component={KeywordResearch} />
                       <Route path="/audit">{() => <ComingSoon title="Keyword Auditor" description="Audit your existing keywords for performance and optimization opportunities." />}</Route>
                       <Route path="/competitor-analyzer">{() => <ComingSoon title="Competitor Analyzer" description="Analyze competitor content strategies and find gaps to exploit." />}</Route>
                       <Route path="/kpt">{() => <ComingSoon title="Position Tracker" description="Track your keyword rankings and monitor position changes over time." />}</Route>

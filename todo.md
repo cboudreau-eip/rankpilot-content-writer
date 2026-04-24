@@ -1190,3 +1190,17 @@
 - [x] Frontend: merged results display showing consensus/common/unique topics, entity gaps, recommended sections, competitive insights
 - [x] Frontend: "Generate Outline from Competitors" button + dialog with project/brand voice/ICP/word count settings
 - [x] TypeScript check — 0 errors
+
+## Keyword Research Tool (Keywords Everywhere API)
+- [x] Set up KEYWORDS_EVERYWHERE_API_KEY secret and add to ENV
+- [x] Create server/keywords-everywhere.ts API helper module
+- [x] Add keywordResearch tRPC procedure (seed + related + metrics)
+- [x] Add getKeCredits tRPC procedure (credit balance check)
+- [x] Build KeywordResearch.tsx frontend page with search input and settings
+- [x] Build results table with keyword, type, volume, CPC, competition, trend sparkline
+- [x] Add filter bar (hide declining, min volume, reset filters)
+- [x] Add Export CSV functionality
+- [x] Add credit balance display
+- [x] Wire up /keywords route to KeywordResearch component
+- [x] TypeScript check — 0 errors
+- [x] Vitest tests for keyword research procedures (credit balance validation)

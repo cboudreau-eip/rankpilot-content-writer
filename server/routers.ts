@@ -247,6 +247,23 @@ function extractJSON(raw: string): any {
 }
 
 /**
+ * Returns the expected average CTR for a given SERP position.
+ * Based on industry benchmarks (Advanced Web Ranking / Backlinko studies).
+ */
+function getExpectedCtr(position: number): number {
+  const pos = Math.round(position);
+  const ctrMap: Record<number, number> = {
+    1: 31.7, 2: 24.7, 3: 18.7, 4: 13.6, 5: 9.5,
+    6: 6.2, 7: 4.2, 8: 3.1, 9: 2.4, 10: 2.1,
+  };
+  if (pos <= 0) return 31.7;
+  if (pos <= 10) return ctrMap[pos] ?? 2.1;
+  if (pos <= 20) return 1.0;
+  if (pos <= 30) return 0.5;
+  return 0.2;
+}
+
+/**
  * Strips em dashes (— U+2014) from LLM-generated content.
  * Rules:
  *  - Em dash at the end of a sentence/line (optionally followed by whitespace) → removed
@@ -5879,6 +5896,243 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         const [row] = await db.select({ queries: gscExports.queries }).from(gscExports).where(eq(gscExports.id, input.id));
         if (!row) throw new Error("GSC export not found");
         return computeNearJump(row.queries ?? [], input.minPos, input.maxPos);
+      }),
+
+    /**
+     * Analyze a single GSC keyword — fetches the page URL, gets KE metrics,
+     * and runs AI analysis to produce specific ranking improvement recommendations.
+     */
+    analyzeKeyword: publicProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        pageUrl: z.string().url("Please enter a valid URL"),
+        // GSC metrics for context
+        clicks: z.number(),
+        impressions: z.number(),
+        ctr: z.number(),
+        position: z.number(),
+        projectId: z.number().optional(),
+        tab: z.string().optional(), // which GSC tab the keyword came from
+      }))
+      .mutation(async ({ input }) => {
+        const { Readability } = await import("@mozilla/readability");
+        const { parseHTML } = await import("linkedom");
+        const { getKeywordData } = await import("./keywords-everywhere");
+
+        // ---- Run 2 tasks in parallel: fetch page content + get KE metrics ----
+        const apiKey = (await import("./_core/env")).ENV.keywordsEverywhereApiKey;
+
+        const fetchPage = async () => {
+          try {
+            const resp = await fetch(input.pageUrl, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; RankPilot/1.0; +https://rankpilot.app)",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+              },
+              signal: AbortSignal.timeout(15000),
+              redirect: "follow",
+            });
+            if (!resp.ok) return { error: `HTTP ${resp.status}`, content: "", title: "", metaDescription: "", metaKeywords: "", wordCount: 0, headings: [] as string[] };
+            const contentType = resp.headers.get("content-type") || "";
+            if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+              return { error: "Not an HTML page", content: "", title: "", metaDescription: "", metaKeywords: "", wordCount: 0, headings: [] as string[] };
+            }
+            const html = await resp.text();
+            const { document } = parseHTML(html);
+
+            // Extract meta info
+            const pageTitle = document.querySelector("title")?.textContent?.trim() || "";
+            const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim() || "";
+            const metaKeywords = document.querySelector('meta[name="keywords"]')?.getAttribute("content")?.trim() || "";
+
+            // Extract headings for structure analysis
+            const headings: string[] = [];
+            document.querySelectorAll("h1, h2, h3").forEach((el: any) => {
+              const text = el.textContent?.trim();
+              const tag = el.tagName?.toLowerCase();
+              if (text) headings.push(`<${tag}>${text}</${tag}>`);
+            });
+
+            // Use Readability
+            const reader = new Readability(document as any, { charThreshold: 100 });
+            const article = reader.parse();
+            const cleanText = article?.textContent?.replace(/\s+/g, " ").trim() || "";
+            const wordCount = cleanText.split(/\s+/).filter((w: string) => w.length > 0).length;
+
+            return {
+              error: null,
+              content: cleanText.slice(0, 12000),
+              title: article?.title || pageTitle,
+              metaDescription,
+              metaKeywords,
+              wordCount,
+              headings: headings.slice(0, 30),
+            };
+          } catch (e: any) {
+            return { error: e.message || "Failed to fetch", content: "", title: "", metaDescription: "", metaKeywords: "", wordCount: 0, headings: [] as string[] };
+          }
+        };
+
+        const fetchKE = async () => {
+          if (!apiKey) return null;
+          try {
+            const res = await getKeywordData(apiKey, [input.keyword], { country: "us", currency: "USD", dataSource: "cli" });
+            return res.data?.[0] ?? null;
+          } catch {
+            return null;
+          }
+        };
+
+        const [pageData, keData] = await Promise.all([fetchPage(), fetchKE()]);
+
+        // ---- Build the AI analysis prompt ----
+        const tabContext = input.tab ? `This keyword was found in the "${input.tab}" category of the GSC analysis.` : "";
+
+        const keSection = keData ? `
+KEYWORDS EVERYWHERE DATA:
+- Monthly Search Volume: ${keData.vol.toLocaleString()}
+- CPC: $${keData.cpc.value}
+- Competition: ${keData.competition} (${keData.competition < 0.33 ? "Low" : keData.competition < 0.66 ? "Medium" : "High"})
+- 12-Month Trend: ${keData.trend?.map((t: any) => `${t.month}/${t.year}: ${t.value}`).join(", ") || "N/A"}
+` : "";
+
+        const pageSection = pageData.error
+          ? `\nPAGE CONTENT: Could not fetch the page (${pageData.error}). Provide general recommendations based on the keyword and GSC data.\n`
+          : `
+PAGE ANALYSIS:
+- Current Title Tag: "${pageData.title}"
+- Current Meta Description: "${pageData.metaDescription}"
+- Meta Keywords: "${pageData.metaKeywords || "None"}"
+- Word Count: ${pageData.wordCount}
+- Heading Structure:
+${pageData.headings.map((h: string) => `  ${h}`).join("\n")}
+
+PAGE CONTENT (first ~12,000 chars):
+---
+${pageData.content}
+---
+`;
+
+        const prompt = `You are an expert SEO consultant analyzing a keyword's ranking performance and providing specific, actionable recommendations to improve its position and visibility.
+
+TARGET KEYWORD: "${input.keyword}"
+PAGE URL: ${input.pageUrl}
+${tabContext}
+
+GOOGLE SEARCH CONSOLE DATA:
+- Current Average Position: #${input.position.toFixed(1)}
+- Impressions: ${input.impressions.toLocaleString()}
+- Clicks: ${input.clicks}
+- CTR: ${(input.ctr * 100).toFixed(1)}%
+- Expected CTR for position #${Math.round(input.position)}: ~${getExpectedCtr(input.position)}%
+- CTR Gap: ${((input.ctr * 100) - getExpectedCtr(input.position)).toFixed(1)}% (${input.ctr * 100 < getExpectedCtr(input.position) ? "BELOW expected — title/meta needs work" : "AT or ABOVE expected"})
+${keSection}${pageSection}
+
+Provide a comprehensive analysis in the following JSON format:
+{
+  "performanceAssessment": {
+    "summary": "2-3 sentence assessment of current performance",
+    "ctrVerdict": "below_expected | at_expected | above_expected",
+    "positionBucket": "striking_distance | page_2 | page_3_plus",
+    "opportunityLevel": "high | medium | low",
+    "estimatedTrafficGain": "Estimated monthly traffic gain if moved to position X"
+  },
+  "titleTagRecommendation": {
+    "current": "Current title tag",
+    "suggested": "Improved title tag that better targets the keyword",
+    "rationale": "Why this change will improve CTR and relevance"
+  },
+  "metaDescriptionRecommendation": {
+    "current": "Current meta description",
+    "suggested": "Improved meta description with compelling CTA",
+    "rationale": "Why this change will improve CTR"
+  },
+  "contentGaps": [
+    {
+      "gap": "What's missing",
+      "importance": "high | medium",
+      "suggestion": "Specific content to add"
+    }
+  ],
+  "contentRecommendations": [
+    {
+      "action": "Specific actionable change",
+      "priority": "high | medium | low",
+      "impact": "Expected impact description",
+      "effort": "quick | moderate | significant"
+    }
+  ],
+  "internalLinkingSuggestions": [
+    {
+      "suggestion": "Link suggestion description",
+      "anchorText": "Suggested anchor text",
+      "rationale": "Why this internal link helps"
+    }
+  ],
+  "quickWins": [
+    {
+      "action": "Immediate action to take",
+      "expectedImpact": "What improvement to expect",
+      "timeToImplement": "minutes | hours | days"
+    }
+  ],
+  "headingStructureRecommendation": {
+    "issues": ["List of heading structure issues"],
+    "suggestedH1": "Recommended H1 if current is suboptimal",
+    "missingSections": ["Sections that should be added based on keyword intent"]
+  },
+  "entityRecommendations": {
+    "primaryEntity": "The primary entity this page should focus on",
+    "missingEntities": ["Entities that should be mentioned for topical authority"],
+    "entityTip": "Brief tip on improving entity coverage"
+  }
+}
+
+Respond with raw JSON only. No markdown, no code blocks.`;
+
+        // ---- Call LLM ----
+        const llmResult = await callLLM({
+          messages: [
+            { role: "system", content: "You are an expert SEO analyst. Return only valid JSON." },
+            { role: "user", content: prompt },
+          ],
+        }, input.projectId);
+
+        const rawContent = llmResult?.choices?.[0]?.message?.content;
+        const rawText = typeof rawContent === "string" ? rawContent : "";
+        let analysis: any = null;
+        try {
+          analysis = extractJSON(rawText);
+        } catch {
+          analysis = { error: "Failed to parse AI response", rawText: rawText.slice(0, 500) };
+        }
+
+        return {
+          keyword: input.keyword,
+          pageUrl: input.pageUrl,
+          gscMetrics: {
+            clicks: input.clicks,
+            impressions: input.impressions,
+            ctr: input.ctr,
+            position: input.position,
+          },
+          keMetrics: keData ? {
+            volume: keData.vol,
+            cpc: parseFloat(keData.cpc.value),
+            competition: keData.competition,
+            competitionLabel: keData.competition < 0.33 ? "Low" : keData.competition < 0.66 ? "Medium" : "High",
+            trend: keData.trend,
+          } : null,
+          pageData: {
+            title: pageData.title,
+            metaDescription: pageData.metaDescription,
+            wordCount: pageData.wordCount,
+            headingCount: pageData.headings.length,
+            fetchError: pageData.error,
+          },
+          analysis,
+        };
       }),
   }),
 

@@ -1,17 +1,21 @@
 /**
  * GSC Analyzer Page
  * Upload Google Search Console Excel exports and get actionable keyword insights.
+ * Click any keyword row to expand and get AI-powered optimization recommendations.
  */
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveProject } from "@/components/AppLayout";
 import { toast } from "sonner";
 import {
-  Upload, FileSpreadsheet, Trash2, ChevronRight, TrendingUp, Eye, Zap,
-  MousePointerClick, AlertTriangle, BarChart3, ArrowUpRight, Search,
-  ExternalLink, RefreshCw, Info, ChevronDown
+  Upload, FileSpreadsheet, Trash2, TrendingUp, Eye, Zap,
+  MousePointerClick, AlertTriangle, BarChart3, Search,
+  ExternalLink, RefreshCw, Info, ChevronDown, ChevronRight,
+  Globe, Target, Lightbulb, FileText, Link2, Sparkles,
+  Copy, ArrowRight, CheckCircle2, AlertCircle, Clock,
+  TrendingDown, Minus
 } from "lucide-react";
-import type { GscQueryRow, GscPageRow, GscCannibalizationGroup, GscExport } from "../../../drizzle/schema";
+import type { GscQueryRow, GscPageRow, GscCannibalizationGroup } from "../../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,11 +97,484 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
+function formatVolume(vol: number): string {
+  if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}M`;
+  if (vol >= 1000) return `${(vol / 1000).toFixed(1)}K`;
+  return vol.toString();
+}
+
 function positionBadgeColor(pos: number): string {
   if (pos <= 3) return "bg-green-100 text-green-700";
   if (pos <= 10) return "bg-blue-100 text-blue-700";
   if (pos <= 20) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
+}
+
+function priorityBadge(level: string): string {
+  switch (level) {
+    case "high": return "bg-green-100 text-green-700 border-green-200";
+    case "medium": return "bg-amber-100 text-amber-700 border-amber-200";
+    case "low": return "bg-gray-100 text-gray-600 border-gray-200";
+    default: return "bg-gray-100 text-gray-600 border-gray-200";
+  }
+}
+
+function effortBadge(effort: string): string {
+  switch (effort) {
+    case "quick": return "bg-green-50 text-green-700";
+    case "moderate": return "bg-amber-50 text-amber-700";
+    case "significant": return "bg-red-50 text-red-700";
+    default: return "bg-gray-50 text-gray-600";
+  }
+}
+
+// ─── Expanded Row Analysis Panel ─────────────────────────────────────────────
+
+interface AnalysisData {
+  keyword: string;
+  pageUrl: string;
+  gscMetrics: { clicks: number; impressions: number; ctr: number; position: number };
+  keMetrics: { volume: number; cpc: number; competition: number; competitionLabel: string; trend: any[] } | null;
+  pageData: { title: string; metaDescription: string; wordCount: number; headingCount: number; fetchError: string | null };
+  analysis: any;
+}
+
+function ExpandedKeywordPanel({
+  row,
+  tabLabel,
+  onClose,
+}: {
+  row: GscQueryRow;
+  tabLabel: string;
+  onClose: () => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
+
+  const gscRouter = trpc.gsc as any;
+  const analyzeMutation = gscRouter.analyzeKeyword.useMutation({
+    onSuccess: (data: AnalysisData) => {
+      setAnalysisData(data);
+    },
+    onError: (err: Error) => {
+      toast.error(`Analysis failed: ${err.message}`);
+    },
+  });
+
+  function handleAnalyze() {
+    if (!url.trim()) {
+      toast.error("Please enter a page URL");
+      return;
+    }
+    try {
+      new URL(url);
+    } catch {
+      toast.error("Please enter a valid URL (include https://)");
+      return;
+    }
+    analyzeMutation.mutate({
+      keyword: row.query,
+      pageUrl: url.trim(),
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: row.ctr,
+      position: row.position,
+      tab: tabLabel,
+    });
+  }
+
+  function copyToClipboard(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedSection(label);
+    toast.success(`${label} copied`);
+    setTimeout(() => setCopiedSection(null), 2000);
+  }
+
+  const a = analysisData?.analysis;
+  const ke = analysisData?.keMetrics;
+  const pd = analysisData?.pageData;
+  const isAnalyzing = analyzeMutation.isPending;
+
+  return (
+    <div className="bg-slate-50 border-t border-b border-indigo-100 px-6 py-5 space-y-5">
+      {/* URL Input Section */}
+      <div className="flex items-start gap-4">
+        <div className="flex-1 space-y-2">
+          <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Globe className="w-4 h-4 text-indigo-500" />
+            Page URL for "{row.query}"
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Enter the URL of the page ranking for this keyword to get AI-powered optimization recommendations.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/your-page"
+              className="flex-1 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 bg-white"
+              onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+            />
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || !url.trim()}
+              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isAnalyzing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Analyze
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {isAnalyzing && (
+        <div className="bg-white rounded-xl border border-border p-8 text-center space-y-3">
+          <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
+          <p className="text-sm font-medium text-foreground">Analyzing page content and generating recommendations...</p>
+          <p className="text-xs text-muted-foreground">Fetching page, checking Keywords Everywhere data, and running AI analysis</p>
+        </div>
+      )}
+
+      {/* Analysis Results */}
+      {analysisData && !isAnalyzing && (
+        <div className="space-y-4">
+          {/* KE Metrics + Page Data Summary Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="bg-white rounded-lg border border-border p-3 text-center">
+              <p className="text-xs text-muted-foreground">Position</p>
+              <p className={`text-lg font-bold ${row.position <= 10 ? "text-blue-600" : row.position <= 20 ? "text-amber-600" : "text-red-600"}`}>
+                #{formatPos(row.position)}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center">
+              <p className="text-xs text-muted-foreground">Impressions</p>
+              <p className="text-lg font-bold text-foreground">{formatNumber(row.impressions)}</p>
+            </div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center">
+              <p className="text-xs text-muted-foreground">CTR</p>
+              <p className={`text-lg font-bold ${row.ctr < 0.02 ? "text-red-600" : row.ctr < 0.05 ? "text-amber-600" : "text-green-600"}`}>
+                {formatCtr(row.ctr)}
+              </p>
+            </div>
+            {ke && (
+              <>
+                <div className="bg-white rounded-lg border border-border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Search Volume</p>
+                  <p className="text-lg font-bold text-indigo-600">{formatVolume(ke.volume)}/mo</p>
+                </div>
+                <div className="bg-white rounded-lg border border-border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">CPC</p>
+                  <p className="text-lg font-bold text-foreground">${ke.cpc.toFixed(2)}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Competition</p>
+                  <p className={`text-lg font-bold ${ke.competitionLabel === "Low" ? "text-green-600" : ke.competitionLabel === "Medium" ? "text-amber-600" : "text-red-600"}`}>
+                    {ke.competitionLabel}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Page fetch error warning */}
+          {pd?.fetchError && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Could not fetch page content</p>
+                <p className="text-xs text-amber-600 mt-0.5">{pd.fetchError}. Recommendations are based on keyword and GSC data only.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Performance Assessment */}
+          {a?.performanceAssessment && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                  <Target className="w-4 h-4 text-indigo-500" />
+                  Performance Assessment
+                </h4>
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${priorityBadge(a.performanceAssessment.opportunityLevel)}`}>
+                  {a.performanceAssessment.opportunityLevel?.toUpperCase()} OPPORTUNITY
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">{a.performanceAssessment.summary}</p>
+              {a.performanceAssessment.estimatedTrafficGain && (
+                <p className="text-sm text-indigo-600 font-medium flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4" />
+                  {a.performanceAssessment.estimatedTrafficGain}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Title Tag Recommendation */}
+          {a?.titleTagRecommendation && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-500" />
+                  Title Tag Recommendation
+                </h4>
+                <button
+                  onClick={() => copyToClipboard(a.titleTagRecommendation.suggested, "Title tag")}
+                  className="text-xs text-muted-foreground hover:text-indigo-600 flex items-center gap-1 transition-colors"
+                >
+                  {copiedSection === "Title tag" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy
+                </button>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded mt-0.5 flex-shrink-0">Current</span>
+                  <p className="text-sm text-muted-foreground">{a.titleTagRecommendation.current || pd?.title || "N/A"}</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded mt-0.5 flex-shrink-0">Suggested</span>
+                  <p className="text-sm text-foreground font-medium">{a.titleTagRecommendation.suggested}</p>
+                </div>
+                <p className="text-xs text-muted-foreground italic">{a.titleTagRecommendation.rationale}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Meta Description Recommendation */}
+          {a?.metaDescriptionRecommendation && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-purple-500" />
+                  Meta Description Recommendation
+                </h4>
+                <button
+                  onClick={() => copyToClipboard(a.metaDescriptionRecommendation.suggested, "Meta description")}
+                  className="text-xs text-muted-foreground hover:text-indigo-600 flex items-center gap-1 transition-colors"
+                >
+                  {copiedSection === "Meta description" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy
+                </button>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded mt-0.5 flex-shrink-0">Current</span>
+                  <p className="text-sm text-muted-foreground">{a.metaDescriptionRecommendation.current || pd?.metaDescription || "N/A"}</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded mt-0.5 flex-shrink-0">Suggested</span>
+                  <p className="text-sm text-foreground font-medium">{a.metaDescriptionRecommendation.suggested}</p>
+                </div>
+                <p className="text-xs text-muted-foreground italic">{a.metaDescriptionRecommendation.rationale}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Wins */}
+          {a?.quickWins?.length > 0 && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                Quick Wins
+              </h4>
+              <div className="space-y-2">
+                {a.quickWins.map((win: any, i: number) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-amber-50/50 rounded-lg border border-amber-100">
+                    <span className="text-xs font-bold text-amber-600 bg-amber-100 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{win.action}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" /> {win.expectedImpact}
+                        </span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${effortBadge(win.timeToImplement)}`}>
+                          <Clock className="w-3 h-3 inline mr-0.5" />{win.timeToImplement}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Content Gaps */}
+          {a?.contentGaps?.length > 0 && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500" />
+                Content Gaps
+              </h4>
+              <div className="space-y-2">
+                {a.contentGaps.map((gap: any, i: number) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-red-50/30 rounded-lg border border-red-100">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border mt-0.5 flex-shrink-0 ${gap.importance === "high" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}>
+                      {gap.importance}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{gap.gap}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{gap.suggestion}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Content Recommendations */}
+          {a?.contentRecommendations?.length > 0 && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-indigo-500" />
+                  Content Recommendations
+                </h4>
+                <button
+                  onClick={() => {
+                    const text = a.contentRecommendations.map((r: any, i: number) => `${i + 1}. [${r.priority}] ${r.action}\n   Impact: ${r.impact}\n   Effort: ${r.effort}`).join("\n\n");
+                    copyToClipboard(text, "Recommendations");
+                  }}
+                  className="text-xs text-muted-foreground hover:text-indigo-600 flex items-center gap-1 transition-colors"
+                >
+                  {copiedSection === "Recommendations" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy All
+                </button>
+              </div>
+              <div className="space-y-2">
+                {a.contentRecommendations.map((rec: any, i: number) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border mt-0.5 flex-shrink-0 ${priorityBadge(rec.priority)}`}>
+                      {rec.priority}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{rec.action}</p>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="text-xs text-muted-foreground">{rec.impact}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${effortBadge(rec.effort)}`}>
+                          {rec.effort} effort
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Heading Structure */}
+          {a?.headingStructureRecommendation && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-teal-500" />
+                Heading Structure
+              </h4>
+              {a.headingStructureRecommendation.suggestedH1 && (
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-medium text-teal-600 bg-teal-50 px-2 py-0.5 rounded mt-0.5 flex-shrink-0">H1</span>
+                  <p className="text-sm text-foreground font-medium">{a.headingStructureRecommendation.suggestedH1}</p>
+                </div>
+              )}
+              {a.headingStructureRecommendation.issues?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issues</p>
+                  {a.headingStructureRecommendation.issues.map((issue: string, i: number) => (
+                    <p key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <Minus className="w-3 h-3 text-red-400 mt-1 flex-shrink-0" />
+                      {issue}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {a.headingStructureRecommendation.missingSections?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Missing Sections</p>
+                  {a.headingStructureRecommendation.missingSections.map((section: string, i: number) => (
+                    <p key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <ArrowRight className="w-3 h-3 text-indigo-400 mt-1 flex-shrink-0" />
+                      {section}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Internal Linking Suggestions */}
+          {a?.internalLinkingSuggestions?.length > 0 && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-blue-500" />
+                Internal Linking Suggestions
+              </h4>
+              <div className="space-y-2">
+                {a.internalLinkingSuggestions.map((link: any, i: number) => (
+                  <div key={i} className="p-3 bg-blue-50/30 rounded-lg border border-blue-100">
+                    <p className="text-sm font-medium text-foreground">{link.suggestion}</p>
+                    {link.anchorText && (
+                      <p className="text-xs text-blue-600 mt-1">Anchor text: "{link.anchorText}"</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-0.5">{link.rationale}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Entity Recommendations */}
+          {a?.entityRecommendations && (
+            <div className="bg-white rounded-xl border border-border p-5 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-violet-500" />
+                Entity Recommendations
+              </h4>
+              {a.entityRecommendations.primaryEntity && (
+                <p className="text-sm text-foreground">
+                  <span className="font-medium">Primary Entity:</span> {a.entityRecommendations.primaryEntity}
+                </p>
+              )}
+              {a.entityRecommendations.missingEntities?.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Missing:</span>
+                  {a.entityRecommendations.missingEntities.map((entity: string, i: number) => (
+                    <span key={i} className="text-xs bg-violet-50 text-violet-700 border border-violet-200 px-2 py-0.5 rounded-full">
+                      {entity}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {a.entityRecommendations.entityTip && (
+                <p className="text-xs text-muted-foreground italic">{a.entityRecommendations.entityTip}</p>
+              )}
+            </div>
+          )}
+
+          {/* Page Info Footer */}
+          {pd && !pd.fetchError && (
+            <div className="flex items-center gap-4 text-xs text-muted-foreground bg-gray-50 rounded-lg px-4 py-2.5 border border-gray-100">
+              <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {pd.wordCount.toLocaleString()} words</span>
+              <span className="flex items-center gap-1"><BarChart3 className="w-3 h-3" /> {pd.headingCount} headings</span>
+              <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-indigo-500 hover:underline ml-auto">
+                <ExternalLink className="w-3 h-3" /> View page
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -116,10 +593,11 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: s
   );
 }
 
-function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRow)[]; showPage?: boolean }) {
+function QueryTable({ rows, showPage = false, tabLabel = "" }: { rows: (GscQueryRow | GscPageRow)[]; showPage?: boolean; tabLabel?: string }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"impressions" | "clicks" | "ctr" | "position">("impressions");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   const filtered = rows.filter((r) => {
     const text = showPage ? (r as GscPageRow).page : (r as GscQueryRow).query;
@@ -169,7 +647,15 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
         />
       </div>
 
-      <div className="text-xs text-muted-foreground">{sorted.length} {showPage ? "pages" : "keywords"}</div>
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">{sorted.length} {showPage ? "pages" : "keywords"}</div>
+        {!showPage && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-indigo-400" />
+            Click any keyword for AI analysis
+          </p>
+        )}
+      </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -187,37 +673,62 @@ function QueryTable({ rows, showPage = false }: { rows: (GscQueryRow | GscPageRo
           <tbody className="divide-y divide-gray-100">
             {sorted.slice(0, 200).map((row, i) => {
               const text = showPage ? (row as GscPageRow).page : (row as GscQueryRow).query;
+              const isExpanded = expandedRow === i;
+              const isKeywordRow = !showPage;
               return (
-                <tr key={i} className="hover:bg-muted/50 transition-colors">
-                  <td className="px-4 py-3 max-w-xs">
-                    {showPage ? (
-                      <a
-                        href={text}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:underline flex items-center gap-1 truncate"
-                        title={text}
-                      >
-                        <span className="truncate">{text.replace(/^https?:\/\/[^/]+/, "")}</span>
-                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                      </a>
-                    ) : (
-                      <span className="text-foreground font-medium">{text}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatNumber(row.clicks)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatNumber(row.impressions)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${row.ctr < 0.02 ? "bg-red-100 text-red-700" : row.ctr < 0.05 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                      {formatCtr(row.ctr)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${positionBadgeColor(row.position)}`}>
-                      #{formatPos(row.position)}
-                    </span>
-                  </td>
-                </tr>
+                <React.Fragment key={i}>
+                  <tr
+                    className={`transition-colors ${isKeywordRow ? "cursor-pointer hover:bg-indigo-50/50" : "hover:bg-muted/50"} ${isExpanded ? "bg-indigo-50/70" : ""}`}
+                    onClick={() => {
+                      if (isKeywordRow) {
+                        setExpandedRow(isExpanded ? null : i);
+                      }
+                    }}
+                  >
+                    <td className="px-4 py-3 max-w-xs">
+                      {showPage ? (
+                        <a
+                          href={text}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline flex items-center gap-1 truncate"
+                          title={text}
+                        >
+                          <span className="truncate">{text.replace(/^https?:\/\/[^/]+/, "")}</span>
+                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-foreground font-medium flex items-center gap-2">
+                          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                          {text}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatNumber(row.clicks)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatNumber(row.impressions)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${row.ctr < 0.02 ? "bg-red-100 text-red-700" : row.ctr < 0.05 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        {formatCtr(row.ctr)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${positionBadgeColor(row.position)}`}>
+                        #{formatPos(row.position)}
+                      </span>
+                    </td>
+                  </tr>
+                  {isExpanded && isKeywordRow && (
+                    <tr>
+                      <td colSpan={5} className="p-0">
+                        <ExpandedKeywordPanel
+                          row={row as GscQueryRow}
+                          tabLabel={tabLabel}
+                          onClose={() => setExpandedRow(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
             {sorted.length === 0 && (
@@ -270,30 +781,30 @@ function CannibalizationTable({ groups }: { groups: GscCannibalizationGroup[] })
               <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
                 {group.queries.length} queries
               </span>
-              <span className="text-sm font-medium text-foreground capitalize">{group.topic}</span>
+              <span className="font-medium text-foreground">{group.topic}</span>
             </div>
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded.has(i) ? "rotate-180" : ""}`} />
+            <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${expanded.has(i) ? "rotate-90" : ""}`} />
           </button>
           {expanded.has(i) && (
-            <div className="border-t border-gray-100">
+            <div className="border-t border-border">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
+                <thead className="bg-muted/30">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Keyword</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Clicks</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Impressions</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">CTR</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground uppercase">Position</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Query</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Clicks</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Impressions</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">CTR</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Position</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {group.queries.map((q, j) => (
-                    <tr key={j} className="hover:bg-muted/50">
+                    <tr key={j} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-2 text-foreground">{q.query}</td>
                       <td className="px-4 py-2 text-muted-foreground">{formatNumber(q.clicks)}</td>
                       <td className="px-4 py-2 text-muted-foreground">{formatNumber(q.impressions)}</td>
                       <td className="px-4 py-2">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${q.ctr < 0.02 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${q.ctr < 0.02 ? "bg-red-100 text-red-700" : q.ctr < 0.05 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {formatCtr(q.ctr)}
                         </span>
                       </td>
@@ -315,6 +826,8 @@ function CannibalizationTable({ groups }: { groups: GscCannibalizationGroup[] })
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+
+import React from "react";
 
 export default function GscAnalyzer() {
   const { activeProject } = useActiveProject();
@@ -615,7 +1128,7 @@ export default function GscAnalyzer() {
                         <RefreshCw className="w-5 h-5 text-indigo-500 animate-spin" />
                       </div>
                     ) : (
-                      <QueryTable rows={tabRows as GscPageRow[]} showPage={true} />
+                      <QueryTable rows={tabRows as GscPageRow[]} showPage={true} tabLabel="Zero-Click Pages" />
                     )
                   ) : (
                     isLoadingNearJump && activeTab === "near-jump" ? (
@@ -623,7 +1136,7 @@ export default function GscAnalyzer() {
                         <RefreshCw className="w-5 h-5 text-indigo-500 animate-spin" />
                       </div>
                     ) : (
-                      <QueryTable rows={tabRows as GscQueryRow[]} showPage={false} />
+                      <QueryTable rows={tabRows as GscQueryRow[]} showPage={false} tabLabel={currentTab.label} />
                     )
                   )}
                 </div>

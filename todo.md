@@ -1227,3 +1227,13 @@
 - [x] Refactored ProjectKeywords.tsx into reusable ProjectKeywordsPanel component
 - [x] Kept standalone /project-keywords route as alternative access point
 - [x] TypeScript check — 0 errors
+
+## GSC Analyzer Enhancement: Expandable Keyword Insights
+- [x] Build gsc.analyzeKeyword backend procedure (URL fetch + KE data + AI analysis)
+- [x] Create GSC keyword analysis prompt for ranking improvement recommendations
+- [x] Update QueryTable component with expandable rows on click (chevron indicator + hint text)
+- [x] Build URL input section in expanded row with Analyze button
+- [x] Build analysis results display (performance assessment, title/meta recs, content gaps, quick wins, content recommendations, heading structure, internal linking, entity recommendations)
+- [x] Add KE metrics display (volume, CPC, competition) in expanded row summary bar
+- [x] Add copy-to-clipboard for title tag, meta description, and all recommendations
+- [x] TypeScript check — 0 errors

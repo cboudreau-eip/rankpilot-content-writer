@@ -1237,3 +1237,8 @@
 - [x] Add KE metrics display (volume, CPC, competition) in expanded row summary bar
 - [x] Add copy-to-clipboard for title tag, meta description, and all recommendations
 - [x] TypeScript check — 0 errors
+
+## Bug Fix: Entity Analyzer Competitor Analysis Error
+- [x] Investigate error: "Unexpected token '<', <!DOCTYPE" — LLM/proxy timeout returning HTML instead of JSON
+- [x] Fix: Added try/catch around each LLM call, proper TRPCError wrapping, trimmed content to 5000 chars to reduce timeout risk, added console logging
+- [x] TypeScript check — 0 errors

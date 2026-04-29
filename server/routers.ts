@@ -4488,22 +4488,32 @@ Return ONLY valid JSON, no markdown code blocks.`;
 
         // ---- Step 2: Run entity analysis on each URL in parallel ----
         const analyzeOne = async (item: { url: string; content: string; title: string }) => {
-          const prompt = getEntityAnalysisPrompt(item.content, input.keyword || undefined);
-          const response = await callLLM({
-            messages: [
-              { role: "system", content: "You are an expert SEO entity analyst. Respond with raw JSON only." },
-              { role: "user", content: prompt },
-            ],
-          }, input.projectId);
-          const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
-          const parsed = extractJSON(llmResponse);
-          if (!parsed) return null;
-          return { url: item.url, title: item.title, wordCount: item.content.split(/\s+/).length, analysis: parsed as EntityAnalysisResult };
+          try {
+            // Trim content to 5000 chars to reduce LLM processing time and avoid timeouts
+            const trimmedContent = item.content.slice(0, 5000);
+            const prompt = getEntityAnalysisPrompt(trimmedContent, input.keyword || undefined);
+            const response = await callLLM({
+              messages: [
+                { role: "system", content: "You are an expert SEO entity analyst. Respond with raw JSON only." },
+                { role: "user", content: prompt },
+              ],
+            }, input.projectId);
+            const llmResponse = (response.choices?.[0]?.message?.content || "") as string;
+            const parsed = extractJSON(llmResponse);
+            if (!parsed) {
+              console.warn(`[CompetitorAnalysis] Failed to parse LLM JSON for ${item.url}`);
+              return null;
+            }
+            return { url: item.url, title: item.title, wordCount: item.content.split(/\s+/).length, analysis: parsed as EntityAnalysisResult };
+          } catch (e: any) {
+            console.error(`[CompetitorAnalysis] LLM analysis failed for ${item.url}:`, e.message);
+            return null;
+          }
         };
 
         const analyses = (await Promise.all(successful.map(analyzeOne))).filter((a): a is NonNullable<typeof a> => a !== null);
         if (analyses.length < 2) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Entity analysis failed for too many URLs" });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Entity analysis failed for too many URLs. The AI model may have timed out — try again or use shorter articles." });
         }
 
         // ---- Step 3: Merge with LLM — find consensus, unique, and gaps ----
@@ -4563,16 +4573,26 @@ Return a JSON object with this structure:
 
 Respond with raw JSON only.`;
 
-        const mergeResponse = await callLLM({
-          messages: [
-            { role: "system", content: "You are an expert SEO competitive analyst. Respond with raw JSON only." },
-            { role: "user", content: mergePrompt },
-          ],
-        }, input.projectId);
+        let merged: any;
+        try {
+          const mergeResponse = await callLLM({
+            messages: [
+              { role: "system", content: "You are an expert SEO competitive analyst. Respond with raw JSON only." },
+              { role: "user", content: mergePrompt },
+            ],
+          }, input.projectId);
 
-        const mergeRaw = (mergeResponse.choices?.[0]?.message?.content || "") as string;
-        const merged = extractJSON(mergeRaw);
-        if (!merged) throw new Error("Failed to parse merged competitor analysis");
+          const mergeRaw = (mergeResponse.choices?.[0]?.message?.content || "") as string;
+          merged = extractJSON(mergeRaw);
+          if (!merged) {
+            console.error("[CompetitorAnalysis] Failed to parse merge response:", mergeRaw.slice(0, 200));
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse the competitive analysis. Please try again." });
+          }
+        } catch (e: any) {
+          if (e instanceof TRPCError) throw e;
+          console.error("[CompetitorAnalysis] Merge LLM call failed:", e.message);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Competitive analysis merge failed: ${e.message}. Please try again.` });
+        }
 
         return {
           urls: fetched.map(f => ({ url: f.url, title: f.title, wordCount: f.wordCount, error: f.error })),

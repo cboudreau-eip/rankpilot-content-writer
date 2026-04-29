@@ -64,10 +64,46 @@ function stripWrappingStrongTags(content: string): string {
 }
 
 /**
+ * Decode common HTML entities to their plain text equivalents.
+ */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#8211;/g, '\u2013') // en-dash
+    .replace(/&#8212;/g, '\u2014') // em-dash
+    .replace(/&#8216;/g, '\u2018') // left single quote
+    .replace(/&#8217;/g, '\u2019') // right single quote
+    .replace(/&#8220;/g, '\u201C') // left double quote
+    .replace(/&#8221;/g, '\u201D') // right double quote
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Normalize text for fuzzy matching: decode entities, collapse whitespace,
+ * normalize dashes and quotes to ASCII equivalents.
+ */
+function normalizeForMatch(text: string): string {
+  return decodeHtmlEntities(text)
+    .replace(/[\u2013\u2014\u2015]/g, '-') // en-dash, em-dash → hyphen
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // smart single quotes → '
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"') // smart double quotes → "
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Robust find-and-replace in HTML content.
  * Strips HTML tags to build plain text, finds the search phrase (with normalized
- * whitespace fallback), then surgically replaces the matched text in the original
- * HTML while preserving all surrounding tags.
+ * whitespace fallback, HTML entity decoding, and virtual tag-boundary spaces),
+ * then surgically replaces the matched text in the original HTML while preserving
+ * all surrounding tags.
  */
 function findAndReplaceInHtml(
   html: string,
@@ -81,7 +117,6 @@ function findAndReplaceInHtml(
   let effectiveSearchText = searchText;
   if (searchText.includes('...') || searchText.includes('\u2026')) {
     const fullText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    // Split on ellipsis patterns
     const fragments = searchText.split(/\.{3}|\u2026/).map(f => f.trim()).filter(Boolean);
     if (fragments.length >= 2) {
       const firstFrag = fragments[0].replace(/\s+/g, ' ').trim();
@@ -128,7 +163,6 @@ function findAndReplaceInHtml(
     const normalizedFull = normalize(fullText);
     const normIdx = normalizedFull.indexOf(normalizedSearch);
     if (normIdx >= 0) {
-      // Map normalized position back to original text position
       let startOrigIdx = -1;
       let endOrigIdx = -1;
       let nPos = 0;
@@ -158,22 +192,18 @@ function findAndReplaceInHtml(
   // When HTML tags separate text (e.g. "</p><p>"), the concatenated text has no space
   // but the LLM sees them as separate words with a space between.
   if (phraseStart < 0) {
-    // Build a virtual text that inserts a space at each tag boundary
-    const textSegments = segments.filter(s => s.type === 'text');
     const virtualParts: string[] = [];
-    // Track mapping: for each char in virtual text, which segment and offset
     const charMap: { segIdx: number; offset: number }[] = [];
     let segCounter = 0;
     for (let si = 0; si < segments.length; si++) {
       if (segments[si].type === 'text') {
-        // Insert a virtual space at tag boundary if needed
         if (virtualParts.length > 0) {
           const lastChar = virtualParts[virtualParts.length - 1];
           const prevChar = lastChar[lastChar.length - 1];
           const nextChar = segments[si].content[0];
           if (prevChar && !/\s/.test(prevChar) && nextChar && !/\s/.test(nextChar)) {
             virtualParts.push(' ');
-            charMap.push({ segIdx: -1, offset: -1 }); // virtual space
+            charMap.push({ segIdx: -1, offset: -1 });
           }
         }
         virtualParts.push(segments[si].content);
@@ -188,7 +218,6 @@ function findAndReplaceInHtml(
     const normIdx = normalizedVirtual.indexOf(normalizedSearch);
 
     if (normIdx >= 0) {
-      // Map normalized position back to virtual text, then to segments
       let vStartIdx = -1;
       let vEndIdx = -1;
       let nPos = 0;
@@ -209,27 +238,16 @@ function findAndReplaceInHtml(
       if (vStartIdx < 0) return { html, applied: false };
       if (vEndIdx < 0) vEndIdx = virtualText.length;
 
-      // Find the real segment boundaries from charMap
-      // Get the first real char at or after vStartIdx
       let realStart = -1;
       for (let i = vStartIdx; i < charMap.length; i++) {
-        if (charMap[i].segIdx >= 0) {
-          realStart = i;
-          break;
-        }
+        if (charMap[i].segIdx >= 0) { realStart = i; break; }
       }
-      // Get the last real char before vEndIdx
       let realEnd = -1;
       for (let i = Math.min(vEndIdx, charMap.length) - 1; i >= 0; i--) {
-        if (charMap[i].segIdx >= 0) {
-          realEnd = i + 1;
-          break;
-        }
+        if (charMap[i].segIdx >= 0) { realEnd = i + 1; break; }
       }
       if (realStart < 0 || realEnd < 0) return { html, applied: false };
 
-      // Map back to fullText offsets
-      // Count real chars before realStart to get phraseStart in fullText
       let ftStart = 0;
       for (let i = 0; i < realStart; i++) {
         if (charMap[i].segIdx >= 0) ftStart++;
@@ -244,6 +262,119 @@ function findAndReplaceInHtml(
     }
   }
 
+  // FINAL FALLBACK: Decode HTML entities and normalize dashes/quotes for matching.
+  // This handles cases where the article HTML contains &gt;, &#8211;, etc. but the
+  // LLM's plain text version uses >, –, etc.
+  if (phraseStart < 0) {
+    // Build virtual text with spaces at tag boundaries AND decoded entities
+    const virtualParts: string[] = [];
+    const charMap: { segIdx: number; offset: number }[] = [];
+    let segCounter = 0;
+    for (let si = 0; si < segments.length; si++) {
+      if (segments[si].type === 'text') {
+        if (virtualParts.length > 0) {
+          virtualParts.push(' ');
+          charMap.push({ segIdx: -1, offset: -1 });
+        }
+        // Decode HTML entities in the text segment for matching
+        const decoded = decodeHtmlEntities(segments[si].content);
+        virtualParts.push(decoded);
+        // Map each decoded char back to the original segment
+        // Since decoding can change length, we map proportionally
+        const origLen = segments[si].content.length;
+        const decodedLen = decoded.length;
+        for (let ci = 0; ci < decodedLen; ci++) {
+          // Map decoded position to closest original position
+          const origOffset = Math.min(Math.round((ci / decodedLen) * origLen), origLen - 1);
+          charMap.push({ segIdx: segCounter, offset: origOffset });
+        }
+        segCounter++;
+      }
+    }
+    const virtualText = virtualParts.join('');
+    const normalizedVirtual = normalizeForMatch(virtualText);
+    const normalizedSearchFuzzy = normalizeForMatch(effectiveSearchText);
+    const normIdx = normalizedVirtual.indexOf(normalizedSearchFuzzy);
+
+    if (normIdx >= 0) {
+      // Map normalized position back to virtual text
+      let vStartIdx = -1;
+      let vEndIdx = -1;
+      let nPos = 0;
+      for (let i = 0; i < virtualText.length; i++) {
+        const ch = virtualText[i];
+        if (/\s/.test(ch)) {
+          if (i === 0 || !/\s/.test(virtualText[i - 1])) {
+            if (nPos === normIdx) vStartIdx = i;
+            if (nPos === normIdx + normalizedSearchFuzzy.length) { vEndIdx = i; break; }
+            nPos++;
+          }
+        } else {
+          if (nPos === normIdx) vStartIdx = i;
+          nPos++;
+          if (nPos === normIdx + normalizedSearchFuzzy.length) { vEndIdx = i + 1; break; }
+        }
+      }
+      if (vStartIdx >= 0) {
+        if (vEndIdx < 0) vEndIdx = virtualText.length;
+
+        let realStart = -1;
+        for (let i = vStartIdx; i < charMap.length; i++) {
+          if (charMap[i].segIdx >= 0) { realStart = i; break; }
+        }
+        let realEnd = -1;
+        for (let i = Math.min(vEndIdx, charMap.length) - 1; i >= 0; i--) {
+          if (charMap[i].segIdx >= 0) { realEnd = i + 1; break; }
+        }
+        if (realStart >= 0 && realEnd >= 0) {
+          let ftStart = 0;
+          for (let i = 0; i < realStart; i++) {
+            if (charMap[i].segIdx >= 0) ftStart++;
+          }
+          let ftEnd = 0;
+          for (let i = 0; i < realEnd; i++) {
+            if (charMap[i].segIdx >= 0) ftEnd++;
+          }
+          phraseStart = ftStart;
+          phraseEnd = ftEnd;
+        }
+      }
+    }
+  }
+
+  // LAST RESORT: Try matching just the first 40 chars of the search text.
+  // For very long table-extracted text, even small differences accumulate.
+  // Matching the beginning is usually enough to locate the right spot.
+  if (phraseStart < 0 && normalizedSearch.length > 50) {
+    const shortSearch = normalizeForMatch(effectiveSearchText).slice(0, 40);
+    const decodedFull = normalizeForMatch(
+      segments.filter(s => s.type === 'text').map(s => s.content).join(' ')
+    );
+    const shortIdx = decodedFull.indexOf(shortSearch);
+    if (shortIdx >= 0) {
+      // Find the end: try to match as much as possible
+      const fullSearchNorm = normalizeForMatch(effectiveSearchText);
+      let bestEnd = shortIdx + shortSearch.length;
+      for (let len = fullSearchNorm.length; len > shortSearch.length; len--) {
+        const candidate = fullSearchNorm.slice(0, len);
+        if (decodedFull.indexOf(candidate) === shortIdx) {
+          bestEnd = shortIdx + len;
+          break;
+        }
+      }
+
+      // Map decodedFull positions back to fullText positions
+      // Build a mapping from decoded text to original fullText
+      const origFullText = segments.filter(s => s.type === 'text').map(s => s.content).join(' ');
+      const origNorm = origFullText.replace(/\s+/g, ' ').trim();
+
+      // Approximate: use character ratio mapping
+      const ratio = origNorm.length / decodedFull.length;
+      phraseStart = Math.max(0, Math.floor(shortIdx * ratio));
+      phraseEnd = Math.min(fullText.length, Math.ceil(bestEnd * ratio));
+    }
+  }
+
   if (phraseStart < 0) return { html, applied: false };
 
   // Rebuild HTML replacing the matched text portion
@@ -251,11 +382,9 @@ function findAndReplaceInHtml(
   let textOffset = 0;
   for (const seg of segments) {
     if (seg.type === 'tag') {
-      // Keep tags that are outside the match, or skip tags inside the match
       if (textOffset <= phraseStart || textOffset >= phraseEnd) {
         newSegments.push(seg.content);
       }
-      // Tags inside the matched range are dropped (replaced by the replacement text)
     } else {
       const segStart = textOffset;
       const segEnd = textOffset + seg.content.length;

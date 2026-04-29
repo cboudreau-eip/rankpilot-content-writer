@@ -1242,3 +1242,8 @@
 - [x] Investigate error: "Unexpected token '<', <!DOCTYPE" — LLM/proxy timeout returning HTML instead of JSON
 - [x] Fix: Added try/catch around each LLM call, proper TRPCError wrapping, trimmed content to 5000 chars to reduce timeout risk, added console logging
 - [x] TypeScript check — 0 errors
+
+## Bug Fix: Cross-Reference Text Replacement Failing
+- [x] Investigate text matching logic in cross-reference update
+- [x] Fix text matching to handle whitespace/formatting differences — added decodeHtmlEntities(), normalizeForMatch(), entity-decoded fuzzy matching, and last-resort short prefix matching for long table text
+- [x] TypeScript check — 0 errors, 497 tests passing

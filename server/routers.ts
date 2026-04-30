@@ -379,6 +379,78 @@ function fixBrokenAnchors(content: string): string {
 }
 
 /**
+ * Sanitize hyperlinks inserted by the LLM during improvement application.
+ * Fixes two common problems:
+ * 1. Fabricated URLs — LLM invents URLs that don't exist. If a link's domain doesn't
+ *    match any of the allowed citation source domains, the <a> tag is stripped and
+ *    only the anchor text is kept.
+ * 2. Overly long anchor text — LLM wraps entire sentences as links. If anchor text
+ *    exceeds 10 words, it's trimmed to the first meaningful phrase.
+ *
+ * @param content  The HTML content with newly inserted links
+ * @param allowedDomains  Array of domain strings from the project's citation sources
+ *                        (e.g. ["medicare.gov", "cms.gov", "kff.org"])
+ */
+function sanitizeInsertedLinks(
+  content: string,
+  allowedDomains: string[]
+): string {
+  // Normalize allowed domains: strip www. prefix and lowercase
+  const normalizedAllowed = allowedDomains.map(d =>
+    d.toLowerCase().replace(/^www\./, '')
+  );
+
+  // Match all <a ...>...</a> tags (non-greedy, handles multiline)
+  return content.replace(
+    /<a\s+([^>]*href="([^"]*)"[^>]*)>((?:(?!<\/a>)[\s\S])*)<\/a>/gi,
+    (fullMatch, attrs: string, href: string, anchorText: string) => {
+      // --- Check 1: Validate URL domain against allowed citation sources ---
+      if (normalizedAllowed.length > 0) {
+        try {
+          const url = new URL(href);
+          const linkDomain = url.hostname.toLowerCase().replace(/^www\./, '');
+          const isAllowed = normalizedAllowed.some(allowed =>
+            linkDomain === allowed || linkDomain.endsWith('.' + allowed)
+          );
+          if (!isAllowed) {
+            // Domain not in citation sources — strip the <a> tag, keep text
+            return anchorText;
+          }
+        } catch {
+          // Invalid URL — strip the link
+          return anchorText;
+        }
+      }
+
+      // --- Check 2: Trim overly long anchor text ---
+      // Strip inner HTML tags for word counting
+      const plainAnchor = anchorText.replace(/<[^>]+>/g, '').trim();
+      const words = plainAnchor.split(/\s+/);
+      if (words.length > 10) {
+        // Find a natural break point: look for the core factual phrase
+        // Strategy: take up to 7 words, ending at a natural boundary
+        let trimmedWordCount = 7;
+        // Try to end at a comma, period, or conjunction
+        for (let i = 5; i <= Math.min(8, words.length); i++) {
+          const word = words[i];
+          if (/^(and|or|but|which|that|including|with|for|from|to|in|at|by|as|is|are|was|were|the|a|an)$/i.test(word)) {
+            trimmedWordCount = i;
+            break;
+          }
+        }
+        const trimmedText = words.slice(0, trimmedWordCount).join(' ');
+        // Close the <a> tag around just the trimmed portion, put the rest outside
+        const remainingText = words.slice(trimmedWordCount).join(' ');
+        return `<a ${attrs}>${trimmedText}</a> ${remainingText}`;
+      }
+
+      // Link is valid and anchor text is reasonable — keep as-is
+      return fullMatch;
+    }
+  );
+}
+
+/**
  * Wraps bare text lines (not inside HTML tags) in <p> tags.
  * The LLM often outputs HTML headings but plain text paragraphs separated by newlines.
  * TipTap needs <p> tags to render separate paragraphs.
@@ -5384,7 +5456,7 @@ Respond in this exact JSON format:
             if (c.category) entry += ` [Category: ${c.category}]`;
             return entry;
           }).join("\n");
-          citationSourcesSection = `\nAVAILABLE CITATION SOURCES (curated by the project owner):\n${sourcesList}\n\nCITATION QUALITY RULES (MANDATORY):\n1. ANCHOR TEXT: NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or "[Source Name]". Instead, the anchor text MUST be the actual claim, fact, or phrase being cited. Example:\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>"\n   - BAD: "<a href=\"...\">Find out more about Part B coverage</a>"\n   - GOOD: "Medicare Part B <a href=\"...\">covers outpatient services including doctor visits and lab tests</a>"\n   - GOOD: "The annual deductible for Part B is <a href=\"...\">$257 in 2026</a>"\n\n2. DEEP LINKING: NEVER link to a homepage (e.g., medicare.gov or cms.gov). Always construct the most specific URL path that would contain the cited information. Use the source's base URL + a logical path. Example:\n   - BAD: https://www.medicare.gov\n   - GOOD: https://www.medicare.gov/what-medicare-covers/what-part-b-covers\n   - If you cannot determine the exact deep page, append a relevant path based on the topic (e.g., /enrollment, /costs, /coverage, /part-a, /part-b)\n\n3. When suggesting citation improvements, specify EXACTLY which sentence/claim needs the citation and which source + deep page URL to use.`;
+          citationSourcesSection = `\nAVAILABLE CITATION SOURCES (use ONLY these exact URLs):\n${sourcesList}\n\nCITATION QUALITY RULES (MANDATORY):\n1. URL USAGE: You MUST use ONLY the exact URLs listed above when suggesting citations. Do NOT invent, fabricate, or construct URLs. Do NOT append path segments or guess at page paths. Use the URL exactly as listed. If no listed URL is relevant to a claim, do NOT suggest a citation for that claim.\n\n2. ANCHOR TEXT: Must be 2-7 words maximum. NEVER wrap an entire sentence or clause as anchor text. The anchor text should be ONLY the specific factual claim or key phrase being cited. Examples:\n   - BAD: "<a href=\"...\">54% of all Medicare beneficiaries are now enrolled in a Medicare Advantage Plan</a>" (too long)\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>" (generic)\n   - GOOD: "<a href=\"...\">54% of beneficiaries</a> are now enrolled"\n   - GOOD: "the deductible is <a href=\"...\">$257 in 2026</a>"\n\n3. When suggesting citation improvements, specify EXACTLY which sentence/claim needs the citation, which source to use, and remind that the URL must be used exactly as listed above.`;
         }
 
         // Build Brand Voice section
@@ -5606,7 +5678,7 @@ RESPONSE FORMAT - Respond ONLY with valid JSON:
               if (c.description) entry += ` (${c.description})`;
               return entry;
             }).join("\n");
-            citationSourcesSection = `\nAVAILABLE CITATION SOURCES:\n${sourcesList}\n\nCITATION INSERTION RULES (MANDATORY):\n1. ANCHOR TEXT: NEVER use generic phrases like "Learn more at", "Find out more", "Click here", "Visit [Source]", or just the source name as anchor text. The anchor text MUST be the actual claim, fact, or phrase being supported by the citation. Examples:\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>"\n   - BAD: "<a href=\"...\">Click here</a> for details"\n   - GOOD: "Medicare Part B <a href=\"...\">covers outpatient services including doctor visits and lab tests</a>"\n   - GOOD: "The annual deductible is <a href=\"...\">$257 in 2026</a>"\n\n2. DEEP LINKING: NEVER link to a homepage URL. Always use the most specific page URL relevant to the cited claim. Construct a logical deep path from the source's base URL:\n   - BAD: https://www.medicare.gov\n   - GOOD: https://www.medicare.gov/what-medicare-covers/what-part-b-covers\n   - Append relevant path segments like /enrollment, /costs, /coverage, /eligibility based on the topic\n\n3. Place the <a> tag inline within the sentence, wrapping the specific factual claim it supports.`;
+            citationSourcesSection = `\nAVAILABLE CITATION SOURCES (use ONLY these exact URLs):\n${sourcesList}\n\nCITATION INSERTION RULES (MANDATORY):\n1. URL USAGE: You MUST use ONLY the exact URLs listed above. Do NOT invent, fabricate, or construct URLs. If none of the listed URLs is relevant to a claim, do NOT add a citation link for that claim. NEVER guess at URL paths or append path segments.\n\n2. ANCHOR TEXT: Must be 2-7 words maximum. NEVER wrap an entire sentence or clause as anchor text. The anchor text should be the specific factual claim or key phrase being cited. Examples:\n   - BAD: "<a href=\"...\">54% of all Medicare beneficiaries are now enrolled in a Medicare Advantage Plan</a>" (too long, entire clause)\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>" (generic)\n   - GOOD: "<a href=\"...\">54% of beneficiaries</a> are now enrolled"\n   - GOOD: "the deductible is <a href=\"...\">$257 in 2026</a>"\n\n3. Place the <a> tag inline within the sentence, wrapping ONLY the key factual phrase (2-7 words).`;
           }
         }
 
@@ -5627,9 +5699,9 @@ Rules:
 - For wording improvements: the "original" should be ONLY the specific sentence(s) that need rewording. The "replacement" must keep all unchanged words identical.
 - The "original" field must be an EXACT substring of the article content (character-for-character match)
 - If an improvement requires adding NEW content (e.g., a new paragraph), set "original" to the single sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
-- If an improvement mentions adding sources/citations, use the available citation sources listed above
-- When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", or the source name). Link to a specific deep page URL, NOT the homepage.
-- ANCHOR TEXT LENGTH: All link anchor text must be 2-7 words. NEVER wrap an entire sentence as a link. Link only the key phrase or concept.
+- If an improvement mentions adding sources/citations, use ONLY the exact URLs from the available citation sources listed above. NEVER invent or fabricate URLs. If no citation source URL is relevant, skip the link insertion entirely.
+- ANCHOR TEXT LENGTH (CRITICAL): All link anchor text MUST be 2-7 words maximum. Count the words. If your anchor text is longer than 7 words, you MUST shorten it. NEVER wrap an entire sentence or clause as a link. Link ONLY the key factual phrase (e.g., "$257 in 2026" or "covers outpatient services").
+- URL RULE: Use ONLY exact URLs from the citation sources list. Do NOT append path segments, do NOT guess at page paths, do NOT construct URLs. Use the URL exactly as listed.
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
 - NEVER add <strong>, <b>, <em>, or <i> tags to replacement text unless the original text already had them. Do NOT bold or emphasize changed text — the replacement must use the exact same formatting as the original.
 - Output ONLY the same HTML structure as the original. NEVER introduce new HTML wrapper tags.
@@ -5699,6 +5771,15 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
         // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
         improvedContent = stripWrappingStrongTags(improvedContent);
 
+        // Safety net: sanitize inserted hyperlinks — strip fabricated URLs and trim long anchors
+        const allowedDomains = project
+          ? (await db.select().from(citationSources).where(eq(citationSources.projectId, project.id)))
+              .map(c => {
+                try { return new URL(c.url).hostname; } catch { return c.url; }
+              })
+          : [];
+        improvedContent = sanitizeInsertedLinks(improvedContent, allowedDomains);
+
         const wordCount = improvedContent.split(/\s+/).filter((w: string) => w.length > 0).length;
 
         await db.update(articles).set({
@@ -5738,8 +5819,8 @@ Rules:
 - For wording improvements: the "original" should be ONLY the specific sentence(s) that need rewording. The "replacement" must keep all unchanged words identical.
 - The "original" field must be an EXACT substring of the content (character-for-character match)
 - If an improvement requires adding NEW content, set "original" to the single sentence AFTER which the new content should appear, and set "replacement" to that same sentence PLUS the new content appended
-- When inserting citation links: the anchor text MUST be the factual claim being cited (NEVER "Learn more", "Click here", "Find out more", or just the source name). Link to a specific deep page URL, NOT a homepage.
-- ANCHOR TEXT LENGTH: All link anchor text must be 2-7 words. NEVER wrap an entire sentence as a link. Link only the key phrase or concept.
+- When inserting citation links: ONLY link to URLs that are explicitly mentioned in the content or that you are 100% certain exist. NEVER invent or fabricate URLs. If you cannot provide a verified URL, do NOT insert a link — just make the text improvement without adding an <a> tag.
+- ANCHOR TEXT LENGTH (CRITICAL): All link anchor text MUST be 2-7 words maximum. Count the words. If your anchor text is longer than 7 words, you MUST shorten it. NEVER wrap an entire sentence or clause as a link. Link ONLY the key factual phrase (e.g., "$257 in 2026" or "covers outpatient services").
 - NEVER rewrite, rephrase, or restructure text that is not directly related to the improvement. If the improvement is "add a citation", the ONLY change should be adding an <a> tag — every other word must remain identical.
 - NEVER add <strong>, <b>, <em>, or <i> tags to replacement text unless the original text already had them. Do NOT bold or emphasize changed text — the replacement must use the exact same formatting as the original.
 - Output ONLY the same HTML structure as the original. NEVER introduce new HTML wrapper tags.
@@ -5802,6 +5883,10 @@ Do NOT wrap in markdown code blocks. Return ONLY the JSON array.`;
 
         // Safety net: strip unwanted <strong>/<b> wrapping that LLMs sometimes add
         improvedContent = stripWrappingStrongTags(improvedContent);
+
+        // Safety net: sanitize inserted hyperlinks — strip fabricated URLs and trim long anchors
+        // For standalone grader (no project context), pass empty domains to only trim long anchors
+        improvedContent = sanitizeInsertedLinks(improvedContent, []);
 
         return {
           success: true,

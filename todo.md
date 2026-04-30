@@ -1247,3 +1247,10 @@
 - [x] Investigate text matching logic in cross-reference update
 - [x] Fix text matching to handle whitespace/formatting differences — added decodeHtmlEntities(), normalizeForMatch(), entity-decoded fuzzy matching, and last-resort short prefix matching for long table text
 - [x] TypeScript check — 0 errors, 497 tests passing
+
+## Bug Fix: E-E-A-T Trust Package Inserting Broken/Long Hyperlinks
+- [x] Investigate grading prompts and improvement application code for hyperlink generation
+- [x] Fix LLM prompts to not fabricate URLs — updated all 3 citation source sections (gradeArticle, applyImprovements, applyContentImprovements) to enforce "use ONLY exact URLs from the list" and forbid path construction/fabrication
+- [x] Fix anchor text to be short/descriptive — updated prompts to enforce 2-7 word max with concrete BAD/GOOD examples showing sentence-length anchors as BAD
+- [x] Validate URLs before inserting hyperlinks — added sanitizeInsertedLinks() post-processing function that strips links with domains not in citation sources and trims anchor text >10 words
+- [x] TypeScript check — 0 errors, 497 tests passing

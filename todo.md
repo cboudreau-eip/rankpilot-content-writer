@@ -1254,3 +1254,8 @@
 - [x] Fix anchor text to be short/descriptive — updated prompts to enforce 2-7 word max with concrete BAD/GOOD examples showing sentence-length anchors as BAD
 - [x] Validate URLs before inserting hyperlinks — added sanitizeInsertedLinks() post-processing function that strips links with domains not in citation sources and trims anchor text >10 words
 - [x] TypeScript check — 0 errors, 497 tests passing
+
+## Documentation: PROJECT.md and DECISIONS.md
+- [x] Create PROJECT.md with architecture, stack, file structure, data models, conventions
+- [x] Create DECISIONS.md with key design decisions and rationale
+- [ ] Save checkpoint

@@ -10,8 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Search, Loader2, TrendingUp, TrendingDown, Minus, Download,
-  Coins, Filter, RotateCcw, ChevronDown, FolderPlus,
+  Coins, Filter, RotateCcw, ChevronDown, FolderPlus, CheckCircle2,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveProject } from "@/components/AppLayout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -129,9 +130,14 @@ export default function KeywordResearch() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveProjectId, setSaveProjectId] = useState<number | null>(null);
 
+  const utils = trpc.useUtils();
   const saveToProjectMutation = trpc.entity.saveKeywordsToProject.useMutation({
     onSuccess: (data) => {
       setShowSaveDialog(false);
+      // Refresh the tracked keywords list so the indicators update immediately
+      if (activeProject?.id) {
+        utils.entity.getProjectKeywords.invalidate({ projectId: activeProject.id });
+      }
       toast.success(`Saved ${data.inserted} keyword${data.inserted !== 1 ? "s" : ""} to project${data.skipped > 0 ? ` (${data.skipped} duplicates skipped)` : ""}`);
     },
     onError: (err) => {
@@ -144,6 +150,18 @@ export default function KeywordResearch() {
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   });
+
+  // Fetch project keywords to detect already-tracked keywords
+  const { data: projectKeywordsData } = trpc.entity.getProjectKeywords.useQuery(
+    { projectId: activeProject?.id ?? 0 },
+    { enabled: !!activeProject?.id, refetchOnWindowFocus: false, staleTime: 30_000 }
+  );
+
+  // Build a Set of lowercase tracked keywords for fast lookup
+  const trackedKeywords = useMemo(() => {
+    if (!projectKeywordsData?.keywords) return new Set<string>();
+    return new Set(projectKeywordsData.keywords.map((k: { keyword: string }) => k.keyword.toLowerCase().trim()));
+  }, [projectKeywordsData]);
 
   // Search mutation
   const searchMutation = trpc.entity.keywordResearch.useMutation({
@@ -500,6 +518,19 @@ export default function KeywordResearch() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{result.keyword}</span>
                             <TrendBadge direction={result.trendDirection} />
+                            {trackedKeywords.has(result.keyword.toLowerCase().trim()) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
+                                    <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                                    <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Tracked</span>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p className="text-xs">Already saved in {activeProject?.name ?? "your project"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                           </div>
                         </td>
                         <td className="py-4 pr-4">

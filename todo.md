@@ -1258,4 +1258,9 @@
 ## Documentation: PROJECT.md and DECISIONS.md
 - [x] Create PROJECT.md with architecture, stack, file structure, data models, conventions
 - [x] Create DECISIONS.md with key design decisions and rationale
-- [ ] Save checkpoint
+- [x] Save checkpoint
+
+## Feature: Highlight Already-Tracked Keywords in Research Results
+- [x] Fetch project keywords when research results load and cross-reference — queries getProjectKeywords for active project, builds lowercase Set for O(1) lookup
+- [x] Add visual indicator (badge/highlight) on keywords already in the active project — indigo "Tracked" pill with CheckCircle2 icon + tooltip showing project name; auto-refreshes after saving keywords
+- [x] TypeScript check — 0 errors; 496/497 tests pass (1 pre-existing sitemap timeout, unrelated)

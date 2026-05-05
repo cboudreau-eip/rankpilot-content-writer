@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,9 @@ import { toast } from "sonner";
 import {
   Lightbulb, Search, Loader2, Target, TrendingUp, Users, BarChart3,
   FolderPlus, FileText, Sparkles, Pencil, Check, X, Plus, Trash2,
-  PenTool, Archive, RotateCcw,
+  PenTool, Archive, RotateCcw, ListFilter, ChevronDown,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useActiveProject } from "@/components/AppLayout";
 import { useLocation } from "wouter";
 
@@ -74,6 +75,23 @@ function getPotentialColor(potential: string) {
 export default function Ideas() {
   const { activeProject, projects } = useActiveProject();
   const [, navigate] = useLocation();
+
+  // Keyword picker state
+  const [keywordPickerOpen, setKeywordPickerOpen] = useState(false);
+  const [keywordFilter, setKeywordFilter] = useState("");
+
+  // Fetch project keywords for the picker
+  const projectKeywordsQuery = trpc.entity.getProjectKeywords.useQuery(
+    { projectId: activeProject?.id ?? 0 },
+    { enabled: !!activeProject }
+  );
+
+  const filteredProjectKeywords = useMemo(() => {
+    const keywords = projectKeywordsQuery.data?.keywords || [];
+    if (!keywordFilter.trim()) return keywords;
+    const lower = keywordFilter.toLowerCase();
+    return keywords.filter((kw: any) => kw.keyword.toLowerCase().includes(lower));
+  }, [projectKeywordsQuery.data, keywordFilter]);
 
   // Generator state
   const [seedKeyword, setSeedKeyword] = useState("");
@@ -316,13 +334,66 @@ export default function Ideas() {
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <Label htmlFor="seedKeyword" className="text-sm mb-1.5 block">Seed Keyword</Label>
-                    <Input
-                      id="seedKeyword"
-                      value={seedKeyword}
-                      onChange={(e) => setSeedKeyword(e.target.value)}
-                      placeholder="e.g., medicare advantage plans, digital marketing tips"
-                      onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="seedKeyword"
+                        value={seedKeyword}
+                        onChange={(e) => setSeedKeyword(e.target.value)}
+                        placeholder="e.g., medicare advantage plans, digital marketing tips"
+                        onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+                        className="flex-1"
+                      />
+                      {activeProject && (projectKeywordsQuery.data?.keywords?.length ?? 0) > 0 && (
+                        <Popover open={keywordPickerOpen} onOpenChange={setKeywordPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="shrink-0" title="Pick from saved keywords">
+                              <ListFilter className="w-4 h-4 mr-1.5" />
+                              Saved Keywords
+                              <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0" align="end">
+                            <div className="p-3 border-b">
+                              <Input
+                                placeholder="Filter keywords..."
+                                value={keywordFilter}
+                                onChange={(e) => setKeywordFilter(e.target.value)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div className="max-h-[280px] overflow-y-auto">
+                              {filteredProjectKeywords.length === 0 ? (
+                                <div className="p-4 text-center text-sm text-muted-foreground">
+                                  {keywordFilter ? "No matching keywords" : "No saved keywords"}
+                                </div>
+                              ) : (
+                                filteredProjectKeywords.map((kw: any) => (
+                                  <button
+                                    key={kw.id}
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between gap-2"
+                                    onClick={() => {
+                                      setSeedKeyword(kw.keyword);
+                                      setKeywordPickerOpen(false);
+                                      setKeywordFilter("");
+                                    }}
+                                  >
+                                    <span className="truncate font-medium">{kw.keyword}</span>
+                                    {kw.volume && (
+                                      <span className="text-xs text-muted-foreground shrink-0">
+                                        {kw.volume >= 1000 ? `${(kw.volume / 1000).toFixed(1)}K` : kw.volume}/mo
+                                      </span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                            <div className="p-2 border-t text-xs text-muted-foreground text-center">
+                              {projectKeywordsQuery.data?.keywords?.length} keywords in {activeProject.name}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-end">
                     <Button

@@ -1275,3 +1275,8 @@
 - [x] Add inline editing for generated ideas (title, keyword, intent, potential, word count, audience, description, content angles with add/remove)
 - [x] Wire up routing in App.tsx (replaced ComingSoon placeholder)
 - [x] TypeScript check — 0 errors, 497 tests passing
+
+## Feature: Keyword Picker for Ideas Generator
+- [x] Add a "Saved Keywords" popover button next to seed keyword input that shows project keywords with search filter and volume display
+- [x] Clicking a keyword populates the seed keyword field and closes the popover
+- [x] TypeScript check — 0 errors, 497 tests passing

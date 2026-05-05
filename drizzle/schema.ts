@@ -602,3 +602,40 @@ export const projectKeywords = mysqlTable("project_keywords", {
 
 export type ProjectKeyword = typeof projectKeywords.$inferSelect;
 export type InsertProjectKeyword = typeof projectKeywords.$inferInsert;
+
+/**
+ * Ideas — AI-generated article ideas saved to projects for content planning.
+ * Generated via LLM from a seed keyword with optional content type filters and custom instructions.
+ */
+export const ideas = mysqlTable("ideas", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Article title suggestion */
+  title: varchar("title", { length: 512 }).notNull(),
+  /** Primary target keyword */
+  keyword: varchar("keyword", { length: 255 }).notNull(),
+  /** Search intent: informational, transactional, local, navigational */
+  searchIntent: varchar("searchIntent", { length: 64 }),
+  /** Suggested word count range (e.g., "1500-2500") */
+  wordCountRange: varchar("wordCountRange", { length: 32 }),
+  /** Content angles to cover */
+  contentAngles: json("contentAngles").$type<string[]>(),
+  /** Target audience description */
+  targetAudience: text("targetAudience"),
+  /** Ranking potential: high, medium, low */
+  rankingPotential: varchar("rankingPotential", { length: 16 }),
+  /** Brief description of what the article would cover */
+  description: text("description"),
+  /** Content types used during generation (comma-separated) */
+  contentTypes: varchar("contentTypes", { length: 512 }),
+  /** Status: saved, used (converted to article), archived */
+  status: mysqlEnum("ideaStatus", ["saved", "used", "archived"]).default("saved").notNull(),
+  /** Reference to generated article if this idea was used */
+  articleId: int("articleId"),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Idea = typeof ideas.$inferSelect;
+export type InsertIdea = typeof ideas.$inferInsert;

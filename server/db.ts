@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, like, inArray, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -762,4 +762,70 @@ export async function matchKeywordsToArticles(projectId: number) {
     }
   }
   return matched;
+}
+
+// ---- Ideas Helpers ----
+
+export async function getIdeasByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(ideas).where(eq(ideas.projectId, projectId)).orderBy(desc(ideas.createdAt));
+}
+
+export async function getIdeaById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(ideas).where(eq(ideas.id, id));
+  return row ?? null;
+}
+
+export async function createIdea(data: InsertIdea) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(ideas).values(data).$returningId();
+  return result;
+}
+
+export async function createIdeasBulk(rows: InsertIdea[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (rows.length === 0) return { inserted: 0 };
+  await db.insert(ideas).values(rows);
+  return { inserted: rows.length };
+}
+
+export async function updateIdea(id: number, data: Partial<Omit<InsertIdea, "id" | "createdAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(ideas).set(data).where(eq(ideas.id, id));
+}
+
+export async function deleteIdea(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(ideas).where(eq(ideas.id, id));
+}
+
+export async function deleteIdeasBulk(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.delete(ideas).where(inArray(ideas.id, ids));
+}
+
+export async function getIdeasCount(projectId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, saved: 0, used: 0, archived: 0 };
+  const [row] = await db.select({
+    total: sql<number>`COUNT(*)`,
+    saved: sql<number>`SUM(CASE WHEN idea_status = 'saved' THEN 1 ELSE 0 END)`,
+    used: sql<number>`SUM(CASE WHEN idea_status = 'used' THEN 1 ELSE 0 END)`,
+    archived: sql<number>`SUM(CASE WHEN idea_status = 'archived' THEN 1 ELSE 0 END)`,
+  }).from(ideas).where(eq(ideas.projectId, projectId));
+  return {
+    total: row?.total ?? 0,
+    saved: row?.saved ?? 0,
+    used: row?.used ?? 0,
+    archived: row?.archived ?? 0,
+  };
 }

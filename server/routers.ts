@@ -29,6 +29,7 @@ import {
   getJobRunHistory, createJobRunHistoryEntry, updateJobRunHistoryEntry,
   addSchedulerRunLog, getSchedulerRunLogs, getSchedulerRunLogsByRunId,
   calculateKeywordPriority, getProjectKeywordsList, addProjectKeywordsBulk, deleteProjectKeywordsBulk, updateProjectKeywordPage, getProjectKeywordsCount, matchKeywordsToArticles,
+  getIdeasByProject, getIdeaById, createIdea, createIdeasBulk, updateIdea, deleteIdea, deleteIdeasBulk, getIdeasCount,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -38,7 +39,7 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
@@ -6485,6 +6486,261 @@ Respond with raw JSON only. No markdown, no code blocks.`;
         });
 
         return { success: true, message: "Job execution started" };
+      }),
+  }),
+
+  // ---- Ideas Router ----
+  ideas: router({
+    /** Generate article ideas from a seed keyword using LLM */
+    generate: publicProcedure
+      .input(z.object({
+        seedKeyword: z.string().min(1),
+        contentTypes: z.array(z.string()).optional(),
+        count: z.number().min(3).max(20).optional(),
+        customInstructions: z.string().max(1000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        const { seedKeyword, contentTypes, count, customInstructions } = input;
+        const ideaCount = count || 9;
+
+        // Note: negative keywords could be fetched from user settings in the future
+
+        // Build content type instruction
+        const contentTypeMap: Record<string, string> = {
+          "how-to": "How-to Guides (Instructional, step-by-step tutorials)",
+          "listicles": "Listicles (\"Top 10...\", \"5 Ways to...\", numbered lists)",
+          "faqs": "FAQs (Question-and-answer format)",
+          "informative": "Informative (General educational content)",
+          "local": "Local Guides (Geo-targeted, location-specific content)",
+          "service": "Service Pages (Business/offering descriptions)",
+          "problem-solution": "Problem-Solution (Pain point addressing articles)",
+        };
+
+        let contentTypeInstruction = "";
+        if (contentTypes && contentTypes.length > 0) {
+          const selectedTypes = contentTypes.map(id => contentTypeMap[id] || id);
+          contentTypeInstruction = `\n\nIMPORTANT: Focus ONLY on these specific content types:\n${selectedTypes.map((type, i) => `${i + 1}. ${type}`).join('\n')}\n\nAll generated ideas MUST match one of these content formats. Prioritize variety within these types.`;
+        }
+
+        let customInstructionsBlock = "";
+        if (customInstructions && customInstructions.trim()) {
+          customInstructionsBlock = `\n\nUSER INSTRUCTIONS (follow these carefully):\n${customInstructions.trim()}`;
+        }
+
+        const systemPrompt = `You are an expert SEO content strategist. Generate high-value article ideas based on the provided seed keyword.
+
+IMPORTANT: The current year is 2026. When creating titles or content that reference time periods, use 2026 (not 2024 or 2025).
+
+For each idea, provide:
+1. Article title (compelling and SEO-friendly)
+2. Primary keyword/phrase
+3. Search intent (informational, transactional, local, or navigational)
+4. Estimated word count range
+5. Key content angles to cover (3-5 angles)
+6. Target audience
+7. Ranking potential (high, medium, or low)
+8. Brief description of what the article would cover
+
+Focus on topics that:
+- Have strong search demand
+- Can be comprehensively covered
+- Serve clear user intent
+- Have ranking potential in AI Overviews
+- Provide genuine value to readers${contentTypeInstruction}${customInstructionsBlock}
+
+Generate exactly ${ideaCount} distinct article ideas with variety in intent, audience, and content format.
+
+Response format: Return a JSON object with an "ideas" array containing objects with the following structure:
+{
+  "ideas": [
+    {
+      "title": "Article title",
+      "keyword": "primary keyword",
+      "searchIntent": "informational/transactional/local/navigational",
+      "wordCountRange": "1500-2500",
+      "contentAngles": ["angle 1", "angle 2", "angle 3"],
+      "targetAudience": "description of target audience",
+      "rankingPotential": "high/medium/low",
+      "description": "Brief description of what the article would cover"
+    }
+  ]
+}
+
+Important: Respond with raw JSON only. Do not include code blocks, markdown, or any other formatting.`;
+
+        const userPrompt = `Generate article ideas for the seed keyword: "${seedKeyword}"`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        const rawContent = response.choices?.[0]?.message?.content;
+        const content = typeof rawContent === "string" ? rawContent : "";
+        if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from AI" });
+
+        try {
+          const parsed = JSON.parse(content);
+          return { ideas: parsed.ideas || [] };
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Invalid JSON response from AI" });
+        }
+      }),
+
+    /** List saved ideas for a project */
+    list: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+        return getIdeasByProject(input.projectId);
+      }),
+
+    /** Get a single idea by ID */
+    get: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+        const idea = await getIdeaById(input.id);
+        if (!idea) throw new TRPCError({ code: "NOT_FOUND" });
+        return idea;
+      }),
+
+    /** Save a single idea to a project */
+    save: publicProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        keyword: z.string().min(1),
+        searchIntent: z.string().optional(),
+        wordCountRange: z.string().optional(),
+        contentAngles: z.array(z.string()).optional(),
+        targetAudience: z.string().optional(),
+        rankingPotential: z.string().optional(),
+        description: z.string().optional(),
+        contentTypes: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        const result = await createIdea({
+          title: input.title,
+          keyword: input.keyword,
+          searchIntent: input.searchIntent || null,
+          wordCountRange: input.wordCountRange || null,
+          contentAngles: input.contentAngles || null,
+          targetAudience: input.targetAudience || null,
+          rankingPotential: input.rankingPotential || null,
+          description: input.description || null,
+          contentTypes: input.contentTypes || null,
+          projectId: input.projectId,
+          userId: session.userId,
+        });
+        return result;
+      }),
+
+    /** Save multiple ideas to a project at once */
+    saveBulk: publicProcedure
+      .input(z.object({
+        ideas: z.array(z.object({
+          title: z.string().min(1),
+          keyword: z.string().min(1),
+          searchIntent: z.string().optional(),
+          wordCountRange: z.string().optional(),
+          contentAngles: z.array(z.string()).optional(),
+          targetAudience: z.string().optional(),
+          rankingPotential: z.string().optional(),
+          description: z.string().optional(),
+        })),
+        contentTypes: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        const rows = input.ideas.map(idea => ({
+          title: idea.title,
+          keyword: idea.keyword,
+          searchIntent: idea.searchIntent || null,
+          wordCountRange: idea.wordCountRange || null,
+          contentAngles: idea.contentAngles || null,
+          targetAudience: idea.targetAudience || null,
+          rankingPotential: idea.rankingPotential || null,
+          description: idea.description || null,
+          contentTypes: input.contentTypes || null,
+          projectId: input.projectId,
+          userId: session.userId,
+        }));
+        return createIdeasBulk(rows);
+      }),
+
+    /** Update an existing idea */
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        keyword: z.string().optional(),
+        searchIntent: z.string().optional(),
+        wordCountRange: z.string().optional(),
+        contentAngles: z.array(z.string()).optional(),
+        targetAudience: z.string().optional(),
+        rankingPotential: z.string().optional(),
+        description: z.string().optional(),
+        status: z.enum(["saved", "used", "archived"]).optional(),
+        articleId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+        const { id, ...data } = input;
+        await updateIdea(id, data);
+        return { success: true };
+      }),
+
+    /** Delete a single idea */
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+        await deleteIdea(input.id);
+        return { success: true };
+      }),
+
+    /** Delete multiple ideas */
+    deleteBulk: publicProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+        await deleteIdeasBulk(input.ids);
+        return { success: true };
+      }),
+
+    /** Get idea counts by status for a project */
+    counts: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+        return getIdeasCount(input.projectId);
       }),
   }),
 });

@@ -22,6 +22,7 @@ import AdminUsers from "./pages/AdminUsers";
 import Login from "./pages/Login";
 import KeywordResearch from "./pages/KeywordResearch";
 import ProjectKeywords from "./pages/ProjectKeywords";
+import Ideas from "./pages/Ideas";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -96,7 +97,7 @@ function App() {
                       <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
                       <Route path="/grade" component={GradeContent} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
-                      <Route path="/ideas">{() => <ComingSoon title="Ideas" description="Capture and organize content ideas for future articles." />}</Route>
+                      <Route path="/ideas" component={Ideas} />
                       <Route component={NotFound} />
                     </Switch>
                   </AppLayout>

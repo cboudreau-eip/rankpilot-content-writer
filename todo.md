@@ -1264,3 +1264,14 @@
 - [x] Fetch project keywords when research results load and cross-reference — queries getProjectKeywords for active project, builds lowercase Set for O(1) lookup
 - [x] Add visual indicator (badge/highlight) on keywords already in the active project — indigo "Tracked" pill with CheckCircle2 icon + tooltip showing project name; auto-refreshes after saving keywords
 - [x] TypeScript check — 0 errors; 496/497 tests pass (1 pre-existing sitemap timeout, unrelated)
+
+## Feature: Ideas Generator
+- [x] Add `ideas` table to drizzle schema (id, title, keyword, searchIntent, wordCountRange, contentAngles JSON, targetAudience, rankingPotential, description, contentTypes, status enum, articleId, projectId, userId, timestamps)
+- [x] Push DB migration with `pnpm db:push`
+- [x] Add CRUD helper functions in db.ts (getIdeasByProject, getIdeaById, createIdea, createIdeasBulk, updateIdea, deleteIdea, deleteIdeasBulk, getIdeasCount)
+- [x] Add ideas tRPC router with: generate (LLM-powered), list, get, save, saveBulk, update, delete, deleteBulk, counts
+- [x] Build Ideas.tsx page with Generate tab (seed keyword input, content type checkboxes, idea count selector, custom AI instructions, results grid with edit/save/use actions)
+- [x] Build Saved Ideas tab with archive/restore/delete/use actions and status badges
+- [x] Add inline editing for generated ideas (title, keyword, intent, potential, word count, audience, description, content angles with add/remove)
+- [x] Wire up routing in App.tsx (replaced ComingSoon placeholder)
+- [x] TypeScript check — 0 errors, 497 tests passing

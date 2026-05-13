@@ -353,6 +353,7 @@ interface OutlineSection {
   aiInstructions?: string;
   backgroundColor?: string;
   templateType?: "pro-tip" | "summary" | "use-cases" | "coverage-card";
+  targetWordCount?: number;
 }
 
 const SECTION_BG_COLORS = [
@@ -2315,6 +2316,24 @@ export default function GenerateArticle() {
                       </div>
                     );
                   })()}
+                  {/* Per-Section Word Count Target */}
+                  {section.targetWordCount != null && (
+                    <div className="flex items-center gap-1 flex-shrink-0 mr-1">
+                      <input
+                        type="number"
+                        value={section.targetWordCount}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setSections(prev => prev.map(s => s.id === section.id ? { ...s, targetWordCount: val } : s));
+                        }}
+                        className="w-16 h-6 text-[11px] font-semibold text-center bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-1 outline-none focus:ring-1 focus:ring-amber-400"
+                        min={0}
+                        step={50}
+                        title="Target word count for this section"
+                      />
+                      <span className="text-[10px] text-amber-600 font-medium">words</span>
+                    </div>
+                  )}
                   {/* Reorder + Add Below + Delete */}
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ opacity: 1 }}>
                     <Button
@@ -2687,6 +2706,28 @@ export default function GenerateArticle() {
                 )}
               </div>
 
+              {/* Total Estimated Word Count */}
+              {(() => {
+                const totalWords = sections.reduce((sum, s) => sum + (s.targetWordCount || 0), 0);
+                if (totalWords === 0) return null;
+                const target = parseInt(String(targetWordCount)) || 2000;
+                const diff = totalWords - target;
+                const isOver = diff > target * 0.1;
+                const isUnder = diff < -(target * 0.1);
+                return (
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    isOver ? "bg-red-50 text-red-700 border border-red-200" :
+                    isUnder ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                    "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  }`}>
+                    <FileText className="w-3.5 h-3.5" />
+                    Est. {totalWords.toLocaleString()} words
+                    {isOver && <span className="text-xs">(+{diff} over target)</span>}
+                    {isUnder && <span className="text-xs">({diff} under target)</span>}
+                    {!isOver && !isUnder && <span className="text-xs">(on target)</span>}
+                  </div>
+                );
+              })()}
               <Button variant="outline" onClick={() => setStep("settings")}>
                 Back to Settings
               </Button>

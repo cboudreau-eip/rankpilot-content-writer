@@ -1320,7 +1320,8 @@ Return a JSON object with:
   - "heading": The section heading text
   - "type": "h2" for main sections
   - "points": Array of 2-4 key points to cover in this section
-  - "subSections": Optional array of sub-sections with same structure but type "h3"
+  - "targetWordCount": Estimated word count for this section (integer). Distribute the total target word count across sections proportionally. Introduction ~100-150 words, conclusion ~100-150 words, FAQ ~50-80 per question, main body sections split the remainder. The sum of all section targetWordCounts should approximately equal the total target.
+  - "subSections": Optional array of sub-sections with same structure but type "h3" (sub-sections do NOT need targetWordCount)
 
 Guidelines:
 - Create ${input.numSections ?? 7} main sections
@@ -1380,8 +1381,9 @@ Return ONLY valid JSON, no markdown code blocks.`;
                             additionalProperties: false,
                           },
                         },
+                        targetWordCount: { type: "integer", description: "Target word count for this section" },
                       },
-                      required: ["id", "heading", "type", "points", "subSections"],
+                      required: ["id", "heading", "type", "points", "subSections", "targetWordCount"],
                       additionalProperties: false,
                     },
                   },
@@ -2765,6 +2767,9 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         // Build the outline text for the prompt
         const outlineText = outline.sections.map((section: OutlineSection) => {
           let text = `## ${section.heading}\n`;
+          if (section.targetWordCount) {
+            text += `[TARGET: ~${section.targetWordCount} words for this section]\n`;
+          }
           if (section.points) {
             text += section.points.map((p: string) => `- ${p}`).join("\n") + "\n";
           }
@@ -2911,7 +2916,8 @@ IMPORTANT — CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${currentYea
 
 Guidelines:
 - Write in ${settings?.tone ?? "a professional and informative"} tone
-- Target approximately ${settings?.targetWordCount ?? 2000} words
+- Target approximately ${settings?.targetWordCount ?? 2000} words total
+- PER-SECTION WORD TARGETS: Each section in the outline may include a [TARGET: ~N words] directive. You MUST respect these per-section word counts. Do NOT significantly exceed any section's target — if a section says ~200 words, write 180-220 words for it, not 400. The per-section targets are designed to keep the total article within the overall word count.
 ${formatInstructions}
 - Include a compelling introduction that hooks the reader
 - CRITICAL - INTRO VARIETY: Every article must open differently. NEVER start with "If you are...", "Whether you are...", "As a...", or any direct audience-addressing formula. Rotate opening strategies: surprising facts, bold claims, mini-stories, provocative questions, or recent trends. The reader's context should emerge naturally, not be stated upfront.
@@ -4349,8 +4355,9 @@ Return ONLY valid JSON, no markdown code blocks.`;
                             additionalProperties: false,
                           },
                         },
+                        targetWordCount: { type: "integer", description: "Target word count for this section" },
                       },
-                      required: ["id", "heading", "type", "points", "subSections"],
+                      required: ["id", "heading", "type", "points", "subSections", "targetWordCount"],
                       additionalProperties: false,
                     },
                   },
@@ -4928,8 +4935,9 @@ Return ONLY valid JSON, no markdown code blocks.`;
                             additionalProperties: false,
                           },
                         },
+                        targetWordCount: { type: "integer", description: "Target word count for this section" },
                       },
-                      required: ["id", "heading", "type", "points", "subSections"],
+                      required: ["id", "heading", "type", "points", "subSections", "targetWordCount"],
                       additionalProperties: false,
                     },
                   },
@@ -7331,6 +7339,9 @@ async function generateArticleForScheduler(
   // ── Build the outline text for the prompt (with AI instructions & template types) ──
   const outlineText = (outline.sections || []).map((s: any) => {
     let text = `## ${s.heading}\n`;
+    if (s.targetWordCount) {
+      text += `[TARGET: ~${s.targetWordCount} words for this section]\n`;
+    }
     if (s.points?.length) text += s.points.map((p: string) => `- ${p}`).join('\n') + '\n';
     if (s.aiInstructions?.trim()) {
       text += `[AI INSTRUCTIONS FOR THIS SECTION: ${s.aiInstructions.trim()}]\n`;
@@ -7602,7 +7613,8 @@ IMPORTANT \u2014 CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${current
 
 Guidelines:
 - Write in ${settings.tone ?? "a professional and informative"} tone
-- Target approximately ${targetWordCount} words
+- Target approximately ${targetWordCount} words total
+- PER-SECTION WORD TARGETS: Each section in the outline may include a [TARGET: ~N words] directive. You MUST respect these per-section word counts. Do NOT significantly exceed any section's target — if a section says ~200 words, write 180-220 words for it, not 400. The per-section targets are designed to keep the total article within the overall word count.
 ${formatInstructions}
 - Include a compelling introduction that hooks the reader
 - CRITICAL - INTRO VARIETY: Every article must open differently. NEVER start with "If you are...", "Whether you are...", "As a...". Rotate opening strategies: surprising facts, bold claims, mini-stories, provocative questions, or recent trends.

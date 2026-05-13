@@ -1280,3 +1280,13 @@
 - [x] Add a "Saved Keywords" popover button next to seed keyword input that shows project keywords with search filter and volume display
 - [x] Clicking a keyword populates the seed keyword field and closes the popover
 - [x] TypeScript check — 0 errors, 497 tests passing
+
+## Feature: Per-Section Word Count Targets & Article Length Control
+- [x] Add targetWordCount field to OutlineSection interface in schema.ts and frontend
+- [x] Update outline generation prompt to include per-section word count targets — all 3 schemas (main, from_analysis, from_competitors) updated with targetWordCount field and distribution instructions
+- [x] Display estimated word count per section in Step 2 outline review UI — amber pill badge with editable number input next to each section header
+- [x] Show total estimated word count at bottom of outline — color-coded badge (green=on target, amber=under, red=over) with comparison to target
+- [x] Allow editing per-section word counts — inline number input with step=50, updates section state immediately
+- [x] Enforce per-section word limits in article generation prompt — both main and standalone grader prompts now include PER-SECTION WORD TARGETS instruction with ±10% tolerance guidance
+- [x] Apply same changes to standalone grader outline generation — outlineText construction includes [TARGET: ~N words] directives
+- [x] TypeScript check — 0 errors, 497 tests passing

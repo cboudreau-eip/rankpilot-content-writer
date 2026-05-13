@@ -99,6 +99,8 @@ export interface OutlineSection {
   backgroundColor?: string;
   /** Template type for special rendering (e.g., 'pro-tip', 'summary', 'use-cases', 'coverage-card') */
   templateType?: "pro-tip" | "summary" | "use-cases" | "coverage-card";
+  /** Target word count for this section (used in outline review and article generation) */
+  targetWordCount?: number;
 }
 
 export interface OutlineSettings {

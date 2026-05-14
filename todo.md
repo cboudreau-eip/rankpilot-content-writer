@@ -1290,3 +1290,7 @@
 - [x] Enforce per-section word limits in article generation prompt — both main and standalone grader prompts now include PER-SECTION WORD TARGETS instruction with ±10% tolerance guidance
 - [x] Apply same changes to standalone grader outline generation — outlineText construction includes [TARGET: ~N words] directives
 - [x] TypeScript check — 0 errors, 497 tests passing
+
+## Bug Fix: numSections NaN Validation Error
+- [x] Fixed parseInt(numSections) returning NaN when input field is empty — added || fallback defaults (1600 words, 8 sections, 8 FAQs) to all 3 mutation call sites
+- [x] TypeScript check — 0 errors, 497 tests passing

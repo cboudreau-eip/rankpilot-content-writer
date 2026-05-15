@@ -1305,3 +1305,9 @@
 - [x] Replaced topic clusters with Content Status breakdown (draft/review/complete/published counts) since clusters feature not built yet
 - [x] Added loading states (spinner), empty states (icon + CTA button), and no-project-selected state
 - [x] TypeScript check — 0 errors; 495/497 tests pass (2 pre-existing timeouts in sitemap and thin-content, unrelated)
+
+## Fix: Dashboard Infinite Spinner
+- [x] Fixed dashboard.stats SQL error: raw SQL used snake_case `article_status` and `idea_status` but actual DB columns are camelCase `articleStatus` and `ideaStatus`
+- [x] Fixed dashboard.articlesOverTime SQL error: raw SQL used `created_at` but actual DB column is `createdAt`
+- [x] All 5 dashboard endpoints now return data successfully
+- [x] TypeScript check — 0 errors, 497 tests passing

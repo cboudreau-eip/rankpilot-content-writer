@@ -839,10 +839,10 @@ export async function getDashboardStats(projectId: number) {
 
   const [articleStats] = await db.select({
     totalArticles: sql<number>`COUNT(*)`,
-    draftCount: sql<number>`SUM(CASE WHEN article_status = 'draft' THEN 1 ELSE 0 END)`,
-    reviewCount: sql<number>`SUM(CASE WHEN article_status = 'review' THEN 1 ELSE 0 END)`,
-    completeCount: sql<number>`SUM(CASE WHEN article_status = 'complete' THEN 1 ELSE 0 END)`,
-    publishedCount: sql<number>`SUM(CASE WHEN article_status = 'published' THEN 1 ELSE 0 END)`,
+    draftCount: sql<number>`SUM(CASE WHEN \`articleStatus\` = 'draft' THEN 1 ELSE 0 END)`,
+    reviewCount: sql<number>`SUM(CASE WHEN \`articleStatus\` = 'review' THEN 1 ELSE 0 END)`,
+    completeCount: sql<number>`SUM(CASE WHEN \`articleStatus\` = 'complete' THEN 1 ELSE 0 END)`,
+    publishedCount: sql<number>`SUM(CASE WHEN \`articleStatus\` = 'published' THEN 1 ELSE 0 END)`,
   }).from(articles).where(eq(articles.projectId, projectId));
 
   const [kwStats] = await db.select({
@@ -851,7 +851,7 @@ export async function getDashboardStats(projectId: number) {
 
   const [ideaStats] = await db.select({
     totalIdeas: sql<number>`COUNT(*)`,
-    savedIdeas: sql<number>`SUM(CASE WHEN idea_status = 'saved' THEN 1 ELSE 0 END)`,
+    savedIdeas: sql<number>`SUM(CASE WHEN \`ideaStatus\` = 'saved' THEN 1 ELSE 0 END)`,
   }).from(ideas).where(eq(ideas.projectId, projectId));
 
   return {
@@ -898,15 +898,15 @@ export async function getArticlesOverTime(projectId: number) {
   if (!db) return [];
   // Get articles created per day for the last 30 days
   return db.select({
-    date: sql<string>`DATE(created_at)`.as("date"),
+    date: sql<string>`DATE(\`createdAt\`)`.as("date"),
     count: sql<number>`COUNT(*)`.as("count"),
   }).from(articles)
     .where(and(
       eq(articles.projectId, projectId),
-      sql`created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+      sql`\`createdAt\` >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
     ))
-    .groupBy(sql`DATE(created_at)`)
-    .orderBy(sql`DATE(created_at)`);
+    .groupBy(sql`DATE(\`createdAt\`)`)
+    .orderBy(sql`DATE(\`createdAt\`)`);
 }
 
 export async function getRecentActivity(projectId: number, limit = 10) {

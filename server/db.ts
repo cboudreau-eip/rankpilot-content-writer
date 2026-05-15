@@ -829,3 +829,115 @@ export async function getIdeasCount(projectId: number) {
     archived: row?.archived ?? 0,
   };
 }
+
+
+// ---- Dashboard Helpers ----
+
+export async function getDashboardStats(projectId: number) {
+  const db = await getDb();
+  if (!db) return { totalArticles: 0, draftCount: 0, reviewCount: 0, completeCount: 0, publishedCount: 0, totalKeywords: 0, totalIdeas: 0, savedIdeas: 0 };
+
+  const [articleStats] = await db.select({
+    totalArticles: sql<number>`COUNT(*)`,
+    draftCount: sql<number>`SUM(CASE WHEN article_status = 'draft' THEN 1 ELSE 0 END)`,
+    reviewCount: sql<number>`SUM(CASE WHEN article_status = 'review' THEN 1 ELSE 0 END)`,
+    completeCount: sql<number>`SUM(CASE WHEN article_status = 'complete' THEN 1 ELSE 0 END)`,
+    publishedCount: sql<number>`SUM(CASE WHEN article_status = 'published' THEN 1 ELSE 0 END)`,
+  }).from(articles).where(eq(articles.projectId, projectId));
+
+  const [kwStats] = await db.select({
+    totalKeywords: sql<number>`COUNT(*)`,
+  }).from(projectKeywords).where(eq(projectKeywords.projectId, projectId));
+
+  const [ideaStats] = await db.select({
+    totalIdeas: sql<number>`COUNT(*)`,
+    savedIdeas: sql<number>`SUM(CASE WHEN idea_status = 'saved' THEN 1 ELSE 0 END)`,
+  }).from(ideas).where(eq(ideas.projectId, projectId));
+
+  return {
+    totalArticles: articleStats?.totalArticles ?? 0,
+    draftCount: articleStats?.draftCount ?? 0,
+    reviewCount: articleStats?.reviewCount ?? 0,
+    completeCount: articleStats?.completeCount ?? 0,
+    publishedCount: articleStats?.publishedCount ?? 0,
+    totalKeywords: kwStats?.totalKeywords ?? 0,
+    totalIdeas: ideaStats?.totalIdeas ?? 0,
+    savedIdeas: ideaStats?.savedIdeas ?? 0,
+  };
+}
+
+export async function getRecentArticles(projectId: number, limit = 8) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: articles.id,
+    title: articles.title,
+    wordCount: articles.wordCount,
+    status: articles.status,
+    keyword: articles.keyword,
+    createdAt: articles.createdAt,
+    updatedAt: articles.updatedAt,
+  }).from(articles).where(eq(articles.projectId, projectId)).orderBy(desc(articles.updatedAt)).limit(limit);
+}
+
+export async function getRecentIdeas(projectId: number, limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: ideas.id,
+    title: ideas.title,
+    keyword: ideas.keyword,
+    status: ideas.status,
+    rankingPotential: ideas.rankingPotential,
+    createdAt: ideas.createdAt,
+  }).from(ideas).where(and(eq(ideas.projectId, projectId), eq(ideas.status, "saved"))).orderBy(desc(ideas.createdAt)).limit(limit);
+}
+
+export async function getArticlesOverTime(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  // Get articles created per day for the last 30 days
+  return db.select({
+    date: sql<string>`DATE(created_at)`.as("date"),
+    count: sql<number>`COUNT(*)`.as("count"),
+  }).from(articles)
+    .where(and(
+      eq(articles.projectId, projectId),
+      sql`created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+    ))
+    .groupBy(sql`DATE(created_at)`)
+    .orderBy(sql`DATE(created_at)`);
+}
+
+export async function getRecentActivity(projectId: number, limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  // Combine recent articles and ideas into a unified activity feed
+  const recentArticleActivity = await db.select({
+    id: articles.id,
+    title: articles.title,
+    status: articles.status,
+    createdAt: articles.createdAt,
+    updatedAt: articles.updatedAt,
+  }).from(articles).where(eq(articles.projectId, projectId)).orderBy(desc(articles.updatedAt)).limit(limit);
+
+  const recentIdeaActivity = await db.select({
+    id: ideas.id,
+    title: ideas.title,
+    status: ideas.status,
+    createdAt: ideas.createdAt,
+  }).from(ideas).where(eq(ideas.projectId, projectId)).orderBy(desc(ideas.createdAt)).limit(5);
+
+  // Merge and sort by date
+  const activities: Array<{ type: "article" | "idea"; id: number; title: string; status: string; date: Date }> = [];
+
+  for (const a of recentArticleActivity) {
+    activities.push({ type: "article", id: a.id, title: a.title, status: a.status, date: a.updatedAt });
+  }
+  for (const i of recentIdeaActivity) {
+    activities.push({ type: "idea", id: i.id, title: i.title, status: i.status, date: i.createdAt });
+  }
+
+  activities.sort((a, b) => b.date.getTime() - a.date.getTime());
+  return activities.slice(0, limit);
+}

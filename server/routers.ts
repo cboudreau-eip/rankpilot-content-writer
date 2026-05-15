@@ -30,6 +30,7 @@ import {
   addSchedulerRunLog, getSchedulerRunLogs, getSchedulerRunLogsByRunId,
   calculateKeywordPriority, getProjectKeywordsList, addProjectKeywordsBulk, deleteProjectKeywordsBulk, updateProjectKeywordPage, getProjectKeywordsCount, matchKeywordsToArticles,
   getIdeasByProject, getIdeaById, createIdea, createIdeasBulk, updateIdea, deleteIdea, deleteIdeasBulk, getIdeasCount,
+  getDashboardStats, getRecentArticles, getRecentIdeas, getArticlesOverTime, getRecentActivity,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -6749,6 +6750,44 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         const session = await verifyAppSession(token);
         if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
         return getIdeasCount(input.projectId);
+      }),
+  }),
+
+  // ---- Dashboard Router ----
+  dashboard: router({
+    /** Get aggregated stats for a project */
+    stats: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getDashboardStats(input.projectId);
+      }),
+
+    /** Get recent articles for a project */
+    recentArticles: publicProcedure
+      .input(z.object({ projectId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return getRecentArticles(input.projectId, input.limit ?? 8);
+      }),
+
+    /** Get recent saved ideas for a project */
+    recentIdeas: publicProcedure
+      .input(z.object({ projectId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return getRecentIdeas(input.projectId, input.limit ?? 5);
+      }),
+
+    /** Get articles created over time (last 30 days) */
+    articlesOverTime: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getArticlesOverTime(input.projectId);
+      }),
+
+    /** Get recent activity feed */
+    recentActivity: publicProcedure
+      .input(z.object({ projectId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return getRecentActivity(input.projectId, input.limit ?? 10);
       }),
   }),
 });

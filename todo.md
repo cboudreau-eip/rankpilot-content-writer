@@ -1294,3 +1294,14 @@
 ## Bug Fix: numSections NaN Validation Error
 - [x] Fixed parseInt(numSections) returning NaN when input field is empty — added || fallback defaults (1600 words, 8 sections, 8 FAQs) to all 3 mutation call sites
 - [x] TypeScript check — 0 errors, 497 tests passing
+
+## Feature: Dashboard — Connect to Real Data
+- [x] Create dashboard.stats procedure — aggregates totalArticles, draftCount, reviewCount, completeCount, publishedCount, totalKeywords, savedIdeas, totalIdeas
+- [x] Create dashboard.recentArticles procedure — returns 8 most recent articles with id, title, status, wordCount, updatedAt
+- [x] Create dashboard.recentIdeas procedure — returns 5 most recent saved ideas with title, keyword, rankingPotential
+- [x] Create dashboard.articlesOverTime procedure — 30-day article creation chart data
+- [x] Create dashboard.recentActivity procedure — merged article + idea activity feed sorted by date
+- [x] Replace all mock data with real API calls — stat cards, recent articles, activity feed, chart, ideas
+- [x] Replaced topic clusters with Content Status breakdown (draft/review/complete/published counts) since clusters feature not built yet
+- [x] Added loading states (spinner), empty states (icon + CTA button), and no-project-selected state
+- [x] TypeScript check — 0 errors; 495/497 tests pass (2 pre-existing timeouts in sitemap and thin-content, unrelated)

@@ -1322,3 +1322,14 @@
 - [x] TypeScript check — 0 errors
 - [x] All 8 new outline tests passing (outlines.test.ts)
 - [x] Removed "Add Section" button from article generator toolbar (user request)
+
+## Outlines Manager — Phase 2: Multi-Source Generation
+- [x] Backend: outlines.fromIdea procedure — generates outline from saved idea with keyword, content angles, search intent, ICP, brand voice
+- [x] Backend: outlines.fromCompetitorUrls procedure — scrapes competitor URLs, extracts headings/content, generates outline that outranks them with competitor insights
+- [x] Frontend: Source selector tabs (From Keyword / From Competitors / From Idea) in Create New tab
+- [x] Frontend: Competitor URLs input with add/remove, analysis progress, and competitor insights panel (consensus topics + content gaps)
+- [x] Frontend: Idea selector dropdown with idea preview card (title, keyword, search intent, content angles)
+- [x] Frontend: Competitor Insights panel showing consensus topics and content gaps after generation
+- [x] Frontend: Idea Source Info panel showing source idea details after generation
+- [x] TypeScript check — 0 errors
+- [x] 504 tests passing (1 pre-existing timeout in grading.applyContentImprovements, unrelated)

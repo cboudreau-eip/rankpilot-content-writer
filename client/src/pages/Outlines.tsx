@@ -30,6 +30,9 @@ import {
   TrendingUp,
   Users,
   Check,
+  Globe,
+  Link2,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -340,6 +343,8 @@ interface BuilderSection {
   aiInstructions?: string;
 }
 
+type GenerationSource = "keyword" | "competitors" | "idea";
+
 function OutlineBuilder({ projectId }: { projectId: number }) {
   const [title, setTitle] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -349,8 +354,15 @@ function OutlineBuilder({ projectId }: { projectId: number }) {
   const [generating, setGenerating] = useState(false);
   const [numSections, setNumSections] = useState("8");
   const [targetWordCount, setTargetWordCount] = useState("1600");
+  const [source, setSource] = useState<GenerationSource>("keyword");
+  const [competitorUrls, setCompetitorUrls] = useState<string[]>([""]);
+  const [selectedIdeaId, setSelectedIdeaId] = useState<number | null>(null);
+  const [competitorInsights, setCompetitorInsights] = useState<{ consensusTopics: string[]; gaps: string[]; avgWordCount: number } | null>(null);
+  const [ideaInfo, setIdeaInfo] = useState<{ ideaTitle: string; contentAngles: string[] | null; searchIntent: string | null } | null>(null);
 
   const utils = trpc.useUtils();
+  const { data: ideas } = trpc.ideas.list.useQuery({ projectId });
+
   const createMutation = trpc.outlines.create.useMutation({
     onSuccess: () => {
       utils.outlines.list.invalidate({ projectId });
@@ -358,33 +370,40 @@ function OutlineBuilder({ projectId }: { projectId: number }) {
       setTitle("");
       setKeyword("");
       setSections([]);
+      setCompetitorInsights(null);
+      setIdeaInfo(null);
     },
   });
 
+  const populateSections = (data: any) => {
+    if (data) {
+      setTitle(data.title || keyword);
+      if (data.keyword) setKeyword(data.keyword);
+      setSections(
+        (data.sections || []).map((s: any, i: number) => ({
+          id: s.id || `s${Date.now()}_${i}`,
+          heading: s.heading,
+          type: s.type || "h2",
+          points: s.points || [],
+          subSections: (s.subSections || []).map((sub: any, j: number) => ({
+            id: sub.id || `ss${Date.now()}_${i}_${j}`,
+            heading: sub.heading,
+            type: "h3" as const,
+            points: sub.points || [],
+            subSections: [],
+          })),
+        }))
+      );
+      const allIds = new Set<string>();
+      (data.sections || []).forEach((s: any, i: number) => allIds.add(s.id || `s${Date.now()}_${i}`));
+      setExpandedSections(allIds);
+      toast.success("Outline generated!");
+    }
+  };
+
   const generateMutation = trpc.outlines.generate.useMutation({
     onSuccess: (data: any) => {
-      if (data) {
-        setTitle(data.title || keyword);
-        setSections(
-          (data.sections || []).map((s: any, i: number) => ({
-            id: s.id || `s${Date.now()}_${i}`,
-            heading: s.heading,
-            type: s.type || "h2",
-            points: s.points || [],
-            subSections: (s.subSections || []).map((sub: any, j: number) => ({
-              id: sub.id || `ss${Date.now()}_${i}_${j}`,
-              heading: sub.heading,
-              type: "h3" as const,
-              points: sub.points || [],
-              subSections: [],
-            })),
-          }))
-        );
-        const allIds = new Set<string>();
-        (data.sections || []).forEach((s: any, i: number) => allIds.add(s.id || `s${Date.now()}_${i}`));
-        setExpandedSections(allIds);
-        toast.success("Outline generated!");
-      }
+      populateSections(data);
       setGenerating(false);
     },
     onError: (err) => {
@@ -393,18 +412,82 @@ function OutlineBuilder({ projectId }: { projectId: number }) {
     },
   });
 
+  const fromIdeaMutation = trpc.outlines.fromIdea.useMutation({
+    onSuccess: (data: any) => {
+      populateSections(data);
+      if (data.ideaTitle || data.contentAngles || data.searchIntent) {
+        setIdeaInfo({ ideaTitle: data.ideaTitle, contentAngles: data.contentAngles, searchIntent: data.searchIntent });
+      }
+      setGenerating(false);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to generate outline from idea");
+      setGenerating(false);
+    },
+  });
+
+  const fromCompetitorsMutation = trpc.outlines.fromCompetitorUrls.useMutation({
+    onSuccess: (data: any) => {
+      populateSections(data);
+      if (data.competitorInsights) {
+        setCompetitorInsights(data.competitorInsights);
+      }
+      setGenerating(false);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to generate outline from competitors");
+      setGenerating(false);
+    },
+  });
+
   const handleGenerate = () => {
-    if (!keyword.trim()) {
-      toast.error("Enter a keyword to generate an outline");
-      return;
+    if (source === "keyword") {
+      if (!keyword.trim()) {
+        toast.error("Enter a keyword to generate an outline");
+        return;
+      }
+      setGenerating(true);
+      setCompetitorInsights(null);
+      setIdeaInfo(null);
+      generateMutation.mutate({
+        keyword: keyword.trim(),
+        projectId,
+        numSections: parseInt(numSections) || 8,
+        targetWordCount: parseInt(targetWordCount) || 1600,
+      });
+    } else if (source === "idea") {
+      if (!selectedIdeaId) {
+        toast.error("Select an idea to generate from");
+        return;
+      }
+      setGenerating(true);
+      setCompetitorInsights(null);
+      fromIdeaMutation.mutate({
+        ideaId: selectedIdeaId,
+        projectId,
+        numSections: parseInt(numSections) || 8,
+        targetWordCount: parseInt(targetWordCount) || 1600,
+      });
+    } else if (source === "competitors") {
+      const validUrls = competitorUrls.filter(u => u.trim().length > 0);
+      if (validUrls.length === 0) {
+        toast.error("Add at least one competitor URL");
+        return;
+      }
+      if (!keyword.trim()) {
+        toast.error("Enter a target keyword");
+        return;
+      }
+      setGenerating(true);
+      setIdeaInfo(null);
+      fromCompetitorsMutation.mutate({
+        urls: validUrls,
+        keyword: keyword.trim(),
+        projectId,
+        numSections: parseInt(numSections) || 8,
+        targetWordCount: parseInt(targetWordCount) || 2000,
+      });
     }
-    setGenerating(true);
-    generateMutation.mutate({
-      keyword: keyword.trim(),
-      projectId,
-      numSections: parseInt(numSections) || 8,
-      targetWordCount: parseInt(targetWordCount) || 1600,
-    });
   };
 
   const handleSave = () => {
@@ -490,33 +573,255 @@ function OutlineBuilder({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-6">
-      {/* Generation Controls */}
+      {/* Source Selector */}
       <Card>
-        <CardContent className="p-5">
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Target Keyword</label>
-              <Input
-                placeholder="e.g., best medicare supplement plans 2026"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-              />
-            </div>
-            <div className="w-32">
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Sections</label>
-              <Input type="number" value={numSections} onChange={(e) => setNumSections(e.target.value)} min={3} max={20} />
-            </div>
-            <div className="w-36">
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Word Target</label>
-              <Input type="number" value={targetWordCount} onChange={(e) => setTargetWordCount(e.target.value)} min={500} max={10000} step={100} />
-            </div>
-            <Button onClick={handleGenerate} disabled={generating || !keyword.trim()} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {generating ? "Generating..." : "Generate with AI"}
-            </Button>
+        <CardContent className="p-5 space-y-4">
+          {/* Source Mode Tabs */}
+          <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+            <button
+              onClick={() => setSource("keyword")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                source === "keyword" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              From Keyword
+            </button>
+            <button
+              onClick={() => setSource("competitors")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                source === "competitors" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              From Competitors
+            </button>
+            <button
+              onClick={() => setSource("idea")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                source === "idea" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Lightbulb className="w-3.5 h-3.5" />
+              From Idea
+            </button>
           </div>
+
+          {/* Source-specific inputs */}
+          {source === "keyword" && (
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Target Keyword</label>
+                <Input
+                  placeholder="e.g., best medicare supplement plans 2026"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                />
+              </div>
+              <div className="w-32">
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Sections</label>
+                <Input type="number" value={numSections} onChange={(e) => setNumSections(e.target.value)} min={3} max={20} />
+              </div>
+              <div className="w-36">
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Word Target</label>
+                <Input type="number" value={targetWordCount} onChange={(e) => setTargetWordCount(e.target.value)} min={500} max={10000} step={100} />
+              </div>
+              <Button onClick={handleGenerate} disabled={generating || !keyword.trim()} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+                {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {generating ? "Generating..." : "Generate"}
+              </Button>
+            </div>
+          )}
+
+          {source === "competitors" && (
+            <div className="space-y-3">
+              <div className="flex items-end gap-4">
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Target Keyword</label>
+                  <Input
+                    placeholder="e.g., best medicare supplement plans 2026"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Sections</label>
+                  <Input type="number" value={numSections} onChange={(e) => setNumSections(e.target.value)} min={3} max={20} />
+                </div>
+                <div className="w-36">
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Word Target</label>
+                  <Input type="number" value={targetWordCount} onChange={(e) => setTargetWordCount(e.target.value)} min={500} max={10000} step={100} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground block">Competitor URLs (1-5)</label>
+                <p className="text-xs text-muted-foreground">Add URLs of top-ranking articles for your keyword. We'll analyze their structure and create an outline that outranks them.</p>
+                {competitorUrls.map((url, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <Input
+                        placeholder={`https://competitor-article-${idx + 1}.com/...`}
+                        value={url}
+                        onChange={(e) => {
+                          const updated = [...competitorUrls];
+                          updated[idx] = e.target.value;
+                          setCompetitorUrls(updated);
+                        }}
+                      />
+                    </div>
+                    {competitorUrls.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                        onClick={() => setCompetitorUrls(competitorUrls.filter((_, i) => i !== idx))}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {competitorUrls.length < 5 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCompetitorUrls([...competitorUrls, ""])}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add URL
+                  </Button>
+                )}
+              </div>
+              <Button
+                onClick={handleGenerate}
+                disabled={generating || !keyword.trim() || competitorUrls.filter(u => u.trim()).length === 0}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+              >
+                {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                {generating ? "Analyzing Competitors..." : "Analyze & Generate"}
+              </Button>
+            </div>
+          )}
+
+          {source === "idea" && (
+            <div className="space-y-3">
+              <div className="flex items-end gap-4">
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Select Idea</label>
+                  <Select
+                    value={selectedIdeaId?.toString() || ""}
+                    onValueChange={(val) => setSelectedIdeaId(parseInt(val))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a saved idea..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ideas?.filter((i: any) => i.ideaStatus !== "archived").map((idea: any) => (
+                        <SelectItem key={idea.id} value={idea.id.toString()}>
+                          <span className="font-medium">{idea.title}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">({idea.keyword})</span>
+                        </SelectItem>
+                      ))}
+                      {(!ideas || ideas.filter((i: any) => i.ideaStatus !== "archived").length === 0) && (
+                        <SelectItem value="none" disabled>No ideas saved yet</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-32">
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Sections</label>
+                  <Input type="number" value={numSections} onChange={(e) => setNumSections(e.target.value)} min={3} max={20} />
+                </div>
+                <div className="w-36">
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Word Target</label>
+                  <Input type="number" value={targetWordCount} onChange={(e) => setTargetWordCount(e.target.value)} min={500} max={10000} step={100} />
+                </div>
+                <Button onClick={handleGenerate} disabled={generating || !selectedIdeaId} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+                  {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+                  {generating ? "Generating..." : "Generate from Idea"}
+                </Button>
+              </div>
+              {selectedIdeaId && ideas && (() => {
+                const selectedIdea = ideas.find((i: any) => i.id === selectedIdeaId);
+                if (!selectedIdea) return null;
+                return (
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg border border-indigo-100 dark:border-indigo-900/50">
+                    <div className="flex items-start gap-3">
+                      <Lightbulb className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">{selectedIdea.title}</p>
+                        <p className="text-xs text-muted-foreground">Keyword: {selectedIdea.keyword}</p>
+                        {selectedIdea.searchIntent && <Badge variant="outline" className="text-xs">{selectedIdea.searchIntent}</Badge>}
+                        {selectedIdea.contentAngles && selectedIdea.contentAngles.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {selectedIdea.contentAngles.slice(0, 4).map((angle: string, i: number) => (
+                              <Badge key={i} variant="secondary" className="text-xs">{angle}</Badge>
+                            ))}
+                            {selectedIdea.contentAngles.length > 4 && (
+                              <Badge variant="secondary" className="text-xs">+{selectedIdea.contentAngles.length - 4} more</Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Competitor Insights Panel */}
+      {competitorInsights && (
+        <Card className="border-green-200 dark:border-green-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-4 h-4 text-green-600" />
+              <h3 className="text-sm font-semibold text-foreground">Competitor Analysis Insights</h3>
+              <Badge variant="outline" className="text-xs ml-auto">Avg. {competitorInsights.avgWordCount} words</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Consensus Topics (all cover)</p>
+                <div className="flex flex-wrap gap-1">
+                  {competitorInsights.consensusTopics.map((topic, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{topic}</Badge>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Content Gaps (your advantage)</p>
+                <div className="flex flex-wrap gap-1">
+                  {competitorInsights.gaps.map((gap, i) => (
+                    <Badge key={i} className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800">{gap}</Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Idea Source Info */}
+      {ideaInfo && (
+        <Card className="border-indigo-200 dark:border-indigo-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Lightbulb className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-semibold text-foreground">Generated from Idea: {ideaInfo.ideaTitle}</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              {ideaInfo.searchIntent && <Badge variant="outline" className="text-xs">Intent: {ideaInfo.searchIntent}</Badge>}
+              {ideaInfo.contentAngles?.length ? (
+                <span className="text-xs text-muted-foreground">Covers {ideaInfo.contentAngles.length} content angles</span>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Outline Editor */}
       <Card>

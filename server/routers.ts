@@ -1633,6 +1633,382 @@ Respond in JSON with this exact schema:
 
         return { sections };
       }),
+
+    /** Generate outline from a saved idea — pre-fills with idea's keyword, title, content angles */
+    fromIdea: publicProcedure
+      .input(z.object({
+        ideaId: z.number(),
+        projectId: z.number(),
+        numSections: z.number().optional(),
+        targetWordCount: z.number().optional(),
+        brandVoiceId: z.number().optional(),
+        icpProfileId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const idea = await getIdeaById(input.ideaId);
+        if (!idea) throw new TRPCError({ code: "NOT_FOUND", message: "Idea not found" });
+
+        const project = await getProjectById(input.projectId);
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = input.brandVoiceId
+          ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
+          : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+        // Build idea context
+        const ideaContext = `
+=== SOURCE IDEA ===
+Title: ${idea.title}
+Keyword: ${idea.keyword}
+${idea.searchIntent ? `Search Intent: ${idea.searchIntent}` : ''}
+${idea.wordCountRange ? `Suggested Word Count: ${idea.wordCountRange}` : ''}
+${idea.description ? `Description: ${idea.description}` : ''}
+${idea.targetAudience ? `Target Audience: ${idea.targetAudience}` : ''}
+${idea.rankingPotential ? `Ranking Potential: ${idea.rankingPotential}` : ''}
+${idea.contentAngles?.length ? `Content Angles to Cover:\n${idea.contentAngles.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}` : ''}
+`;
+
+        // Build ICP section
+        let icpSection = "";
+        const formatList = (items: string[] | null | undefined, label: string): string => {
+          if (!items?.length) return '';
+          return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+        };
+        if (input.icpProfileId) {
+          const icpProfile = await getICPById(input.icpProfileId);
+          if (icpProfile) {
+            icpSection = `\n=== IDEAL CUSTOMER PROFILE ===\nTARGET AUDIENCE: ${icpProfile.name}\n${icpProfile.description ? `Who They Are: ${icpProfile.description}` : ''}\n${formatList(icpProfile.painPoints, 'PAIN POINTS')}\n${formatList(icpProfile.goals, 'GOALS')}\n${formatList(icpProfile.objections, 'OBJECTIONS (create FAQ questions from these)')}`;
+          }
+        } else if (project?.icpPrimaryName) {
+          icpSection = `\n=== IDEAL CUSTOMER PROFILE ===\nTARGET AUDIENCE: ${project.icpPrimaryName}\n${project.icpWhoTheyAre ? `Who They Are: ${project.icpWhoTheyAre}` : ''}\n${formatList(project.icpPains as string[] | null, 'PAIN POINTS')}\n${formatList(project.icpGoals as string[] | null, 'GOALS')}`;
+        }
+
+        let brandVoiceSection = "";
+        if (brandVoice) {
+          brandVoiceSection = `\n=== BRAND VOICE ===\nVoice: ${brandVoice.name}\nTone: ${brandVoice.toneTraits || 'Professional'}\nPerspective: ${brandVoice.perspective || 'second'}\nStyle: ${brandVoice.sentenceStyle || 'mixed'}`;
+        }
+
+        const numSections = input.numSections ?? 8;
+        const targetWordCount = input.targetWordCount ?? (idea.wordCountRange ? parseInt(idea.wordCountRange.split('-')[1] || idea.wordCountRange) : 1600);
+        const currentYear = new Date().getFullYear();
+
+        const systemPrompt = `You are an expert SEO content strategist. You are generating an article outline from a pre-researched content idea. The idea has already been validated for SEO potential.
+
+IMPORTANT: Current year is ${currentYear}. All references must be current.
+
+${ideaContext}
+${icpSection}
+${brandVoiceSection}
+
+OUTLINE REQUIREMENTS:
+1. Create ${numSections} main H2 sections plus a FAQ section with 5 questions
+2. The outline MUST cover ALL content angles from the idea
+3. Structure for the specified search intent (${idea.searchIntent || 'informational'})
+4. Target word count: ${targetWordCount} words
+5. Include an introduction and conclusion
+6. Each section should have 2-4 specific, actionable key points
+7. FAQ questions should address common user queries related to the keyword
+
+Return a JSON object with:
+- "title": SEO-optimized article title (can refine the idea's title)
+- "sections": Array of sections, each with:
+  - "id": Unique string ID ("s1", "s2", etc.)
+  - "heading": Section heading text
+  - "type": "h2" for main sections
+  - "points": Array of 2-4 key points
+  - "subSections": Array of sub-sections with same structure but type "h3"
+
+Return ONLY valid JSON.`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate an outline for the keyword "${idea.keyword}" based on the idea: "${idea.title}"` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "outline_from_idea",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  sections: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        heading: { type: "string" },
+                        type: { type: "string", enum: ["h2", "h3"] },
+                        points: { type: "array", items: { type: "string" } },
+                        subSections: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string" },
+                              heading: { type: "string" },
+                              type: { type: "string", enum: ["h2", "h3"] },
+                              points: { type: "array", items: { type: "string" } },
+                            },
+                            required: ["id", "heading", "type", "points"],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ["id", "heading", "type", "points", "subSections"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["title", "sections"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const content = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const parsed = extractJSON(content);
+        if (!parsed) throw new Error("Failed to parse outline from AI response");
+
+        return {
+          title: parsed.title,
+          keyword: idea.keyword,
+          sections: parsed.sections,
+          ideaId: idea.id,
+          ideaTitle: idea.title,
+          contentAngles: idea.contentAngles,
+          searchIntent: idea.searchIntent,
+        };
+      }),
+
+    /** Generate outline from competitor URLs — scrape, analyze, and create superior outline */
+    fromCompetitorUrls: publicProcedure
+      .input(z.object({
+        urls: z.array(z.string().url()).min(1).max(5),
+        keyword: z.string().min(1),
+        projectId: z.number(),
+        numSections: z.number().optional(),
+        targetWordCount: z.number().optional(),
+        brandVoiceId: z.number().optional(),
+        icpProfileId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { Readability } = await import("@mozilla/readability");
+        const { parseHTML } = await import("linkedom");
+
+        // Step 1: Fetch and extract content from all URLs in parallel
+        const fetchOne = async (url: string): Promise<{ url: string; title: string; headings: string[]; content: string; wordCount: number; error?: string }> => {
+          try {
+            const resp = await fetch(url, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; RankPilot/1.0; +https://rankpilot.app)",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+              },
+              signal: AbortSignal.timeout(15000),
+              redirect: "follow",
+            });
+            if (!resp.ok) return { url, title: "", headings: [], content: "", wordCount: 0, error: `HTTP ${resp.status}` };
+            const html = await resp.text();
+            const { document } = parseHTML(html);
+
+            // Extract headings
+            const headingEls = document.querySelectorAll("h1, h2, h3");
+            const headings: string[] = [];
+            headingEls.forEach((el: any) => {
+              const tag = el.tagName.toLowerCase();
+              const text = el.textContent?.trim();
+              if (text) headings.push(`${tag}: ${text}`);
+            });
+
+            const pageTitle = document.querySelector("title")?.textContent?.trim() || "";
+            const reader = new Readability(document as any, { charThreshold: 100 });
+            const article = reader.parse();
+            const cleanText = (article?.textContent || "").replace(/\s+/g, " ").trim();
+            const wordCount = cleanText.split(/\s+/).filter((w: string) => w.length > 0).length;
+
+            return {
+              url,
+              title: article?.title || pageTitle,
+              headings,
+              content: cleanText.slice(0, 8000),
+              wordCount,
+            };
+          } catch (e: any) {
+            return { url, title: "", headings: [], content: "", wordCount: 0, error: e.message };
+          }
+        };
+
+        const results = await Promise.all(input.urls.map(fetchOne));
+        const successful = results.filter(r => !r.error && r.content.length > 100);
+
+        if (successful.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Could not extract content from any of the provided URLs. They may be behind paywalls or require JavaScript.",
+          });
+        }
+
+        // Step 2: Build competitor analysis context
+        const competitorContext = successful.map((r, i) => `
+--- COMPETITOR ${i + 1}: ${r.title} ---
+URL: ${r.url}
+Word Count: ${r.wordCount}
+Heading Structure:
+${r.headings.map(h => `  ${h}`).join('\n')}
+
+Content Summary (first 3000 chars):
+${r.content.slice(0, 3000)}
+`).join('\n');
+
+        // Step 3: Get project context
+        const project = await getProjectById(input.projectId);
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = input.brandVoiceId
+          ? allVoices.find((v: any) => v.id === input.brandVoiceId) ?? allVoices[0] ?? null
+          : allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+        let icpSection = "";
+        const formatList = (items: string[] | null | undefined, label: string): string => {
+          if (!items?.length) return '';
+          return `${label}:\n${items.map((item, i) => `  ${i + 1}. ${item}`).join('\n')}\n`;
+        };
+        if (input.icpProfileId) {
+          const icpProfile = await getICPById(input.icpProfileId);
+          if (icpProfile) {
+            icpSection = `\n=== IDEAL CUSTOMER PROFILE ===\nTARGET AUDIENCE: ${icpProfile.name}\n${formatList(icpProfile.painPoints, 'PAIN POINTS')}\n${formatList(icpProfile.goals, 'GOALS')}`;
+          }
+        } else if (project?.icpPrimaryName) {
+          icpSection = `\n=== IDEAL CUSTOMER PROFILE ===\nTARGET AUDIENCE: ${project.icpPrimaryName}\n${formatList(project.icpPains as string[] | null, 'PAIN POINTS')}\n${formatList(project.icpGoals as string[] | null, 'GOALS')}`;
+        }
+
+        let brandVoiceSection = "";
+        if (brandVoice) {
+          brandVoiceSection = `\n=== BRAND VOICE ===\nVoice: ${brandVoice.name}\nTone: ${brandVoice.toneTraits || 'Professional'}\nPerspective: ${brandVoice.perspective || 'second'}`;
+        }
+
+        const numSections = input.numSections ?? 8;
+        const targetWordCount = input.targetWordCount ?? 2000;
+        const currentYear = new Date().getFullYear();
+
+        // Step 4: Generate outline that beats competitors
+        const systemPrompt = `You are an expert SEO content strategist. You have been given ${successful.length} competitor articles for the keyword "${input.keyword}". Your job is to create an outline that would OUTRANK all of them.
+
+Current year: ${currentYear}
+
+${competitorContext}
+${icpSection}
+${brandVoiceSection}
+
+ANALYSIS INSTRUCTIONS:
+1. Identify what ALL competitors cover (consensus topics) — you MUST include these
+2. Identify unique angles from individual competitors worth including
+3. Identify GAPS that NO competitor covers — these are your competitive advantage
+4. Note the average word count and aim to be more comprehensive
+
+OUTLINE REQUIREMENTS:
+1. Create ${numSections} main H2 sections plus a FAQ section with 5 questions
+2. Cover ALL consensus topics from competitors
+3. Fill content gaps that competitors miss
+4. Target word count: ${targetWordCount} words (aim to be more comprehensive than competitors)
+5. Include introduction and conclusion
+6. Each section should have 2-4 specific, actionable key points
+7. Structure for maximum search visibility and user value
+
+Return a JSON object with:
+- "title": SEO-optimized article title that would outrank competitors
+- "sections": Array of sections, each with:
+  - "id": Unique string ID ("s1", "s2", etc.)
+  - "heading": Section heading text
+  - "type": "h2" for main sections
+  - "points": Array of 2-4 key points
+  - "subSections": Array of sub-sections with type "h3"
+- "competitorInsights": Object with:
+  - "consensusTopics": Array of topics all competitors cover
+  - "gaps": Array of topics no competitor covers (your advantage)
+  - "avgWordCount": Average word count across competitors
+
+Return ONLY valid JSON.`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate an outline for "${input.keyword}" that would outrank these ${successful.length} competitors.` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "outline_from_competitors",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  sections: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        heading: { type: "string" },
+                        type: { type: "string", enum: ["h2", "h3"] },
+                        points: { type: "array", items: { type: "string" } },
+                        subSections: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string" },
+                              heading: { type: "string" },
+                              type: { type: "string", enum: ["h2", "h3"] },
+                              points: { type: "array", items: { type: "string" } },
+                            },
+                            required: ["id", "heading", "type", "points"],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ["id", "heading", "type", "points", "subSections"],
+                      additionalProperties: false,
+                    },
+                  },
+                  competitorInsights: {
+                    type: "object",
+                    properties: {
+                      consensusTopics: { type: "array", items: { type: "string" } },
+                      gaps: { type: "array", items: { type: "string" } },
+                      avgWordCount: { type: "integer" },
+                    },
+                    required: ["consensusTopics", "gaps", "avgWordCount"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["title", "sections", "competitorInsights"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawContent = response.choices[0]?.message?.content;
+        if (!rawContent) throw new Error("No response from AI");
+        const contentStr = typeof rawContent === "string" ? rawContent : (rawContent as any)[0]?.text ?? "";
+        const parsed = extractJSON(contentStr);
+        if (!parsed) throw new Error("Failed to parse outline from AI response");
+
+        return {
+          title: parsed.title,
+          keyword: input.keyword,
+          sections: parsed.sections,
+          competitorInsights: parsed.competitorInsights,
+          competitorsAnalyzed: successful.map(r => ({ url: r.url, title: r.title, wordCount: r.wordCount })),
+        };
+      }),
   }),
 
   icpProfiles: router({

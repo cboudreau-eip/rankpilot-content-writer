@@ -1311,3 +1311,14 @@
 - [x] Fixed dashboard.articlesOverTime SQL error: raw SQL used `created_at` but actual DB column is `createdAt`
 - [x] All 5 dashboard endpoints now return data successfully
 - [x] TypeScript check — 0 errors, 497 tests passing
+## Outlines Manager (Standalone Feature)
+- [x] Backend: duplicate outline procedure
+- [x] Backend: improveOutline procedure (AI-powered analysis with parsed sections, score, suggestions)
+- [x] Backend: applyImprovements procedure (apply selected suggestions to sections)
+- [x] Frontend: Outlines Library tab — list, search, filter by status, delete, duplicate, status change, generate link
+- [x] Frontend: Create New tab — standalone outline builder with AI generation, manual section editing, key points, save to library
+- [x] Frontend: Improve Outline tab — paste any outline, AI analyzes and suggests improvements, select/deselect suggestions, apply selected, save improved version
+- [x] Wired /outlines route in App.tsx (replaced ComingSoon stub)
+- [x] TypeScript check — 0 errors
+- [x] All 8 new outline tests passing (outlines.test.ts)
+- [x] Removed "Add Section" button from article generator toolbar (user request)

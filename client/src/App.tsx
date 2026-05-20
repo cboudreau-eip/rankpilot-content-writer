@@ -23,6 +23,7 @@ import Login from "./pages/Login";
 import KeywordResearch from "./pages/KeywordResearch";
 import ProjectKeywords from "./pages/ProjectKeywords";
 import Ideas from "./pages/Ideas";
+import Outlines from "./pages/Outlines";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -93,7 +94,7 @@ function App() {
                       <Route path="/gsc-analyzer" component={GscAnalyzer} />
                       <Route path="/seo-intelligence">{() => <ComingSoon title="Keyword Insights" description="AI-powered keyword clustering and strategic intelligence." />}</Route>
                       <Route path="/thin-content" component={ThinContent} />
-                      <Route path="/outlines">{() => <ComingSoon title="Outlines" description="Create and manage structured article outlines before writing." />}</Route>
+                      <Route path="/outlines" component={Outlines} />
                       <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
                       <Route path="/grade" component={GradeContent} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />

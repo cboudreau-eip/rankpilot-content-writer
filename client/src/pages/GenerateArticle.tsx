@@ -2631,10 +2631,6 @@ export default function GenerateArticle() {
           {/* Add Section + Insert Template + Actions */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={addSection} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add Section
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">

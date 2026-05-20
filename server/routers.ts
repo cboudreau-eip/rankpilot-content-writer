@@ -1429,6 +1429,210 @@ Return ONLY valid JSON, no markdown code blocks.`;
 
         return outline;
       }),
+
+    /** Duplicate an existing outline */
+    duplicate: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const original = await getOutlineById(input.id);
+        if (!original) throw new TRPCError({ code: "NOT_FOUND", message: "Outline not found" });
+        return createOutline({
+          title: `${original.title} (Copy)`,
+          keyword: original.keyword,
+          sections: original.sections,
+          settings: original.settings,
+          projectId: original.projectId,
+          userId: original.userId,
+        });
+      }),
+
+    /** AI-powered outline improvement: parse pasted outline, analyze, suggest improvements */
+    improveOutline: publicProcedure
+      .input(z.object({
+        rawOutline: z.string().min(10, "Outline must be at least 10 characters"),
+        keyword: z.string().optional(),
+        projectId: z.number(),
+        focusAreas: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Fetch project context for ICP/brand voice
+        const project = await getProjectById(input.projectId);
+        let contextSection = "";
+        if (project) {
+          const icps = await getICPsByProject(input.projectId);
+          const brandVoices = await getBrandVoicesByProject(input.projectId);
+          if (icps.length > 0) {
+            contextSection += `\nTARGET AUDIENCE (ICP): ${icps[0].name} - ${icps[0].description || ""}`;
+            if (icps[0].painPoints) contextSection += `\nPain Points: ${JSON.parse(JSON.stringify(icps[0].painPoints)).join(", ")}`;
+          }
+          if (brandVoices.length > 0) {
+            contextSection += `\nBRAND VOICE: ${brandVoices[0].name} - Tone: ${(brandVoices[0] as any).primaryTone || "professional"}`;
+          }
+        }
+
+        const focusInstructions = input.focusAreas && input.focusAreas.length > 0
+          ? `\nFOCUS YOUR IMPROVEMENTS ON: ${input.focusAreas.join(", ")}`
+          : "";
+
+        const systemPrompt = `You are an expert SEO content strategist and outline optimizer. You will be given a raw outline (could be bullet points, numbered headings, or any format) and your job is to:
+
+1. PARSE the outline into a structured format (H2 sections with optional H3 sub-sections and key points)
+2. ANALYZE it for weaknesses: missing topics, poor heading hierarchy, weak SEO structure, missing entities, poor user intent coverage, content gaps vs top-ranking competitors
+3. SUGGEST specific, actionable improvements
+
+For each suggestion, provide:
+- category: one of "missing_section", "heading_improvement", "content_gap", "structure", "seo", "entity", "user_intent"
+- priority: "high", "medium", or "low"
+- description: clear explanation of what to improve and why
+- action: the specific change (new heading text, new section to add, points to include, etc.)
+- targetSectionIndex: which section this applies to (0-based), or -1 if it's a new section to add
+${contextSection}${focusInstructions}
+
+Keyword: ${input.keyword || "(not specified)"}
+
+Respond in JSON with this exact schema:
+{
+  "parsedSections": [
+    {
+      "heading": "string",
+      "type": "h2",
+      "points": ["string"],
+      "subSections": [{ "heading": "string", "type": "h3", "points": ["string"] }]
+    }
+  ],
+  "overallScore": number (1-100, how good the outline is currently),
+  "summary": "string (brief assessment of the outline's strengths and weaknesses)",
+  "suggestions": [
+    {
+      "id": "string (unique)",
+      "category": "string",
+      "priority": "high|medium|low",
+      "description": "string",
+      "action": "string (the specific improvement to make)",
+      "targetSectionIndex": number,
+      "newSection": { "heading": "string", "type": "h2", "points": ["string"], "subSections": [] } | null
+    }
+  ]
+}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Here is the outline to analyze and improve:\n\n${input.rawOutline}` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "outline_improvement",
+              strict: false,
+              schema: {
+                type: "object",
+                properties: {
+                  parsedSections: { type: "array", items: { type: "object" } },
+                  overallScore: { type: "number" },
+                  summary: { type: "string" },
+                  suggestions: { type: "array", items: { type: "object" } },
+                },
+                required: ["parsedSections", "overallScore", "summary", "suggestions"],
+              },
+            },
+          },
+        });
+
+        const rawContent = response.choices?.[0]?.message?.content;
+        const content = typeof rawContent === "string" ? rawContent : "";
+        if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "LLM returned empty response" });
+
+        try {
+          return JSON.parse(content);
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse LLM response" });
+        }
+      }),
+
+    /** Apply selected improvements to create an improved outline */
+    applyImprovements: publicProcedure
+      .input(z.object({
+        sections: z.array(z.any()),
+        suggestions: z.array(z.any()),
+        keyword: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        // Apply the selected suggestions to the sections
+        let sections = [...input.sections] as OutlineSection[];
+        const sortedSuggestions = [...input.suggestions].sort((a, b) => {
+          // Process new sections last, heading improvements first
+          if (a.targetSectionIndex === -1 && b.targetSectionIndex !== -1) return 1;
+          if (b.targetSectionIndex === -1 && a.targetSectionIndex !== -1) return -1;
+          return (a.targetSectionIndex ?? 0) - (b.targetSectionIndex ?? 0);
+        });
+
+        let insertOffset = 0;
+        for (const suggestion of sortedSuggestions) {
+          if (suggestion.category === "missing_section" && suggestion.newSection) {
+            // Add new section
+            const newSection: OutlineSection = {
+              id: `s${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              heading: suggestion.newSection.heading,
+              type: suggestion.newSection.type || "h2",
+              points: suggestion.newSection.points || [],
+              subSections: (suggestion.newSection.subSections || []).map((sub: any, i: number) => ({
+                id: `ss${Date.now()}_${i}`,
+                heading: sub.heading,
+                type: "h3" as const,
+                points: sub.points || [],
+              })),
+            };
+            const insertIdx = suggestion.targetSectionIndex === -1
+              ? sections.length
+              : suggestion.targetSectionIndex + insertOffset + 1;
+            sections.splice(insertIdx, 0, newSection);
+            insertOffset++;
+          } else if (suggestion.category === "heading_improvement" && suggestion.targetSectionIndex >= 0) {
+            const idx = suggestion.targetSectionIndex;
+            if (sections[idx]) {
+              // Update heading text from action
+              if (suggestion.action) {
+                sections[idx] = { ...sections[idx], heading: suggestion.action };
+              }
+            }
+          } else if (suggestion.category === "content_gap" || suggestion.category === "entity" || suggestion.category === "user_intent") {
+            const idx = suggestion.targetSectionIndex;
+            if (idx >= 0 && sections[idx]) {
+              // Add points to the section
+              const newPoints = suggestion.action ? [suggestion.action] : [];
+              sections[idx] = {
+                ...sections[idx],
+                points: [...(sections[idx].points || []), ...newPoints],
+              };
+            } else if (suggestion.newSection) {
+              // Add as new section at end
+              sections.push({
+                id: `s${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                heading: suggestion.newSection.heading,
+                type: suggestion.newSection.type || "h2",
+                points: suggestion.newSection.points || [],
+                subSections: [],
+              });
+            }
+          } else if (suggestion.category === "structure" && suggestion.targetSectionIndex >= 0) {
+            // Structure improvements: reorder or restructure
+            const idx = suggestion.targetSectionIndex;
+            if (sections[idx] && suggestion.action) {
+              sections[idx] = { ...sections[idx], points: [...(sections[idx].points || []), suggestion.action] };
+            }
+          }
+        }
+
+        // Ensure all sections have IDs
+        sections = sections.map((s, i) => ({
+          ...s,
+          id: s.id || `s${Date.now()}_${i}`,
+        }));
+
+        return { sections };
+      }),
   }),
 
   icpProfiles: router({

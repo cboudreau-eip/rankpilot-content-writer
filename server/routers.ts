@@ -40,7 +40,7 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas, outlineVersions } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
@@ -2008,6 +2008,95 @@ Return ONLY valid JSON.`;
           competitorInsights: parsed.competitorInsights,
           competitorsAnalyzed: successful.map(r => ({ url: r.url, title: r.title, wordCount: r.wordCount })),
         };
+      }),
+
+    // ---- Outline Versioning ----
+    saveVersion: publicProcedure
+      .input(z.object({
+        outlineId: z.number(),
+        label: z.string().min(1),
+        sections: z.any(),
+        rawText: z.string().optional(),
+        score: z.number().optional(),
+        changeSummary: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { getNextVersionNumber, createOutlineVersion } = await import("./db");
+        const versionNumber = await getNextVersionNumber(input.outlineId);
+        const id = await createOutlineVersion({
+          outlineId: input.outlineId,
+          versionNumber,
+          label: input.label,
+          sections: input.sections,
+          rawText: input.rawText ?? null,
+          score: input.score ?? null,
+          changeSummary: input.changeSummary ?? null,
+          projectId: input.projectId,
+          userId: ctx.user?.id ?? 0,
+        });
+        return { id, versionNumber };
+      }),
+
+    getVersions: publicProcedure
+      .input(z.object({ outlineId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOutlineVersions } = await import("./db");
+        return getOutlineVersions(input.outlineId);
+      }),
+
+    getVersionsByProject: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOutlineVersionsByProject } = await import("./db");
+        return getOutlineVersionsByProject(input.projectId);
+      }),
+
+    // Save original + improved as version pair (for Improve Outline flow)
+    saveImprovementVersions: publicProcedure
+      .input(z.object({
+        outlineId: z.number(),
+        originalSections: z.any(),
+        improvedSections: z.any(),
+        rawText: z.string().optional(),
+        originalScore: z.number().optional(),
+        improvedScore: z.number().optional(),
+        changeSummary: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { getNextVersionNumber, createOutlineVersion } = await import("./db");
+        const userId = ctx.user?.id ?? 0;
+        
+        // Save original as version 1 (or next available)
+        const v1Num = await getNextVersionNumber(input.outlineId);
+        await createOutlineVersion({
+          outlineId: input.outlineId,
+          versionNumber: v1Num,
+          label: "Original",
+          sections: input.originalSections,
+          rawText: input.rawText ?? null,
+          score: input.originalScore ?? null,
+          changeSummary: null,
+          projectId: input.projectId,
+          userId,
+        });
+
+        // Save improved as version 2
+        const v2Num = await getNextVersionNumber(input.outlineId);
+        const improvedId = await createOutlineVersion({
+          outlineId: input.outlineId,
+          versionNumber: v2Num,
+          label: "AI Improved",
+          sections: input.improvedSections,
+          rawText: null,
+          score: input.improvedScore ?? null,
+          changeSummary: input.changeSummary ?? "AI-suggested improvements applied",
+          projectId: input.projectId,
+          userId,
+        });
+
+        return { originalVersion: v1Num, improvedVersion: v2Num };
       }),
   }),
 

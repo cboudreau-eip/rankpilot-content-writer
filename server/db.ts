@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, like, inArray, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -940,4 +940,43 @@ export async function getRecentActivity(projectId: number, limit = 10) {
 
   activities.sort((a, b) => b.date.getTime() - a.date.getTime());
   return activities.slice(0, limit);
+}
+
+
+// ============================================================
+// OUTLINE VERSIONS
+// ============================================================
+
+export async function getOutlineVersions(outlineId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(outlineVersions).where(eq(outlineVersions.outlineId, outlineId)).orderBy(asc(outlineVersions.versionNumber));
+}
+
+export async function getOutlineVersionsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(outlineVersions).where(eq(outlineVersions.projectId, projectId)).orderBy(desc(outlineVersions.createdAt));
+}
+
+export async function createOutlineVersion(data: InsertOutlineVersion) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(outlineVersions).values(data);
+  return result[0].insertId;
+}
+
+export async function getNextVersionNumber(outlineId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 1;
+  const result = await db.select({ maxVersion: sql<number>`COALESCE(MAX(${outlineVersions.versionNumber}), 0)` })
+    .from(outlineVersions)
+    .where(eq(outlineVersions.outlineId, outlineId));
+  return (result[0]?.maxVersion ?? 0) + 1;
+}
+
+export async function deleteOutlineVersions(outlineId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(outlineVersions).where(eq(outlineVersions.outlineId, outlineId));
 }

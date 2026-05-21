@@ -1333,3 +1333,12 @@
 - [x] Frontend: Idea Source Info panel showing source idea details after generation
 - [x] TypeScript check — 0 errors
 - [x] 504 tests passing (1 pre-existing timeout in grading.applyContentImprovements, unrelated)
+
+## Outline Versioning — Side-by-Side Diff Comparison
+- [x] Add outline_versions table to schema (outlineId, versionNumber, label, sections JSON, createdAt)
+- [x] Backend: saveVersion, getVersions, getVersionsByProject, saveImprovementVersions procedures
+- [x] Frontend: Version comparison panel in Improve Outline tab with side-by-side and unified diff views
+- [x] Frontend: Visual diff highlighting (added sections in green, removed in red/strikethrough, modified in amber)
+- [x] Diff stats bar showing added/removed/modified counts and score comparison
+- [x] TypeScript check — 0 errors
+- [x] Tests — 505 passing (36 test files)

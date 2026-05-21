@@ -33,6 +33,13 @@ import {
   Globe,
   Link2,
   ExternalLink,
+  GitCompare,
+  History,
+  ArrowLeftRight,
+  PlusCircle,
+  MinusCircle,
+  Pencil,
+  Eye,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -976,6 +983,7 @@ function ImproveOutline({ projectId }: { projectId: number }) {
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [improvedSections, setImprovedSections] = useState<any[] | null>(null);
+  const [diffView, setDiffView] = useState<"side-by-side" | "unified">("side-by-side");
   const [saving, setSaving] = useState(false);
 
   const utils = trpc.useUtils();
@@ -1255,55 +1263,235 @@ function ImproveOutline({ projectId }: { projectId: number }) {
             </CardContent>
           </Card>
 
-          {/* Improved Outline Preview */}
-          {improvedSections && (
-            <Card className="border-emerald-200 bg-emerald-50/30">
+          {/* Side-by-Side Diff Comparison */}
+          {improvedSections && results && (
+            <Card className="border-indigo-200">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    Improved Outline
+                    <GitCompare className="w-5 h-5 text-indigo-600" />
+                    Version Comparison
                   </CardTitle>
-                  <Button onClick={handleSaveImproved} disabled={saving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" size="sm">
-                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                    Save to Library
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-md">
+                      <button
+                        onClick={() => setDiffView("side-by-side")}
+                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                          diffView === "side-by-side" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <ArrowLeftRight className="w-3 h-3 inline mr-1" />
+                        Side by Side
+                      </button>
+                      <button
+                        onClick={() => setDiffView("unified")}
+                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                          diffView === "unified" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <Eye className="w-3 h-3 inline mr-1" />
+                        Unified
+                      </button>
+                    </div>
+                    <Button onClick={handleSaveImproved} disabled={saving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" size="sm">
+                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      Save to Library
+                    </Button>
+                  </div>
+                </div>
+                {/* Diff Stats */}
+                <div className="flex items-center gap-4 mt-2">
+                  {(() => {
+                    const origHeadings = new Set(results.parsedSections.map((s: any) => s.heading?.toLowerCase()));
+                    const impHeadings = new Set(improvedSections.map((s: any) => s.heading?.toLowerCase()));
+                    const added = improvedSections.filter((s: any) => !origHeadings.has(s.heading?.toLowerCase())).length;
+                    const removed = results.parsedSections.filter((s: any) => !impHeadings.has(s.heading?.toLowerCase())).length;
+                    const modified = improvedSections.length - added;
+                    return (
+                      <>
+                        <span className="flex items-center gap-1 text-xs text-green-600">
+                          <PlusCircle className="w-3 h-3" />
+                          {added} added
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-red-500">
+                          <MinusCircle className="w-3 h-3" />
+                          {removed} removed
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-amber-600">
+                          <Pencil className="w-3 h-3" />
+                          {modified} kept/modified
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          Score: {results.overallScore} → improved
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="space-y-2">
-                  {improvedSections.map((section: any, idx: number) => (
-                    <div key={section.id || idx} className="border border-emerald-200 rounded-lg p-3 bg-white">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs font-mono">H2</Badge>
-                        <span className="font-medium text-sm">{section.heading}</span>
+                {diffView === "side-by-side" ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Original Column */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 pb-2 border-b border-border">
+                        <Badge variant="outline" className="text-xs border-red-200 text-red-600 bg-red-50">Original</Badge>
+                        <span className="text-xs text-muted-foreground">{results.parsedSections.length} sections</span>
                       </div>
-                      {section.points && section.points.length > 0 && (
-                        <ul className="ml-8 mt-1.5 space-y-0.5">
-                          {section.points.map((p: string, pi: number) => (
-                            <li key={pi} className="text-xs text-muted-foreground">• {p}</li>
-                          ))}
-                        </ul>
-                      )}
-                      {section.subSections && section.subSections.length > 0 && (
-                        <div className="ml-6 mt-2 space-y-1.5 border-l-2 border-emerald-100 pl-3">
-                          {section.subSections.map((sub: any, si: number) => (
-                            <div key={si}>
-                              <span className="text-xs font-medium text-foreground/80">{sub.heading}</span>
-                              {sub.points && sub.points.length > 0 && (
-                                <ul className="ml-4 mt-0.5 space-y-0.5">
-                                  {sub.points.map((p: string, pi: number) => (
-                                    <li key={pi} className="text-xs text-muted-foreground">• {p}</li>
-                                  ))}
-                                </ul>
-                              )}
+                      {results.parsedSections.map((section: any, idx: number) => {
+                        const impMatch = improvedSections.find((s: any) => s.heading?.toLowerCase() === section.heading?.toLowerCase());
+                        const wasRemoved = !impMatch;
+                        return (
+                          <div key={idx} className={`border rounded-lg p-3 transition-colors ${
+                            wasRemoved ? "border-red-200 bg-red-50/50" : "border-border bg-white"
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs font-mono">{section.type || "H2"}</Badge>
+                              <span className={`font-medium text-sm ${wasRemoved ? "line-through text-red-500" : ""}`}>{section.heading}</span>
+                              {wasRemoved && <MinusCircle className="w-3.5 h-3.5 text-red-400 ml-auto" />}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            {section.points && section.points.length > 0 && (
+                              <ul className="ml-8 mt-1.5 space-y-0.5">
+                                {section.points.map((p: string, pi: number) => (
+                                  <li key={pi} className={`text-xs ${wasRemoved ? "text-red-400 line-through" : "text-muted-foreground"}`}>• {p}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+
+                    {/* Improved Column */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 pb-2 border-b border-border">
+                        <Badge variant="outline" className="text-xs border-green-200 text-green-600 bg-green-50">Improved</Badge>
+                        <span className="text-xs text-muted-foreground">{improvedSections.length} sections</span>
+                      </div>
+                      {improvedSections.map((section: any, idx: number) => {
+                        const origMatch = results.parsedSections.find((s: any) => s.heading?.toLowerCase() === section.heading?.toLowerCase());
+                        const isNew = !origMatch;
+                        const isModified = origMatch && (
+                          JSON.stringify(origMatch.points || []) !== JSON.stringify(section.points || []) ||
+                          JSON.stringify(origMatch.subSections || []) !== JSON.stringify(section.subSections || [])
+                        );
+                        return (
+                          <div key={idx} className={`border rounded-lg p-3 transition-colors ${
+                            isNew ? "border-green-200 bg-green-50/50" : isModified ? "border-amber-200 bg-amber-50/30" : "border-border bg-white"
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs font-mono">{section.type || "H2"}</Badge>
+                              <span className="font-medium text-sm">{section.heading}</span>
+                              {isNew && <PlusCircle className="w-3.5 h-3.5 text-green-500 ml-auto" />}
+                              {isModified && <Pencil className="w-3.5 h-3.5 text-amber-500 ml-auto" />}
+                            </div>
+                            {section.points && section.points.length > 0 && (
+                              <ul className="ml-8 mt-1.5 space-y-0.5">
+                                {section.points.map((p: string, pi: number) => {
+                                  const isNewPoint = origMatch ? !(origMatch.points || []).includes(p) : true;
+                                  return (
+                                    <li key={pi} className={`text-xs ${
+                                      isNewPoint ? "text-green-600 font-medium" : "text-muted-foreground"
+                                    }`}>• {p}</li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                            {section.subSections && section.subSections.length > 0 && (
+                              <div className="ml-6 mt-2 space-y-1.5 border-l-2 border-emerald-100 pl-3">
+                                {section.subSections.map((sub: any, si: number) => (
+                                  <div key={si}>
+                                    <span className="text-xs font-medium text-foreground/80">{sub.heading}</span>
+                                    {sub.points && sub.points.length > 0 && (
+                                      <ul className="ml-4 mt-0.5 space-y-0.5">
+                                        {sub.points.map((p: string, pi: number) => (
+                                          <li key={pi} className="text-xs text-muted-foreground">• {p}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* Unified Diff View */
+                  <div className="space-y-2">
+                    {(() => {
+                      const origHeadings = results.parsedSections.map((s: any) => s.heading?.toLowerCase());
+                      const impHeadings = improvedSections.map((s: any) => s.heading?.toLowerCase());
+                      const allItems: { section: any; status: "removed" | "added" | "modified" | "unchanged" }[] = [];
+
+                      // Mark removed sections
+                      results.parsedSections.forEach((s: any) => {
+                        if (!impHeadings.includes(s.heading?.toLowerCase())) {
+                          allItems.push({ section: s, status: "removed" });
+                        }
+                      });
+
+                      // Mark improved sections
+                      improvedSections.forEach((s: any) => {
+                        const origMatch = results.parsedSections.find((o: any) => o.heading?.toLowerCase() === s.heading?.toLowerCase());
+                        if (!origMatch) {
+                          allItems.push({ section: s, status: "added" });
+                        } else {
+                          const isModified = JSON.stringify(origMatch.points || []) !== JSON.stringify(s.points || []) ||
+                            JSON.stringify(origMatch.subSections || []) !== JSON.stringify(s.subSections || []);
+                          allItems.push({ section: s, status: isModified ? "modified" : "unchanged" });
+                        }
+                      });
+
+                      return allItems.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className={`border rounded-lg p-3 ${
+                            item.status === "removed" ? "border-red-200 bg-red-50/50" :
+                            item.status === "added" ? "border-green-200 bg-green-50/50" :
+                            item.status === "modified" ? "border-amber-200 bg-amber-50/30" :
+                            "border-border bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {item.status === "removed" && <MinusCircle className="w-3.5 h-3.5 text-red-500" />}
+                            {item.status === "added" && <PlusCircle className="w-3.5 h-3.5 text-green-500" />}
+                            {item.status === "modified" && <Pencil className="w-3.5 h-3.5 text-amber-500" />}
+                            {item.status === "unchanged" && <Check className="w-3.5 h-3.5 text-muted-foreground" />}
+                            <Badge variant="outline" className="text-xs font-mono">{item.section.type || "H2"}</Badge>
+                            <span className={`font-medium text-sm ${
+                              item.status === "removed" ? "line-through text-red-500" : ""
+                            }`}>{item.section.heading}</span>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ml-auto ${
+                                item.status === "removed" ? "border-red-200 text-red-500" :
+                                item.status === "added" ? "border-green-200 text-green-600" :
+                                item.status === "modified" ? "border-amber-200 text-amber-600" :
+                                "border-border text-muted-foreground"
+                              }`}
+                            >
+                              {item.status}
+                            </Badge>
+                          </div>
+                          {item.section.points && item.section.points.length > 0 && (
+                            <ul className="ml-8 mt-1.5 space-y-0.5">
+                              {item.section.points.map((p: string, pi: number) => (
+                                <li key={pi} className={`text-xs ${
+                                  item.status === "removed" ? "text-red-400 line-through" :
+                                  item.status === "added" ? "text-green-600" :
+                                  "text-muted-foreground"
+                                }`}>• {p}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

@@ -89,6 +89,30 @@ export const outlines = mysqlTable("outlines", {
 export type Outline = typeof outlines.$inferSelect;
 export type InsertOutline = typeof outlines.$inferInsert;
 
+/**
+ * Outline Versions — tracks revision history for outlines, enabling side-by-side diff comparison.
+ */
+export const outlineVersions = mysqlTable("outline_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  outlineId: int("outlineId").notNull(),
+  versionNumber: int("versionNumber").notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  /** JSON array of sections at this version */
+  sections: json("sections").$type<OutlineSection[]>().notNull(),
+  /** Optional raw text that was pasted (for original versions) */
+  rawText: text("rawText"),
+  /** Score at this version (from AI analysis) */
+  score: int("score"),
+  /** Summary of changes from previous version */
+  changeSummary: text("changeSummary"),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OutlineVersion = typeof outlineVersions.$inferSelect;
+export type InsertOutlineVersion = typeof outlineVersions.$inferInsert;
+
 export interface OutlineSection {
   id: string;
   heading: string;

@@ -1046,9 +1046,10 @@ function SitemapsTab({ projectId }: { projectId: number }) {
 
 // ---- LLM / AI Model Settings Tab ----
 const CLAUDE_MODELS = [
-  { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Latest)" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (Fast)" },
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7 (Best Quality)" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Balanced)" },
+  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 (Fast)" },
+  { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4 (Legacy)" },
 ];
 
 function LLMSettingsTab({ projectId }: { projectId: number }) {
@@ -1063,12 +1064,12 @@ function LLMSettingsTab({ projectId }: { projectId: number }) {
   });
 
   const [provider, setProvider] = useState<"builtin" | "claude">("builtin");
-  const [model, setModel] = useState("claude-sonnet-4-20250514");
+  const [model, setModel] = useState("claude-opus-4-7");
   const [initialized, setInitialized] = useState(false);
 
   if (project && !initialized) {
     setProvider((project.llmProvider as "builtin" | "claude") || "builtin");
-    setModel(project.llmModel || "claude-sonnet-4-20250514");
+    setModel(project.llmModel || "claude-opus-4-7");
     setInitialized(true);
   }
 

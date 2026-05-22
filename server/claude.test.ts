@@ -15,7 +15,16 @@ describe("Claude LLM Integration", () => {
       expect(mod.AVAILABLE_CLAUDE_MODELS.length).toBeGreaterThan(0);
     });
 
-    it("should include Claude Sonnet 4 as a model option", async () => {
+    it("should include Claude Opus 4.7 as a model option", async () => {
+      const mod = await import("./claude");
+      const opus = mod.AVAILABLE_CLAUDE_MODELS.find(
+        (m) => m.id === "claude-opus-4-7"
+      );
+      expect(opus).toBeDefined();
+      expect(opus!.label).toContain("Opus 4.7");
+    });
+
+    it("should include Claude Sonnet 4 as a legacy model option", async () => {
       const mod = await import("./claude");
       const sonnet4 = mod.AVAILABLE_CLAUDE_MODELS.find(
         (m) => m.id === "claude-sonnet-4-20250514"
@@ -36,7 +45,7 @@ describe("Claude LLM Integration", () => {
     it("should include Claude Haiku 4.5 as a fast model option", async () => {
       const mod = await import("./claude");
       const haiku = mod.AVAILABLE_CLAUDE_MODELS.find(
-        (m) => m.id === "claude-haiku-4-5"
+        (m) => m.id === "claude-haiku-4-5-20251001"
       );
       expect(haiku).toBeDefined();
       expect(haiku!.label).toContain("Haiku");
@@ -118,7 +127,7 @@ describe("Claude LLM Integration", () => {
           ],
           max_tokens: 10,
         },
-        "claude-haiku-4-5"
+        "claude-haiku-4-5-20251001"
       );
 
       expect(result.model).toContain("haiku");

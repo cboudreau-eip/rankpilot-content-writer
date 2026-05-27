@@ -1342,3 +1342,19 @@
 - [x] Diff stats bar showing added/removed/modified counts and score comparison
 - [x] TypeScript check — 0 errors
 - [x] Tests — 505 passing (36 test files)
+
+## Automated Content Pipeline (Manual Trigger)
+- [x] Add pipeline_jobs table to schema (id, fileId, filename, status, sourceUrl, ideaId, articleId, errorMessage, createdAt, processedAt)
+- [x] Add pipeline_settings table to schema (bucketUrl, autoGenerateOutline, autoGenerateArticle, defaultProjectId, defaultWordCount, enabled)
+- [x] Backend: pipeline.poll procedure — fetches JSON Bucket, identifies new files, ingests them
+- [x] Backend: pipeline.ingest procedure — maps JSON fields to idea, triggers auto-generation
+- [x] Backend: pipeline.autoGenerate procedure — idea → outline → article → pending_approval
+- [x] Backend: pipeline.approve / pipeline.reject / pipeline.retry procedures
+- [x] Backend: pipeline.getJobs / pipeline.getQueue / pipeline.getSettings procedures
+- [x] Frontend: /pipeline page with Queue tab (pending approval articles)
+- [x] Frontend: Activity tab (full pipeline job log with retry button)
+- [x] Frontend: Settings tab (bucket URL, auto-generation toggles, defaults)
+- [x] Frontend: "Run Now" manual trigger button
+- [x] Owner notification when new articles are ready for review
+- [x] TypeScript check — 0 errors
+- [x] Tests passing (505 tests, 36 files)

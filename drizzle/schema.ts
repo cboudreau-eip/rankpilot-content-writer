@@ -665,3 +665,78 @@ export const ideas = mysqlTable("ideas", {
 
 export type Idea = typeof ideas.$inferSelect;
 export type InsertIdea = typeof ideas.$inferInsert;
+
+
+/**
+ * Pipeline Jobs — tracks each file ingested from the JSON bucket through the auto-generation pipeline.
+ */
+export const pipelineJobs = mysqlTable("pipeline_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** External file ID from the JSON bucket */
+  fileId: varchar("fileId", { length: 255 }).notNull(),
+  /** Original filename from the bucket */
+  filename: varchar("filename", { length: 512 }).notNull(),
+  /** Pipeline status: pending, generating_outline, generating_article, pending_approval, approved, rejected, failed */
+  status: mysqlEnum("pipelineStatus", [
+    "pending",
+    "generating_outline",
+    "generating_article",
+    "pending_approval",
+    "approved",
+    "rejected",
+    "failed",
+  ]).default("pending").notNull(),
+  /** Source URL of the competitor article (optional) */
+  sourceUrl: varchar("sourceUrl", { length: 1024 }),
+  /** Title extracted from the JSON file */
+  title: varchar("pipelineTitle", { length: 512 }),
+  /** Keyword extracted from the JSON file */
+  keyword: varchar("pipelineKeyword", { length: 255 }),
+  /** Category extracted from the JSON file */
+  category: varchar("pipelineCategory", { length: 128 }),
+  /** Snippet/description from the JSON file */
+  snippet: text("snippet"),
+  /** Reference to the generated idea */
+  ideaId: int("ideaId"),
+  /** Reference to the generated outline */
+  outlineId: int("outlineId"),
+  /** Reference to the generated article */
+  articleId: int("articleId"),
+  /** Error message if the job failed */
+  errorMessage: text("errorMessage"),
+  /** Project this job belongs to */
+  projectId: int("projectId").notNull(),
+  /** User who triggered or owns the job */
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+});
+export type PipelineJob = typeof pipelineJobs.$inferSelect;
+export type InsertPipelineJob = typeof pipelineJobs.$inferInsert;
+
+/**
+ * Pipeline Settings — per-project configuration for the automated content pipeline.
+ */
+export const pipelineSettings = mysqlTable("pipeline_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The URL of the JSON bucket to poll */
+  bucketUrl: varchar("bucketUrl", { length: 1024 }).default("https://json-test.abacusai.app").notNull(),
+  /** Whether the pipeline is enabled */
+  enabled: int("enabled").default(1).notNull(),
+  /** Auto-generate outline from ingested idea */
+  autoGenerateOutline: int("autoGenerateOutline").default(1).notNull(),
+  /** Auto-generate article from outline */
+  autoGenerateArticle: int("autoGenerateArticle").default(1).notNull(),
+  /** Default word count target for generated articles */
+  defaultWordCount: int("defaultWordCount").default(1600),
+  /** Default tone/style instructions */
+  defaultInstructions: text("defaultInstructions"),
+  /** Project this setting belongs to */
+  projectId: int("projectId").notNull(),
+  /** User who owns this setting */
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PipelineSettingsRow = typeof pipelineSettings.$inferSelect;
+export type InsertPipelineSettings = typeof pipelineSettings.$inferInsert;

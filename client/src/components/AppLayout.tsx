@@ -104,6 +104,12 @@ const navSections = [
       { icon: LampDesk, label: "Ideas", path: "/ideas" },
     ],
   },
+  {
+    title: "Automation",
+    items: [
+      { icon: Rocket, label: "Pipeline", path: "/pipeline" },
+    ],
+  },
 ];
 
 // ---- Main Layout ----

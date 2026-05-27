@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, like, inArray, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea, pipelineJobs, InsertPipelineJob, pipelineSettings, InsertPipelineSettings } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -979,4 +979,87 @@ export async function deleteOutlineVersions(outlineId: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(outlineVersions).where(eq(outlineVersions.outlineId, outlineId));
+}
+
+
+// ---- Pipeline Job Helpers ----
+
+export async function getPipelineJobsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pipelineJobs).where(eq(pipelineJobs.projectId, projectId)).orderBy(desc(pipelineJobs.createdAt));
+}
+
+export async function getPipelineJobById(jobId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(pipelineJobs).where(eq(pipelineJobs.id, jobId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getPipelineJobByFileId(fileId: string, projectId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(pipelineJobs)
+    .where(and(eq(pipelineJobs.fileId, fileId), eq(pipelineJobs.projectId, projectId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createPipelineJob(data: InsertPipelineJob) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(pipelineJobs).values(data);
+  return getPipelineJobById(result[0].insertId);
+}
+
+export async function updatePipelineJob(jobId: number, data: Partial<Pick<InsertPipelineJob, "status" | "ideaId" | "outlineId" | "articleId" | "errorMessage" | "processedAt">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(pipelineJobs).set(data).where(eq(pipelineJobs.id, jobId));
+  return getPipelineJobById(jobId);
+}
+
+export async function deletePipelineJob(jobId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(pipelineJobs).where(eq(pipelineJobs.id, jobId));
+  return { success: true };
+}
+
+export async function getPipelineQueue(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pipelineJobs)
+    .where(and(eq(pipelineJobs.projectId, projectId), eq(pipelineJobs.status, "pending_approval")))
+    .orderBy(desc(pipelineJobs.createdAt));
+}
+
+// ---- Pipeline Settings Helpers ----
+
+export async function getPipelineSettingsByProject(projectId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(pipelineSettings).where(eq(pipelineSettings.projectId, projectId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertPipelineSettings(data: InsertPipelineSettings) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getPipelineSettingsByProject(data.projectId);
+  if (existing) {
+    await db.update(pipelineSettings).set({
+      bucketUrl: data.bucketUrl,
+      enabled: data.enabled,
+      autoGenerateOutline: data.autoGenerateOutline,
+      autoGenerateArticle: data.autoGenerateArticle,
+      defaultWordCount: data.defaultWordCount,
+      defaultInstructions: data.defaultInstructions,
+    }).where(eq(pipelineSettings.id, existing.id));
+    return getPipelineSettingsByProject(data.projectId);
+  } else {
+    const result = await db.insert(pipelineSettings).values(data);
+    return getPipelineSettingsByProject(data.projectId);
+  }
 }

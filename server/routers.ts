@@ -31,6 +31,8 @@ import {
   calculateKeywordPriority, getProjectKeywordsList, addProjectKeywordsBulk, deleteProjectKeywordsBulk, updateProjectKeywordPage, getProjectKeywordsCount, matchKeywordsToArticles,
   getIdeasByProject, getIdeaById, createIdea, createIdeasBulk, updateIdea, deleteIdea, deleteIdeasBulk, getIdeasCount,
   getDashboardStats, getRecentArticles, getRecentIdeas, getArticlesOverTime, getRecentActivity,
+  getPipelineJobsByProject, getPipelineJobById, getPipelineJobByFileId, createPipelineJob, updatePipelineJob, deletePipelineJob, getPipelineQueue,
+  getPipelineSettingsByProject, upsertPipelineSettings,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -40,13 +42,14 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas, outlineVersions } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas, outlineVersions, pipelineJobs, pipelineSettings } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
 import type { EntityAnalysisResult, SemanticAnalysisResult } from "../shared/entity-types";
 import type { ResearchFindings } from "../shared/research-types";
 import { parseGscExcel, computeNearJump } from "./gsc-parser";
+import { notifyOwner } from "./_core/notification";
 
 /**
  * Generate a timestamped S3 key for a reference doc backup.
@@ -7459,7 +7462,342 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         return getRecentActivity(input.projectId, input.limit ?? 10);
       }),
   }),
+
+  // ---- Pipeline Router ----
+  pipeline: router({
+    /** Get pipeline settings for a project */
+    getSettings: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getPipelineSettingsByProject(input.projectId);
+      }),
+
+    /** Save/update pipeline settings */
+    saveSettings: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        bucketUrl: z.string().url().optional(),
+        enabled: z.number().min(0).max(1).optional(),
+        autoGenerateOutline: z.number().min(0).max(1).optional(),
+        autoGenerateArticle: z.number().min(0).max(1).optional(),
+        defaultWordCount: z.number().min(500).max(10000).optional(),
+        defaultInstructions: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return upsertPipelineSettings({
+          projectId: input.projectId,
+          bucketUrl: input.bucketUrl ?? "https://json-test.abacusai.app",
+          enabled: input.enabled ?? 1,
+          autoGenerateOutline: input.autoGenerateOutline ?? 1,
+          autoGenerateArticle: input.autoGenerateArticle ?? 1,
+          defaultWordCount: input.defaultWordCount ?? 1600,
+          defaultInstructions: input.defaultInstructions ?? null,
+          userId: 1,
+        });
+      }),
+
+    /** Get all pipeline jobs for a project */
+    getJobs: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getPipelineJobsByProject(input.projectId);
+      }),
+
+    /** Get pipeline jobs in pending_approval status */
+    getQueue: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getPipelineQueue(input.projectId);
+      }),
+
+    /** Approve an article — change status to approved */
+    approveArticle: publicProcedure
+      .input(z.object({ jobId: z.number() }))
+      .mutation(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+        if (job.status !== "pending_approval") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Job is not in pending_approval status" });
+        }
+        // Mark the article as published if it exists
+        if (job.articleId) {
+          await updateArticle(job.articleId, { status: "published" });
+        }
+        return updatePipelineJob(input.jobId, { status: "approved", processedAt: new Date() });
+      }),
+
+    /** Reject an article with optional feedback */
+    rejectArticle: publicProcedure
+      .input(z.object({ jobId: z.number(), feedback: z.string().optional() }))
+      .mutation(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+        if (job.status !== "pending_approval") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Job is not in pending_approval status" });
+        }
+        return updatePipelineJob(input.jobId, { status: "rejected", errorMessage: input.feedback ?? null });
+      }),
+
+    /** Retry a failed pipeline job */
+    retryJob: publicProcedure
+      .input(z.object({ jobId: z.number(), projectId: z.number() }))
+      .mutation(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+        if (job.status !== "failed" && job.status !== "rejected") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Only failed or rejected jobs can be retried" });
+        }
+        // Reset to pending and re-run generation
+        await updatePipelineJob(input.jobId, { status: "pending", errorMessage: null });
+        // Trigger generation in background
+        runPipelineGeneration(input.jobId, input.projectId).catch(err => {
+          console.error(`[Pipeline] Retry generation failed for job ${input.jobId}:`, err);
+        });
+        return { success: true };
+      }),
+
+    /** Delete a pipeline job */
+    deleteJob: publicProcedure
+      .input(z.object({ jobId: z.number() }))
+      .mutation(async ({ input }) => {
+        return deletePipelineJob(input.jobId);
+      }),
+
+    /** Manually trigger a poll of the JSON bucket */
+    runPoll: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .mutation(async ({ input }) => {
+        const settings = await getPipelineSettingsByProject(input.projectId);
+        const bucketUrl = settings?.bucketUrl || "https://json-test.abacusai.app";
+
+        // Fetch file list from the bucket
+        let files: any[] = [];
+        try {
+          const resp = await fetch(`${bucketUrl}/api/files`);
+          if (!resp.ok) throw new Error(`Bucket API returned ${resp.status}`);
+          const data = await resp.json();
+          files = Array.isArray(data) ? data : (data.files || data.items || []);
+        } catch (err: any) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to fetch from bucket: ${err.message}` });
+        }
+
+        let ingested = 0;
+        let skipped = 0;
+        let errors = 0;
+        const newJobIds: number[] = [];
+
+        for (const file of files) {
+          const fileId = String(file.id || file.file_id || file.filename);
+          // Skip already-processed files
+          const existing = await getPipelineJobByFileId(fileId, input.projectId);
+          if (existing) {
+            skipped++;
+            continue;
+          }
+
+          // Fetch full file content
+          let fileContent: any;
+          try {
+            const fileResp = await fetch(`${bucketUrl}/api/files/${file.id || file.file_id}`);
+            if (!fileResp.ok) throw new Error(`File fetch returned ${fileResp.status}`);
+            fileContent = await fileResp.json();
+          } catch (err: any) {
+            console.error(`[Pipeline] Failed to fetch file ${fileId}:`, err.message);
+            errors++;
+            continue;
+          }
+
+          // Extract required fields
+          const title = fileContent.title || file.title || file.filename;
+          const keyword = fileContent.keyword || fileContent.keywords?.[0] || fileContent.primary_keyword || title;
+          if (!title || !keyword) {
+            console.warn(`[Pipeline] Skipping file ${fileId}: missing title or keyword`);
+            skipped++;
+            continue;
+          }
+
+          // Create pipeline job
+          try {
+            const newJob = await createPipelineJob({
+              fileId,
+              filename: file.filename || file.name || fileId,
+              status: "pending",
+              sourceUrl: fileContent.source_url || fileContent.sourceUrl || null,
+              title,
+              keyword,
+              category: fileContent.category || null,
+              snippet: fileContent.snippet || fileContent.meta_description || null,
+              projectId: input.projectId,
+              userId: 1,
+            });
+            if (newJob) {
+              newJobIds.push(newJob.id);
+              ingested++;
+            }
+          } catch (err: any) {
+            console.error(`[Pipeline] Failed to create job for file ${fileId}:`, err.message);
+            errors++;
+          }
+        }
+
+        // Auto-generate for new jobs if settings allow
+        const autoOutline = settings?.autoGenerateOutline ?? 1;
+        const autoArticle = settings?.autoGenerateArticle ?? 1;
+        if ((autoOutline || autoArticle) && newJobIds.length > 0) {
+          // Run generation in background (don't await)
+          for (const jobId of newJobIds) {
+            runPipelineGeneration(jobId, input.projectId).catch(err => {
+              console.error(`[Pipeline] Background generation failed for job ${jobId}:`, err);
+            });
+          }
+        }
+
+        return { ingested, skipped, errors, total: files.length, newJobIds };
+      }),
+  }),
 });
+
+// ============================================================
+// PIPELINE GENERATION HELPER
+// ============================================================
+
+/**
+ * Run outline + article generation for a single pipeline job.
+ * Called in the background (fire-and-forget) after ingestion or retry.
+ */
+async function runPipelineGeneration(jobId: number, projectId: number): Promise<void> {
+  const job = await getPipelineJobById(jobId);
+  if (!job) return;
+
+  const settings = await getPipelineSettingsByProject(projectId);
+  const autoOutline = settings?.autoGenerateOutline ?? 1;
+  const autoArticle = settings?.autoGenerateArticle ?? 1;
+  const targetWordCount = settings?.defaultWordCount ?? 1600;
+
+  try {
+    // Step 1: Generate outline
+    if (autoOutline) {
+      await updatePipelineJob(jobId, { status: "generating_outline" });
+      console.log(`[Pipeline] Generating outline for job ${jobId}: "${job.title}"`);
+
+      const outlineResult = await generateOutlineForPipeline(job, targetWordCount);
+      await updatePipelineJob(jobId, { outlineId: outlineResult.id });
+      console.log(`[Pipeline] Outline created: id=${outlineResult.id}`);
+
+      // Step 2: Generate article
+      if (autoArticle) {
+        await updatePipelineJob(jobId, { status: "generating_article" });
+        console.log(`[Pipeline] Generating article for job ${jobId}`);
+
+        const articleResult = await generateArticleForPipeline(job, outlineResult, projectId, targetWordCount);
+        await updatePipelineJob(jobId, { articleId: articleResult.id, status: "pending_approval", processedAt: new Date() });
+        console.log(`[Pipeline] Article created: id=${articleResult.id}, words=${articleResult.wordCount}`);
+
+        // Notify owner
+        await notifyOwner({
+          title: "Pipeline: Article Ready for Review",
+          content: `A new article "${job.title}" has been generated and is waiting for your approval in the Pipeline queue.`,
+        });
+      } else {
+        // Only outline was generated, mark as pending approval
+        await updatePipelineJob(jobId, { status: "pending_approval", processedAt: new Date() });
+      }
+    } else {
+      // No auto-generation, just mark as pending
+      await updatePipelineJob(jobId, { status: "pending_approval", processedAt: new Date() });
+    }
+  } catch (err: any) {
+    console.error(`[Pipeline] Generation failed for job ${jobId}:`, err);
+    await updatePipelineJob(jobId, { status: "failed", errorMessage: err.message || "Unknown error" });
+  }
+}
+
+/**
+ * Generate an outline for a pipeline job using the LLM.
+ */
+async function generateOutlineForPipeline(job: any, targetWordCount: number): Promise<any> {
+  const keyword = job.keyword || job.title;
+  const numSections = Math.max(5, Math.min(12, Math.round(targetWordCount / 200)));
+
+  const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".
+
+Requirements:
+- Create ${numSections} main H2 sections
+- Include a FAQ section with 5 questions
+- Target approximately ${targetWordCount} words total
+- Each section should have 3-5 key points
+- Include a targetWordCount for each section (distribute ${targetWordCount} words proportionally)
+${job.snippet ? `\nContext/snippet: ${job.snippet}` : ''}
+${job.category ? `\nCategory: ${job.category}` : ''}
+${job.sourceUrl ? `\nReference URL: ${job.sourceUrl}` : ''}
+
+Return a JSON object with this structure:
+{
+  "title": "SEO-optimized article title",
+  "sections": [
+    {
+      "heading": "Section H2 heading",
+      "points": ["key point 1", "key point 2", "key point 3"],
+      "targetWordCount": 200
+    }
+  ]
+}`;
+
+  const response = await invokeClaudeLLM({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Generate a comprehensive outline for: "${keyword}"` },
+    ],
+  });
+
+  const rawContent = response?.choices?.[0]?.message?.content;
+  const content = typeof rawContent === "string" ? rawContent : (Array.isArray(rawContent) ? rawContent.map((c: any) => c.text || "").join("") : "");
+  let parsed: any;
+  try {
+    const jsonMatch = String(content).match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(jsonMatch?.[0] || content);
+  } catch {
+    parsed = { title: job.title || keyword, sections: [] };
+  }
+
+  // Save outline to DB
+  const outline = await createOutline({
+    title: parsed.title || job.title || keyword,
+    keyword,
+    sections: parsed.sections || [],
+    settings: { targetWordCount, numSections } as any,
+    projectId: job.projectId,
+    userId: job.userId,
+  });
+
+  return outline;
+}
+
+/**
+ * Generate an article for a pipeline job using the existing generateArticleForScheduler pattern.
+ */
+async function generateArticleForPipeline(job: any, outline: any, projectId: number, targetWordCount: number): Promise<any> {
+  // Build a minimal "scheduler job" object that generateArticleForScheduler expects
+  const fakeSchedulerJob = {
+    id: job.id,
+    projectId,
+    articleSettings: {
+      targetWordCount,
+      numSections: outline.sections?.length ?? 8,
+      numFaqs: 5,
+      contentType: "blog_post",
+    },
+  };
+
+  const article = await generateArticleForScheduler(
+    fakeSchedulerJob,
+    outline,
+    [], // no secondary keywords for pipeline
+    null, // no research findings
+  );
+
+  return article;
+}
 
 // ============================================================
 // SCHEDULER HELPERS

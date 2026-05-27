@@ -7654,6 +7654,72 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
 
         return { ingested, skipped, errors, total: files.length, newJobIds };
       }),
+
+    /** On-demand: generate outline for a specific pipeline job */
+    generateOutlineForJob: publicProcedure
+      .input(z.object({ jobId: z.number(), projectId: z.number() }))
+      .mutation(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+        if (job.outlineId) throw new TRPCError({ code: "BAD_REQUEST", message: "Outline already exists for this job" });
+
+        await updatePipelineJob(input.jobId, { status: "generating_outline" });
+
+        try {
+          const settings = await getPipelineSettingsByProject(input.projectId);
+          const targetWordCount = settings?.defaultWordCount ?? 1600;
+          const outlineResult = await generateOutlineForPipeline(job, targetWordCount);
+          await updatePipelineJob(input.jobId, { outlineId: outlineResult.id, status: "pending_approval" });
+          return { success: true, outlineId: outlineResult.id };
+        } catch (err: any) {
+          await updatePipelineJob(input.jobId, { status: "failed", errorMessage: err.message || "Outline generation failed" });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || "Outline generation failed" });
+        }
+      }),
+
+    /** On-demand: generate article from an existing outline for a pipeline job */
+    generateArticleForJob: publicProcedure
+      .input(z.object({ jobId: z.number(), projectId: z.number() }))
+      .mutation(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+        if (!job.outlineId) throw new TRPCError({ code: "BAD_REQUEST", message: "No outline exists — generate an outline first" });
+        if (job.articleId) throw new TRPCError({ code: "BAD_REQUEST", message: "Article already exists for this job" });
+
+        // Fetch the outline
+        const outline = await getOutlineById(job.outlineId);
+        if (!outline) throw new TRPCError({ code: "NOT_FOUND", message: "Outline not found" });
+
+        await updatePipelineJob(input.jobId, { status: "generating_article" });
+
+        try {
+          const settings = await getPipelineSettingsByProject(input.projectId);
+          const targetWordCount = settings?.defaultWordCount ?? 1600;
+          const articleResult = await generateArticleForPipeline(job, outline, input.projectId, targetWordCount);
+          await updatePipelineJob(input.jobId, { articleId: articleResult.id, status: "pending_approval", processedAt: new Date() });
+
+          await notifyOwner({
+            title: "Pipeline: Article Ready for Review",
+            content: `A new article "${job.title}" has been generated and is waiting for your approval.`,
+          });
+
+          return { success: true, articleId: articleResult.id };
+        } catch (err: any) {
+          await updatePipelineJob(input.jobId, { status: "failed", errorMessage: err.message || "Article generation failed" });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || "Article generation failed" });
+        }
+      }),
+
+    /** Get outline details for a pipeline job (for preview) */
+    getJobOutline: publicProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+        if (!job.outlineId) return null;
+        const outline = await getOutlineById(job.outlineId);
+        return outline;
+      }),
   }),
 });
 

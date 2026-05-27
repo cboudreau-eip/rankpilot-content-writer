@@ -1358,3 +1358,12 @@
 - [x] Owner notification when new articles are ready for review
 - [x] TypeScript check — 0 errors
 - [x] Tests passing (505 tests, 36 files)
+
+## Pipeline Phase 2: On-Demand Generation from Queue
+- [x] Backend: pipeline.generateOutlineForJob + generateArticleForJob + getJobOutline procedures
+- [x] Frontend: "Generate Outline" button on queue items that have no outline
+- [x] Frontend: "Generate Article" button on queue items that have an outline but no article
+- [x] Frontend: Outline preview dialog before committing to article generation
+- [x] Show outline sections in preview with option to proceed or cancel
+- [x] TypeScript check — 0 errors
+- [x] Tests passing (504/505, 1 pre-existing timeout)

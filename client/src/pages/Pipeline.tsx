@@ -25,6 +25,9 @@ import {
   Activity,
   ExternalLink,
   Eye,
+  ListTree,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -133,6 +136,7 @@ function QueueTab({ projectId }: { projectId: number }) {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectJobId, setRejectJobId] = useState<number | null>(null);
   const [rejectFeedback, setRejectFeedback] = useState("");
+  const [outlinePreviewJobId, setOutlinePreviewJobId] = useState<number | null>(null);
 
   const approveMutation = trpc.pipeline.approveArticle.useMutation({
     onSuccess: () => {
@@ -152,6 +156,24 @@ function QueueTab({ projectId }: { projectId: number }) {
       utils.pipeline.getJobs.invalidate();
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  const generateOutlineMutation = trpc.pipeline.generateOutlineForJob.useMutation({
+    onSuccess: (result) => {
+      toast.success("Outline generated successfully.");
+      utils.pipeline.getQueue.invalidate();
+      utils.pipeline.getJobs.invalidate();
+    },
+    onError: (err) => toast.error(`Outline generation failed: ${err.message}`),
+  });
+
+  const generateArticleMutation = trpc.pipeline.generateArticleForJob.useMutation({
+    onSuccess: (result) => {
+      toast.success("Article generated successfully — ready for review.");
+      utils.pipeline.getQueue.invalidate();
+      utils.pipeline.getJobs.invalidate();
+    },
+    onError: (err) => toast.error(`Article generation failed: ${err.message}`),
   });
 
   if (isLoading) {
@@ -179,7 +201,7 @@ function QueueTab({ projectId }: { projectId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{queue.length} article{queue.length !== 1 ? "s" : ""} awaiting review</p>
+        <p className="text-sm text-muted-foreground">{queue.length} item{queue.length !== 1 ? "s" : ""} in queue</p>
       </div>
 
       {queue.map((job: any) => (
@@ -191,6 +213,12 @@ function QueueTab({ projectId }: { projectId: number }) {
                   <StatusBadge status={job.status} />
                   {job.category && (
                     <Badge variant="secondary" className="text-xs">{job.category}</Badge>
+                  )}
+                  {job.outlineId && !job.articleId && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs gap-1">
+                      <ListTree className="w-3 h-3" />
+                      Outline Ready
+                    </Badge>
                   )}
                 </div>
                 <h4 className="font-semibold text-base mt-2 truncate">{job.title || job.filename}</h4>
@@ -211,35 +239,100 @@ function QueueTab({ projectId }: { projectId: number }) {
                   {job.processedAt && <> · Generated: {formatDate(job.processedAt)}</>}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {job.articleId && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={`/articles/${job.articleId}`}>
-                      <Eye className="w-4 h-4 mr-1.5" />
-                      Preview
-                    </a>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                {/* Generation buttons — shown when no outline/article yet */}
+                {!job.outlineId && !job.articleId && job.status === "pending_approval" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => generateOutlineMutation.mutate({ jobId: job.id, projectId })}
+                    disabled={generateOutlineMutation.isPending}
+                    className="text-blue-700 border-blue-200 hover:bg-blue-50"
+                  >
+                    {generateOutlineMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                    ) : (
+                      <ListTree className="w-4 h-4 mr-1.5" />
+                    )}
+                    Generate Outline
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  onClick={() => approveMutation.mutate({ jobId: job.id })}
-                  disabled={approveMutation.isPending}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                  Approve
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => {
-                    setRejectJobId(job.id);
-                    setRejectDialogOpen(true);
-                  }}
-                >
-                  <XCircle className="w-4 h-4 mr-1.5" />
-                  Reject
-                </Button>
+
+                {/* Outline exists but no article — show preview + generate article */}
+                {job.outlineId && !job.articleId && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setOutlinePreviewJobId(job.id)}
+                    >
+                      <Eye className="w-4 h-4 mr-1.5" />
+                      Preview Outline
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => generateArticleMutation.mutate({ jobId: job.id, projectId })}
+                      disabled={generateArticleMutation.isPending}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {generateArticleMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 mr-1.5" />
+                      )}
+                      Generate Article
+                    </Button>
+                  </div>
+                )}
+
+                {/* Article exists — show approve/reject */}
+                {job.articleId && (
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={`/articles/${job.articleId}`}>
+                        <Eye className="w-4 h-4 mr-1.5" />
+                        Preview
+                      </a>
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => approveMutation.mutate({ jobId: job.id })}
+                      disabled={approveMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setRejectJobId(job.id);
+                        setRejectDialogOpen(true);
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-1.5" />
+                      Reject
+                    </Button>
+                  </div>
+                )}
+
+                {/* No outline, no article, status is pending (just ingested, auto-gen off) */}
+                {!job.outlineId && !job.articleId && job.status === "pending" && (
+                  <Button
+                    size="sm"
+                    onClick={() => generateOutlineMutation.mutate({ jobId: job.id, projectId })}
+                    disabled={generateOutlineMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {generateOutlineMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                    ) : (
+                      <ListTree className="w-4 h-4 mr-1.5" />
+                    )}
+                    Generate Outline
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>
@@ -276,7 +369,128 @@ function QueueTab({ projectId }: { projectId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Outline Preview Dialog */}
+      {outlinePreviewJobId && (
+        <OutlinePreviewDialog
+          jobId={outlinePreviewJobId}
+          projectId={projectId}
+          onClose={() => setOutlinePreviewJobId(null)}
+          onGenerateArticle={() => {
+            generateArticleMutation.mutate({ jobId: outlinePreviewJobId, projectId });
+            setOutlinePreviewJobId(null);
+          }}
+          isGenerating={generateArticleMutation.isPending}
+        />
+      )}
     </div>
+  );
+}
+
+// ---- Outline Preview Dialog ----
+function OutlinePreviewDialog({
+  jobId,
+  projectId,
+  onClose,
+  onGenerateArticle,
+  isGenerating,
+}: {
+  jobId: number;
+  projectId: number;
+  onClose: () => void;
+  onGenerateArticle: () => void;
+  isGenerating: boolean;
+}) {
+  const { data: outline, isLoading } = trpc.pipeline.getJobOutline.useQuery({ jobId });
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ListTree className="w-5 h-5 text-indigo-600" />
+            Outline Preview
+          </DialogTitle>
+          <DialogDescription>
+            Review the generated outline before creating the full article.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !outline ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+            <p>No outline found for this job.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-semibold text-lg">{outline.title}</h3>
+              {outline.keyword && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Target keyword: <span className="font-medium text-foreground">{outline.keyword}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="border rounded-lg divide-y">
+              {(outline.sections && Array.isArray(outline.sections) ? outline.sections : []).map((section: any, idx: number) => (
+                <div key={idx} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <span className="text-xs bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                        {idx + 1}
+                      </span>
+                      {section.heading || section.title}
+                    </h4>
+                    {section.targetWordCount && (
+                      <span className="text-xs text-muted-foreground">{section.targetWordCount} words</span>
+                    )}
+                  </div>
+                  {section.points && section.points.length > 0 && (
+                    <ul className="mt-2 space-y-1 ml-8">
+                      {section.points.map((point: string, pIdx: number) => (
+                        <li key={pIdx} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <ArrowRight className="w-3 h-3 mt-1 shrink-0 text-indigo-400" />
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {(outline.sections && Array.isArray(outline.sections) && outline.sections.length > 0) && (
+              <p className="text-xs text-muted-foreground text-right">
+                {outline.sections.length} sections · ~{outline.sections.reduce((sum: number, s: any) => sum + (s.targetWordCount || 0), 0)} words target
+              </p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          {outline && (
+            <Button
+              onClick={onGenerateArticle}
+              disabled={isGenerating}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isGenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              ) : (
+                <Sparkles className="w-4 h-4 mr-1.5" />
+              )}
+              Generate Article from Outline
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -296,6 +510,24 @@ function ActivityTab({ projectId }: { projectId: number }) {
   const deleteMutation = trpc.pipeline.deleteJob.useMutation({
     onSuccess: () => {
       toast.success("Job deleted.");
+      utils.pipeline.getJobs.invalidate();
+      utils.pipeline.getQueue.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const generateOutlineMutation = trpc.pipeline.generateOutlineForJob.useMutation({
+    onSuccess: () => {
+      toast.success("Outline generated.");
+      utils.pipeline.getJobs.invalidate();
+      utils.pipeline.getQueue.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const generateArticleMutation = trpc.pipeline.generateArticleForJob.useMutation({
+    onSuccess: () => {
+      toast.success("Article generated.");
       utils.pipeline.getJobs.invalidate();
       utils.pipeline.getQueue.invalidate();
     },
@@ -359,6 +591,34 @@ function ActivityTab({ projectId }: { projectId: number }) {
                 <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(job.createdAt)}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    {/* Generate Outline button — shown when no outline exists and status allows */}
+                    {!job.outlineId && (job.status === "pending" || job.status === "pending_approval") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+                        onClick={() => generateOutlineMutation.mutate({ jobId: job.id, projectId })}
+                        disabled={generateOutlineMutation.isPending}
+                        title="Generate Outline"
+                      >
+                        <ListTree className="w-3.5 h-3.5 mr-1" />
+                        Outline
+                      </Button>
+                    )}
+                    {/* Generate Article button — shown when outline exists but no article */}
+                    {job.outlineId && !job.articleId && (job.status === "pending_approval") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50"
+                        onClick={() => generateArticleMutation.mutate({ jobId: job.id, projectId })}
+                        disabled={generateArticleMutation.isPending}
+                        title="Generate Article"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1" />
+                        Article
+                      </Button>
+                    )}
                     {(job.status === "failed" || job.status === "rejected") && (
                       <Button
                         variant="ghost"

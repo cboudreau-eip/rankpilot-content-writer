@@ -1367,3 +1367,13 @@
 - [x] Show outline sections in preview with option to proceed or cancel
 - [x] TypeScript check — 0 errors
 - [x] Tests passing (504/505, 1 pre-existing timeout)
+
+## Pipeline S3 Integration
+- [x] Add AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION)
+- [x] Validate S3 credentials with vitest
+- [x] Rewrite pipeline.runPoll to list objects from s3://marketing-manus-scraper/incoming/
+- [x] Parse each JSON file: extract topic + articles array, create pipeline job per article
+- [x] Update pipeline_settings to store bucket name + prefix instead of bucket URL
+- [x] Update frontend Settings tab to show S3 bucket/prefix fields
+- [x] TypeScript check — 0 errors
+- [x] Tests passing (506 tests, 37 files)

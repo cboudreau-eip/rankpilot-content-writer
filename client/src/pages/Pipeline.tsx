@@ -94,7 +94,7 @@ export default function Pipeline() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Content Pipeline</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Automated content generation from your JSON bucket with human approval.
+            Automated content generation from your S3 bucket with human approval.
           </p>
         </div>
       </div>
@@ -191,7 +191,7 @@ function QueueTab({ projectId }: { projectId: number }) {
           <Inbox className="w-12 h-12 text-muted-foreground mb-3" />
           <h3 className="text-lg font-semibold">Queue is Empty</h3>
           <p className="text-muted-foreground text-sm mt-1 text-center max-w-sm">
-            No articles are waiting for review. Run a poll from the Settings tab to ingest new content from your bucket.
+            No articles are waiting for review. Run a poll from the Settings tab to ingest new content from your S3 bucket.
           </p>
         </CardContent>
       </Card>
@@ -549,7 +549,7 @@ function ActivityTab({ projectId }: { projectId: number }) {
           <Activity className="w-12 h-12 text-muted-foreground mb-3" />
           <h3 className="text-lg font-semibold">No Pipeline Activity</h3>
           <p className="text-muted-foreground text-sm mt-1 text-center max-w-sm">
-            Run a poll from the Settings tab to start ingesting content from your JSON bucket.
+            Run a poll from the Settings tab to start ingesting content from your S3 bucket.
           </p>
         </CardContent>
       </Card>
@@ -689,7 +689,7 @@ function SettingsTab({ projectId }: { projectId: number }) {
 
   // Initialize form from settings
   if (settings && !initialized) {
-    setBucketUrl(settings.bucketUrl || "https://json-test.abacusai.app");
+    setBucketUrl(settings.bucketUrl || "marketing-manus-scraper");
     setEnabled(settings.enabled === 1);
     setAutoOutline(settings.autoGenerateOutline === 1);
     setAutoArticle(settings.autoGenerateArticle === 1);
@@ -733,7 +733,7 @@ function SettingsTab({ projectId }: { projectId: number }) {
             Manual Poll
           </CardTitle>
           <CardDescription>
-            Fetch new files from the JSON bucket and start the content generation pipeline.
+            Fetch new files from the S3 bucket (incoming/ prefix) and start the content generation pipeline.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -766,19 +766,19 @@ function SettingsTab({ projectId }: { projectId: number }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Pipeline Configuration</CardTitle>
-          <CardDescription>Configure the JSON bucket source and auto-generation behavior.</CardDescription>
+          <CardDescription>Configure the S3 bucket source and auto-generation behavior.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="bucketUrl">Bucket URL</Label>
+            <Label htmlFor="bucketUrl">S3 Bucket Name</Label>
             <Input
               id="bucketUrl"
               value={bucketUrl}
               onChange={(e) => setBucketUrl(e.target.value)}
-              placeholder="https://json-test.abacusai.app"
+              placeholder="marketing-manus-scraper"
             />
             <p className="text-xs text-muted-foreground">
-              The base URL of the JSON bucket API. Must expose /api/files and /api/files/:id endpoints.
+              The name of the S3 bucket to poll. Files are read from the <code className="bg-muted px-1 rounded">incoming/</code> prefix.
             </p>
           </div>
 

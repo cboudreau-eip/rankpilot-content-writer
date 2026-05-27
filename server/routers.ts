@@ -50,6 +50,7 @@ import type { EntityAnalysisResult, SemanticAnalysisResult } from "../shared/ent
 import type { ResearchFindings } from "../shared/research-types";
 import { parseGscExcel, computeNearJump } from "./gsc-parser";
 import { notifyOwner } from "./_core/notification";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 
 /**
  * Generate a timestamped S3 key for a reference doc backup.
@@ -7563,22 +7564,45 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         return deletePipelineJob(input.jobId);
       }),
 
-    /** Manually trigger a poll of the JSON bucket */
+    /** Manually trigger a poll of the S3 bucket (incoming/ prefix) */
     runPoll: publicProcedure
       .input(z.object({ projectId: z.number() }))
       .mutation(async ({ input }) => {
         const settings = await getPipelineSettingsByProject(input.projectId);
-        const bucketUrl = settings?.bucketUrl || "https://json-test.abacusai.app";
+        const bucketName = settings?.bucketUrl || "marketing-manus-scraper";
+        const prefix = "incoming/";
 
-        // Fetch file list from the bucket
-        let files: any[] = [];
+        // Initialize S3 client
+        const s3 = new S3Client({
+          region: process.env.AWS_DEFAULT_REGION || "us-east-2",
+          credentials: {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+          },
+        });
+
+        // List all objects in the incoming/ prefix
+        let s3Keys: string[] = [];
         try {
-          const resp = await fetch(`${bucketUrl}/api/files`);
-          if (!resp.ok) throw new Error(`Bucket API returned ${resp.status}`);
-          const data = await resp.json();
-          files = Array.isArray(data) ? data : (data.files || data.items || []);
+          let continuationToken: string | undefined;
+          do {
+            const listCmd = new ListObjectsV2Command({
+              Bucket: bucketName,
+              Prefix: prefix,
+              ContinuationToken: continuationToken,
+            });
+            const listResp = await s3.send(listCmd);
+            if (listResp.Contents) {
+              for (const obj of listResp.Contents) {
+                if (obj.Key && obj.Key.endsWith(".json")) {
+                  s3Keys.push(obj.Key);
+                }
+              }
+            }
+            continuationToken = listResp.IsTruncated ? listResp.NextContinuationToken : undefined;
+          } while (continuationToken);
         } catch (err: any) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to fetch from bucket: ${err.message}` });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to list S3 objects: ${err.message}` });
         }
 
         let ingested = 0;
@@ -7586,57 +7610,77 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         let errors = 0;
         const newJobIds: number[] = [];
 
-        for (const file of files) {
-          const fileId = String(file.id || file.file_id || file.filename);
-          // Skip already-processed files
+        for (const key of s3Keys) {
+          // Use the S3 key as the fileId for deduplication
+          const fileId = key;
+
+          // Check if this file was already processed
           const existing = await getPipelineJobByFileId(fileId, input.projectId);
           if (existing) {
             skipped++;
             continue;
           }
 
-          // Fetch full file content
+          // Fetch the JSON content from S3
           let fileContent: any;
           try {
-            const fileResp = await fetch(`${bucketUrl}/api/files/${file.id || file.file_id}`);
-            if (!fileResp.ok) throw new Error(`File fetch returned ${fileResp.status}`);
-            fileContent = await fileResp.json();
+            const getCmd = new GetObjectCommand({ Bucket: bucketName, Key: key });
+            const getResp = await s3.send(getCmd);
+            const bodyStr = await getResp.Body?.transformToString();
+            if (!bodyStr) throw new Error("Empty file body");
+            fileContent = JSON.parse(bodyStr);
           } catch (err: any) {
-            console.error(`[Pipeline] Failed to fetch file ${fileId}:`, err.message);
+            console.error(`[Pipeline] Failed to read S3 object ${key}:`, err.message);
             errors++;
             continue;
           }
 
-          // Extract required fields
-          const title = fileContent.title || file.title || file.filename;
-          const keyword = fileContent.keyword || fileContent.keywords?.[0] || fileContent.primary_keyword || title;
-          if (!title || !keyword) {
-            console.warn(`[Pipeline] Skipping file ${fileId}: missing title or keyword`);
+          // Each file contains a topic with multiple articles
+          const topic = fileContent.topic || "Unknown Topic";
+          const articlesArr = fileContent.articles || [];
+
+          if (articlesArr.length === 0) {
+            console.warn(`[Pipeline] Skipping ${key}: no articles in file`);
             skipped++;
             continue;
           }
 
-          // Create pipeline job
-          try {
-            const newJob = await createPipelineJob({
-              fileId,
-              filename: file.filename || file.name || fileId,
-              status: "pending",
-              sourceUrl: fileContent.source_url || fileContent.sourceUrl || null,
-              title,
-              keyword,
-              category: fileContent.category || null,
-              snippet: fileContent.snippet || fileContent.meta_description || null,
-              projectId: input.projectId,
-              userId: 1,
-            });
-            if (newJob) {
-              newJobIds.push(newJob.id);
-              ingested++;
+          // Create a pipeline job for each article in the file
+          for (let i = 0; i < articlesArr.length; i++) {
+            const article = articlesArr[i];
+            const articleFileId = `${key}#article-${i}`;
+
+            // Skip if this specific article was already ingested
+            const existingArticle = await getPipelineJobByFileId(articleFileId, input.projectId);
+            if (existingArticle) {
+              skipped++;
+              continue;
             }
-          } catch (err: any) {
-            console.error(`[Pipeline] Failed to create job for file ${fileId}:`, err.message);
-            errors++;
+
+            const title = article.title || topic;
+            const keyword = topic;
+
+            try {
+              const newJob = await createPipelineJob({
+                fileId: articleFileId,
+                filename: key.split("/").pop() || key,
+                status: "pending",
+                sourceUrl: article.url || null,
+                title,
+                keyword,
+                category: article.category || null,
+                snippet: article.snippet || null,
+                projectId: input.projectId,
+                userId: 1,
+              });
+              if (newJob) {
+                newJobIds.push(newJob.id);
+                ingested++;
+              }
+            } catch (err: any) {
+              console.error(`[Pipeline] Failed to create job for ${articleFileId}:`, err.message);
+              errors++;
+            }
           }
         }
 
@@ -7652,7 +7696,7 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
           }
         }
 
-        return { ingested, skipped, errors, total: files.length, newJobIds };
+        return { ingested, skipped, errors, total: s3Keys.length, newJobIds };
       }),
 
     /** On-demand: generate outline for a specific pipeline job */

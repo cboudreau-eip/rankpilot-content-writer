@@ -1,0 +1,1 @@
+ALTER TABLE `pipeline_jobs` MODIFY COLUMN `pipelineStatus` enum('pending','generating_outline','generating_article','pending_approval','approved','sent_to_scheduler','rejected','failed') NOT NULL DEFAULT 'pending';

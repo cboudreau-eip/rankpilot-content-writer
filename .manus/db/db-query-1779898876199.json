@@ -1,0 +1,23 @@
+{
+  "query": "SELECT * FROM pipeline_settings;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT * FROM pipeline_settings;",
+  "rows": [
+    {
+      "id": "1",
+      "bucketUrl": "marketing-manus-scraper",
+      "enabled": "1",
+      "autoGenerateOutline": "0",
+      "autoGenerateArticle": "0",
+      "defaultWordCount": "1600",
+      "defaultInstructions": "NULL",
+      "projectId": "1",
+      "userId": "1",
+      "createdAt": "2026-05-27 13:59:26",
+      "updatedAt": "2026-05-27 16:21:10"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbucketUrl\tenabled\tautoGenerateOutline\tautoGenerateArticle\tdefaultWordCount\tdefaultInstructions\tprojectId\tuserId\tcreatedAt\tupdatedAt\n1\tmarketing-manus-scraper\t1\t0\t0\t1600\tNULL\t1\t1\t2026-05-27 13:59:26\t2026-05-27 16:21:10\n",
+  "stderr": "",
+  "execution_time_ms": 262
+}

@@ -7511,20 +7511,73 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         return getPipelineQueue(input.projectId);
       }),
 
-    /** Approve an article — change status to approved */
-    approveArticle: publicProcedure
-      .input(z.object({ jobId: z.number() }))
+    /** Send to Scheduler — adds the keyword to a Scheduled Job's keyword queue */
+    sendToScheduler: publicProcedure
+      .input(z.object({ jobId: z.number(), scheduledJobId: z.number() }))
       .mutation(async ({ input }) => {
         const job = await getPipelineJobById(input.jobId);
         if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
-        if (job.status !== "pending_approval") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Job is not in pending_approval status" });
+        if (job.status !== "pending" && job.status !== "pending_approval") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Job must be in pending or pending_approval status" });
         }
-        // Mark the article as published if it exists
-        if (job.articleId) {
-          await updateArticle(job.articleId, { status: "published" });
+
+        // Verify the scheduled job exists
+        const scheduledJob = await getScheduledJobById(input.scheduledJobId);
+        if (!scheduledJob) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Scheduled job not found" });
         }
-        return updatePipelineJob(input.jobId, { status: "approved", processedAt: new Date() });
+
+        // Add the keyword to the Scheduler's keyword queue
+        const keyword = job.keyword || job.title || "Unknown";
+        await addKeywordToQueue({
+          keyword,
+          secondaryKeywords: null,
+          sortOrder: 0,
+          status: "pending",
+          jobId: input.scheduledJobId,
+        });
+
+        // Mark pipeline job as sent to scheduler
+        return updatePipelineJob(input.jobId, { status: "sent_to_scheduler", processedAt: new Date() });
+      }),
+
+    /** Bulk send multiple pipeline jobs to a Scheduled Job's keyword queue */
+    sendBulkToScheduler: publicProcedure
+      .input(z.object({ jobIds: z.array(z.number()), scheduledJobId: z.number() }))
+      .mutation(async ({ input }) => {
+        const scheduledJob = await getScheduledJobById(input.scheduledJobId);
+        if (!scheduledJob) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Scheduled job not found" });
+        }
+
+        let sent = 0;
+        let skipped = 0;
+        for (const jobId of input.jobIds) {
+          const job = await getPipelineJobById(jobId);
+          if (!job || (job.status !== "pending" && job.status !== "pending_approval")) {
+            skipped++;
+            continue;
+          }
+          const keyword = job.keyword || job.title || "Unknown";
+          await addKeywordToQueue({
+            keyword,
+            secondaryKeywords: null,
+            sortOrder: 0,
+            status: "pending",
+            jobId: input.scheduledJobId,
+          });
+          await updatePipelineJob(jobId, { status: "sent_to_scheduler", processedAt: new Date() });
+          sent++;
+        }
+
+        return { sent, skipped, total: input.jobIds.length };
+      }),
+
+    /** Get scheduled jobs for the project (so frontend can show a picker) */
+    getScheduledJobs: publicProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return getScheduledJobsByProject(input.projectId);
       }),
 
     /** Reject an article with optional feedback */

@@ -1377,3 +1377,13 @@
 - [x] Update frontend Settings tab to show S3 bucket/prefix fields
 - [x] TypeScript check — 0 errors
 - [x] Tests passing (506 tests, 37 files)
+
+## Pipeline → Scheduler Integration (Option A)
+- [x] Understand keyword_queue table structure and how Scheduler pulls from it
+- [x] Update pipeline.approveJob → sendToScheduler (adds keyword to Scheduler's keyword_queue)
+- [x] Allow user to select which Scheduled Job to send approved items to
+- [x] Remove redundant "Generate Outline" and "Generate Article" buttons from Pipeline
+- [x] Update frontend Queue tab: "Approve" becomes "Send to Scheduler" with job picker
+- [x] Update Activity tab to reflect new statuses (sent_to_scheduler)
+- [x] TypeScript check — 0 errors
+- [x] Tests passing (504/506, 2 pre-existing timeouts)

@@ -676,13 +676,14 @@ export const pipelineJobs = mysqlTable("pipeline_jobs", {
   fileId: varchar("fileId", { length: 255 }).notNull(),
   /** Original filename from the bucket */
   filename: varchar("filename", { length: 512 }).notNull(),
-  /** Pipeline status: pending, generating_outline, generating_article, pending_approval, approved, rejected, failed */
+  /** Pipeline status: pending, generating_outline, generating_article, pending_approval, approved, sent_to_scheduler, rejected, failed */
   status: mysqlEnum("pipelineStatus", [
     "pending",
     "generating_outline",
     "generating_article",
     "pending_approval",
     "approved",
+    "sent_to_scheduler",
     "rejected",
     "failed",
   ]).default("pending").notNull(),

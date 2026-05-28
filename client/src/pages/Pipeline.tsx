@@ -142,7 +142,9 @@ export default function Pipeline() {
 function BriefsTab({ projectId }: { projectId: number }) {
   const utils = trpc.useUtils();
   const { data: briefs, isLoading } = trpc.pipeline.getBriefs.useQuery({ projectId, status: "pending_review" });
+  const { data: approvedBriefs, isLoading: approvedLoading } = trpc.pipeline.getBriefs.useQuery({ projectId, status: "approved" });
   const { data: scheduledJobs } = trpc.pipeline.getScheduledJobs.useQuery({ projectId });
+  const [showApproved, setShowApproved] = useState(true);
   const [editingBriefId, setEditingBriefId] = useState<number | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [approveBriefId, setApproveBriefId] = useState<number | null>(null);
@@ -208,7 +210,7 @@ function BriefsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && approvedLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -216,51 +218,41 @@ function BriefsTab({ projectId }: { projectId: number }) {
     );
   }
 
-  if (!briefs || briefs.length === 0) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <BookOpen className="w-12 h-12 text-muted-foreground mb-3" />
-          <h3 className="text-lg font-semibold">No Briefs to Review</h3>
-          <p className="text-muted-foreground text-sm mt-1 text-center max-w-sm">
-            Run a poll from the Settings tab to ingest content from your S3 bucket. The AI will generate briefs for each article.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   const queueModeJobs = scheduledJobs?.filter((j: any) => j.keywordSource === "queue") || [];
+  const hasPendingBriefs = briefs && briefs.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-muted-foreground">{briefs.length} brief{briefs.length !== 1 ? "s" : ""} awaiting review</p>
-          {selectedBriefs.size > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {selectedBriefs.size} selected
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={selectAll}>
-            {selectedBriefs.size === briefs.length ? "Deselect All" : "Select All"}
-          </Button>
-          {selectedBriefs.size > 0 && (
-            <Button
-              size="sm"
-              onClick={() => setBulkApproveDialogOpen(true)}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              <CheckCircle2 className="w-4 h-4 mr-1.5" />
-              Approve {selectedBriefs.size} Briefs
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* ---- Pending Briefs Section ---- */}
+      {hasPendingBriefs ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">{briefs!.length} brief{briefs!.length !== 1 ? "s" : ""} awaiting review</p>
+              {selectedBriefs.size > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {selectedBriefs.size} selected
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll}>
+                {selectedBriefs.size === briefs!.length ? "Deselect All" : "Select All"}
+              </Button>
+              {selectedBriefs.size > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => setBulkApproveDialogOpen(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                  Approve {selectedBriefs.size} Briefs
+                </Button>
+              )}
+            </div>
+          </div>
 
-      {briefs.map((brief: any) => (
+          {briefs!.map((brief: any) => (
         <BriefCard
           key={brief.id}
           brief={brief}
@@ -276,7 +268,97 @@ function BriefsTab({ projectId }: { projectId: number }) {
           onRegenerate={() => regenerateMutation.mutate({ jobId: brief.pipelineJobId, projectId })}
           projectId={projectId}
         />
-      ))}
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <BookOpen className="w-12 h-12 text-muted-foreground mb-3" />
+            <h3 className="text-lg font-semibold">No Briefs to Review</h3>
+            <p className="text-muted-foreground text-sm mt-1 text-center max-w-sm">
+              Run a poll from the Settings tab to ingest content from your S3 bucket. The AI will generate briefs for each article.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ---- Approved Briefs Section ---- */}
+      {approvedBriefs && approvedBriefs.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <h3 className="text-sm font-semibold">Approved Briefs</h3>
+              <Badge variant="secondary" className="text-xs">{approvedBriefs.length}</Badge>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setShowApproved(!showApproved)}>
+              {showApproved ? "Hide" : "Show"}
+            </Button>
+          </div>
+
+          {showApproved && (
+            <div className="space-y-3">
+              {approvedBriefs.map((brief: any) => (
+                <Card key={brief.id} className="border-green-200 bg-green-50/50">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-sm">{brief.title}</h4>
+                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Approved
+                          </Badge>
+                          {brief.editedFields && brief.editedFields.length > 0 && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Pencil className="w-3 h-3" />
+                              Edited
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Hash className="w-3 h-3" />
+                            {brief.primaryKeyword}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Link2 className="w-3 h-3" />
+                            {brief.suggestedLinkCount} links
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="w-3 h-3" />
+                            {brief.suggestedWordCount?.toLocaleString()} words
+                          </span>
+                          {brief.approvedAt && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              Approved {formatDate(brief.approvedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
+                        <Send className="w-3 h-3" />
+                        Sent to Scheduler
+                      </Badge>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {(brief.secondaryKeywords || []).map((kw: string) => (
+                        <Badge key={kw} variant="secondary" className="text-xs">{kw}</Badge>
+                      ))}
+                    </div>
+
+                    {brief.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{brief.description}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Approve Dialog (single) */}
       <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>

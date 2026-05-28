@@ -1412,3 +1412,4 @@
 
 ## Bug Fixes
 - [x] Fix: After editing and saving a brief, it stays in edit mode instead of returning to the normal card view with Approve/Edit/Regenerate/Reject buttons
+- [x] Add "Approved" section to the Briefs tab showing history of approved briefs with details and which Scheduler job they were sent to

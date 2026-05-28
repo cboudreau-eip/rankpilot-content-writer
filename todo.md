@@ -1400,3 +1400,5 @@
 - [x] Update Scheduler integration: merge Brief's secondary keywords into Scheduler's keyword pool during generation
 - [x] TypeScript check — 0 errors
 - [x] Tests passing (506 tests, 37 files)
+
+- [x] Activity tab: Add checkboxes with select all and bulk delete for pipeline jobs

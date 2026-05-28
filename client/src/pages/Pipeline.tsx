@@ -693,6 +693,7 @@ function BriefCard({
 function ActivityTab({ projectId }: { projectId: number }) {
   const utils = trpc.useUtils();
   const { data: jobs, isLoading } = trpc.pipeline.getJobs.useQuery({ projectId });
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const retryMutation = trpc.pipeline.retryJob.useMutation({
     onSuccess: () => {
@@ -710,6 +711,42 @@ function ActivityTab({ projectId }: { projectId: number }) {
     },
     onError: (err: any) => toast.error(err.message),
   });
+
+  const bulkDeleteMutation = trpc.pipeline.bulkDeleteJobs.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`${data.deleted} job${data.deleted !== 1 ? "s" : ""} deleted.`);
+      setSelectedIds(new Set());
+      utils.pipeline.getJobs.invalidate();
+      utils.pipeline.getBriefs.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const allSelected = jobs && jobs.length > 0 && selectedIds.size === jobs.length;
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else if (jobs) {
+      setSelectedIds(new Set(jobs.map((j: any) => j.id)));
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    if (confirm(`Delete ${selectedIds.size} selected job${selectedIds.size !== 1 ? "s" : ""}?`)) {
+      bulkDeleteMutation.mutate({ jobIds: Array.from(selectedIds) });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -735,12 +772,38 @@ function ActivityTab({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">{jobs.length} total pipeline job{jobs.length !== 1 ? "s" : ""}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{jobs.length} total pipeline job{jobs.length !== 1 ? "s" : ""}</p>
+        {someSelected && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleteMutation.isPending}
+          >
+            {bulkDeleteMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-1" />
+            ) : (
+              <Trash2 className="w-4 h-4 mr-1" />
+            )}
+            Delete {selectedIds.size} Selected
+          </Button>
+        )}
+      </div>
 
       <div className="border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
+              <th className="px-4 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                  onChange={toggleSelectAll}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+              </th>
               <th className="text-left px-4 py-3 font-medium">Title</th>
               <th className="text-left px-4 py-3 font-medium">Keyword</th>
               <th className="text-left px-4 py-3 font-medium">Status</th>
@@ -750,7 +813,15 @@ function ActivityTab({ projectId }: { projectId: number }) {
           </thead>
           <tbody className="divide-y">
             {jobs.map((job: any) => (
-              <tr key={job.id} className="hover:bg-muted/30 transition-colors">
+              <tr key={job.id} className={`hover:bg-muted/30 transition-colors ${selectedIds.has(job.id) ? "bg-indigo-50/50" : ""}`}>
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(job.id)}
+                    onChange={() => toggleSelect(job.id)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate max-w-[200px]">{job.title || job.filename}</span>

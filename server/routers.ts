@@ -7618,6 +7618,17 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         return deletePipelineJob(input.jobId);
       }),
 
+    bulkDeleteJobs: publicProcedure
+      .input(z.object({ jobIds: z.array(z.number()) }))
+      .mutation(async ({ input }) => {
+        let deleted = 0;
+        for (const jobId of input.jobIds) {
+          await deletePipelineJob(jobId);
+          deleted++;
+        }
+        return { deleted };
+      }),
+
     /** Manually trigger a poll of the S3 bucket (incoming/ prefix) */
     runPoll: publicProcedure
       .input(z.object({ projectId: z.number() }))

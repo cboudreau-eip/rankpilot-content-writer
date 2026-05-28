@@ -1387,3 +1387,16 @@
 - [x] Update Activity tab to reflect new statuses (sent_to_scheduler)
 - [x] TypeScript check — 0 errors
 - [x] Tests passing (504/506, 2 pre-existing timeouts)
+
+## Pipeline Briefs Rebuild (S3 → AI Brief → Review → Scheduler)
+- [x] Add pipeline_briefs table to schema (id, pipelineJobId, title, primaryKeyword, secondaryKeywords JSON, description, suggestedLinkCount, suggestedWordCount, status, approvedAt, editedFields JSON, createdAt)
+- [x] Push migration for pipeline_briefs table
+- [x] Add db helpers: createBrief, getBriefsByProject, getBriefById, updateBrief, approveBrief, rejectBrief
+- [x] Update ingest logic: after S3 pull, call AI to generate a Brief from each article's JSON data
+- [x] Add tRPC procedures: pipeline.getBriefs, pipeline.getBrief, pipeline.updateBrief, pipeline.approveBrief, pipeline.rejectBrief
+- [x] Build frontend Brief Review page with editable cards (title, primaryKeyword, secondaryKeywords, description, linkCount, wordCount)
+- [x] Add approve/reject actions on each Brief card
+- [x] Add bulk approve option
+- [x] Update Scheduler integration: merge Brief's secondary keywords into Scheduler's keyword pool during generation
+- [x] TypeScript check — 0 errors
+- [x] Tests passing (506 tests, 37 files)

@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, like, inArray, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea, pipelineJobs, InsertPipelineJob, pipelineSettings, InsertPipelineSettings } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea, pipelineJobs, InsertPipelineJob, pipelineSettings, InsertPipelineSettings, pipelineBriefs, InsertPipelineBrief } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1062,4 +1062,63 @@ export async function upsertPipelineSettings(data: InsertPipelineSettings) {
     const result = await db.insert(pipelineSettings).values(data);
     return getPipelineSettingsByProject(data.projectId);
   }
+}
+
+
+// ---- Pipeline Brief Helpers ----
+
+export async function createPipelineBrief(data: InsertPipelineBrief) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(pipelineBriefs).values(data);
+  return getBriefById(result[0].insertId);
+}
+
+export async function getBriefById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(pipelineBriefs).where(eq(pipelineBriefs.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getBriefsByProject(projectId: number, status?: "pending_review" | "approved" | "rejected") {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [eq(pipelineBriefs.projectId, projectId)];
+  if (status) {
+    conditions.push(eq(pipelineBriefs.status, status));
+  }
+  return db.select().from(pipelineBriefs)
+    .where(and(...conditions))
+    .orderBy(desc(pipelineBriefs.createdAt));
+}
+
+export async function getBriefByJobId(pipelineJobId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(pipelineBriefs)
+    .where(eq(pipelineBriefs.pipelineJobId, pipelineJobId))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateBrief(id: number, data: Partial<Pick<InsertPipelineBrief, "title" | "primaryKeyword" | "secondaryKeywords" | "description" | "suggestedLinkCount" | "suggestedWordCount" | "editedFields">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(pipelineBriefs).set(data).where(eq(pipelineBriefs.id, id));
+  return getBriefById(id);
+}
+
+export async function approveBrief(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(pipelineBriefs).set({ status: "approved", approvedAt: new Date() }).where(eq(pipelineBriefs.id, id));
+  return getBriefById(id);
+}
+
+export async function rejectBrief(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(pipelineBriefs).set({ status: "rejected" }).where(eq(pipelineBriefs.id, id));
+  return getBriefById(id);
 }

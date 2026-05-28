@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, pipelineTitle, pipelineKeyword, pipelineStatus, createdAt FROM pipeline_jobs ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, pipelineTitle, pipelineKeyword, pipelineStatus, createdAt FROM pipeline_jobs ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "150002",
+      "pipelineTitle": "The difference between Medicare HMO and PPO plans",
+      "pipelineKeyword": "general",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-28 11:46:59"
+    },
+    {
+      "id": "150001",
+      "pipelineTitle": "Medicare Preventative Services: What's Covered and How to Use ...",
+      "pipelineKeyword": "general",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-28 11:46:58"
+    },
+    {
+      "id": "120009",
+      "pipelineTitle": "A new Medicare option for weight loss drugs is coming: Here's what to know",
+      "pipelineKeyword": "part_d",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:28:13"
+    },
+    {
+      "id": "120008",
+      "pipelineTitle": "Network Shakeups Hit Medicare Advantage, Forcing Retirees to Pay Up or Find New Care",
+      "pipelineKeyword": "medicare_advantage",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:28:13"
+    },
+    {
+      "id": "120007",
+      "pipelineTitle": "S3 Connection Test",
+      "pipelineKeyword": "test-connection",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:28:12"
+    },
+    {
+      "id": "120004",
+      "pipelineTitle": "Fraud Alert: Phone Scammers Targeting Medicare Beneficiaries",
+      "pipelineKeyword": "enrollment",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:25:55"
+    },
+    {
+      "id": "120006",
+      "pipelineTitle": "8 Changes Shaping Your Medicare Coverage in 2026 - AARP",
+      "pipelineKeyword": "medigap",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:25:55"
+    },
+    {
+      "id": "120005",
+      "pipelineTitle": "Part D premiums are going up, while choices are going down",
+      "pipelineKeyword": "part_d",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:25:55"
+    },
+    {
+      "id": "120003",
+      "pipelineTitle": "Does Medicare Have a Copay for Doctor Visits?",
+      "pipelineKeyword": "general",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:25:54"
+    },
+    {
+      "id": "120002",
+      "pipelineTitle": "Medicare Advantage Eligibility Requirements",
+      "pipelineKeyword": "medicare_advantage",
+      "pipelineStatus": "pending",
+      "createdAt": "2026-05-27 20:25:54"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tpipelineTitle\tpipelineKeyword\tpipelineStatus\tcreatedAt\n150002\tThe difference between Medicare HMO and PPO plans\tgeneral\tpending\t2026-05-28 11:46:59\n150001\tMedicare Preventative Services: What's Covered and How to Use ...\tgeneral\tpending\t2026-05-28 11:46:58\n120009\tA new Medicare option for weight loss drugs is coming: Here's what to know\tpart_d\tpending\t2026-05-27 20:28:13\n120008\tNetwork Shakeups Hit Medicare Advantage, Forcing Retirees to Pay Up or Find New Care\tmedicare_advantage\tpending\t2026-05-27 20:28:13\n120007\tS3 Connection Test\ttest-connection\tpending\t2026-05-27 20:28:12\n120004\tFraud Alert: Phone Scammers Targeting Medicare Beneficiaries\tenrollment\tpending\t2026-05-27 20:25:55\n120006\t8 Changes Shaping Your Medicare Coverage in 2026 - AARP\tmedigap\tpending\t2026-05-27 20:25:55\n120005\tPart D premiums are going up, while choices are going down\tpart_d\tpending\t2026-05-27 20:25:55\n120003\tDoes Medicare Have a Copay for Doctor Visits?\tgeneral\tpending\t2026-05-27 20:25:54\n120002\tMedicare Advantage Eligibility Requirements\tmedicare_advantage\tpending\t2026-05-27 20:25:54\n",
+  "stderr": "",
+  "execution_time_ms": 276
+}

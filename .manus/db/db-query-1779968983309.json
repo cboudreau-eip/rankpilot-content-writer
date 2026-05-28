@@ -1,0 +1,14 @@
+{
+  "query": "SELECT pipelineStatus, COUNT(*) as cnt FROM pipeline_jobs GROUP BY pipelineStatus;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT pipelineStatus, COUNT(*) as cnt FROM pipeline_jobs GROUP BY pipelineStatus;",
+  "rows": [
+    {
+      "pipelineStatus": "pending_approval",
+      "cnt": "12"
+    }
+  ],
+  "messages": [],
+  "stdout": "pipelineStatus\tcnt\npending_approval\t12\n",
+  "stderr": "",
+  "execution_time_ms": 306
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveProject } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,16 @@ import {
   Activity,
   ExternalLink,
   Eye,
-  ListTree,
   Sparkles,
-  ArrowRight,
   Send,
   Calendar,
+  Pencil,
+  Hash,
+  Link2,
+  BookOpen,
+  Target,
+  Tags,
+  RotateCcw,
 } from "lucide-react";
 import {
   Dialog,
@@ -44,9 +49,9 @@ import {
 type PipelineStatus = "pending" | "generating_outline" | "generating_article" | "pending_approval" | "approved" | "sent_to_scheduler" | "rejected" | "failed";
 
 const statusConfig: Record<PipelineStatus, { label: string; color: string; icon: React.ReactNode }> = {
-  pending: { label: "Pending", color: "bg-slate-100 text-slate-700 border-slate-200", icon: <Clock className="w-3.5 h-3.5" /> },
-  generating_outline: { label: "Generating Outline", color: "bg-blue-100 text-blue-700 border-blue-200", icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
-  generating_article: { label: "Generating Article", color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
+  pending: { label: "Processing", color: "bg-slate-100 text-slate-700 border-slate-200", icon: <Clock className="w-3.5 h-3.5" /> },
+  generating_outline: { label: "Generating Brief", color: "bg-blue-100 text-blue-700 border-blue-200", icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
+  generating_article: { label: "Generating", color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
   pending_approval: { label: "Awaiting Review", color: "bg-amber-100 text-amber-700 border-amber-200", icon: <Eye className="w-3.5 h-3.5" /> },
   approved: { label: "Approved", color: "bg-green-100 text-green-700 border-green-200", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   sent_to_scheduler: { label: "Sent to Scheduler", color: "bg-purple-100 text-purple-700 border-purple-200", icon: <Calendar className="w-3.5 h-3.5" /> },
@@ -78,7 +83,7 @@ function formatDate(date: string | Date | null | undefined) {
 
 export default function Pipeline() {
   const { activeProject } = useActiveProject();
-  const [activeTab, setActiveTab] = useState("queue");
+  const [activeTab, setActiveTab] = useState("briefs");
 
   if (!activeProject) {
     return (
@@ -98,16 +103,16 @@ export default function Pipeline() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Content Pipeline</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Ingest content ideas from S3, review them, and send approved topics to the Content Scheduler.
+            Ingest content ideas from S3, review AI-generated briefs, and send approved topics to the Content Scheduler.
           </p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3 max-w-md">
-          <TabsTrigger value="queue" className="gap-2">
-            <Inbox className="w-4 h-4" />
-            Queue
+          <TabsTrigger value="briefs" className="gap-2">
+            <BookOpen className="w-4 h-4" />
+            Briefs
           </TabsTrigger>
           <TabsTrigger value="activity" className="gap-2">
             <Activity className="w-4 h-4" />
@@ -119,8 +124,8 @@ export default function Pipeline() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="queue" className="mt-6">
-          <QueueTab projectId={activeProject.id} />
+        <TabsContent value="briefs" className="mt-6">
+          <BriefsTab projectId={activeProject.id} />
         </TabsContent>
         <TabsContent value="activity" className="mt-6">
           <ActivityTab projectId={activeProject.id} />
@@ -133,68 +138,73 @@ export default function Pipeline() {
   );
 }
 
-// ---- Queue Tab ----
-function QueueTab({ projectId }: { projectId: number }) {
+// ---- Briefs Tab (Main Review Interface) ----
+function BriefsTab({ projectId }: { projectId: number }) {
   const utils = trpc.useUtils();
-  const { data: queue, isLoading } = trpc.pipeline.getQueue.useQuery({ projectId });
+  const { data: briefs, isLoading } = trpc.pipeline.getBriefs.useQuery({ projectId, status: "pending_review" });
   const { data: scheduledJobs } = trpc.pipeline.getScheduledJobs.useQuery({ projectId });
+  const [editingBriefId, setEditingBriefId] = useState<number | null>(null);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [approveBriefId, setApproveBriefId] = useState<number | null>(null);
+  const [bulkApproveDialogOpen, setBulkApproveDialogOpen] = useState(false);
+  const [selectedBriefs, setSelectedBriefs] = useState<Set<number>>(new Set());
   const [selectedScheduledJobId, setSelectedScheduledJobId] = useState<string>("");
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [rejectJobId, setRejectJobId] = useState<number | null>(null);
-  const [rejectFeedback, setRejectFeedback] = useState("");
-  const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [sendJobId, setSendJobId] = useState<number | null>(null);
-  const [bulkSendDialogOpen, setBulkSendDialogOpen] = useState(false);
-  const [selectedJobs, setSelectedJobs] = useState<Set<number>>(new Set());
 
-  const sendToSchedulerMutation = trpc.pipeline.sendToScheduler.useMutation({
+  const approveMutation = trpc.pipeline.approveBrief.useMutation({
     onSuccess: () => {
-      toast.success("Topic sent to Content Scheduler queue.");
-      setSendDialogOpen(false);
-      setSendJobId(null);
-      utils.pipeline.getQueue.invalidate();
+      toast.success("Brief approved and sent to Scheduler queue.");
+      setApproveDialogOpen(false);
+      setApproveBriefId(null);
+      utils.pipeline.getBriefs.invalidate();
       utils.pipeline.getJobs.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
-  const sendBulkMutation = trpc.pipeline.sendBulkToScheduler.useMutation({
+  const bulkApproveMutation = trpc.pipeline.bulkApproveBriefs.useMutation({
     onSuccess: (result) => {
-      toast.success(`${result.sent} topic${result.sent !== 1 ? "s" : ""} sent to Scheduler. ${result.skipped > 0 ? `${result.skipped} skipped.` : ""}`);
-      setBulkSendDialogOpen(false);
-      setSelectedJobs(new Set());
-      utils.pipeline.getQueue.invalidate();
+      toast.success(`${result.approved} brief${result.approved !== 1 ? "s" : ""} approved. ${result.failed > 0 ? `${result.failed} failed.` : ""}`);
+      setBulkApproveDialogOpen(false);
+      setSelectedBriefs(new Set());
+      utils.pipeline.getBriefs.invalidate();
       utils.pipeline.getJobs.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
-  const rejectMutation = trpc.pipeline.rejectArticle.useMutation({
+  const rejectMutation = trpc.pipeline.rejectBrief.useMutation({
     onSuccess: () => {
-      toast.success("Item rejected.");
-      setRejectDialogOpen(false);
-      setRejectFeedback("");
-      utils.pipeline.getQueue.invalidate();
+      toast.success("Brief rejected.");
+      utils.pipeline.getBriefs.invalidate();
       utils.pipeline.getJobs.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
-  const toggleJobSelection = (jobId: number) => {
-    setSelectedJobs(prev => {
+  const regenerateMutation = trpc.pipeline.regenerateBrief.useMutation({
+    onSuccess: () => {
+      toast.success("Brief is being regenerated...");
+      utils.pipeline.getBriefs.invalidate();
+      utils.pipeline.getJobs.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const toggleBriefSelection = (briefId: number) => {
+    setSelectedBriefs(prev => {
       const next = new Set(prev);
-      if (next.has(jobId)) next.delete(jobId);
-      else next.add(jobId);
+      if (next.has(briefId)) next.delete(briefId);
+      else next.add(briefId);
       return next;
     });
   };
 
   const selectAll = () => {
-    if (!queue) return;
-    if (selectedJobs.size === queue.length) {
-      setSelectedJobs(new Set());
+    if (!briefs) return;
+    if (selectedBriefs.size === briefs.length) {
+      setSelectedBriefs(new Set());
     } else {
-      setSelectedJobs(new Set(queue.map((j: any) => j.id)));
+      setSelectedBriefs(new Set(briefs.map((b: any) => b.id)));
     }
   };
 
@@ -206,14 +216,14 @@ function QueueTab({ projectId }: { projectId: number }) {
     );
   }
 
-  if (!queue || queue.length === 0) {
+  if (!briefs || briefs.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <Inbox className="w-12 h-12 text-muted-foreground mb-3" />
-          <h3 className="text-lg font-semibold">Queue is Empty</h3>
+          <BookOpen className="w-12 h-12 text-muted-foreground mb-3" />
+          <h3 className="text-lg font-semibold">No Briefs to Review</h3>
           <p className="text-muted-foreground text-sm mt-1 text-center max-w-sm">
-            No items are waiting for review. Run a poll from the Settings tab to ingest new content from your S3 bucket.
+            Run a poll from the Settings tab to ingest content from your S3 bucket. The AI will generate briefs for each article.
           </p>
         </CardContent>
       </Card>
@@ -226,123 +236,71 @@ function QueueTab({ projectId }: { projectId: number }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-sm text-muted-foreground">{queue.length} item{queue.length !== 1 ? "s" : ""} in queue</p>
-          {selectedJobs.size > 0 && (
+          <p className="text-sm text-muted-foreground">{briefs.length} brief{briefs.length !== 1 ? "s" : ""} awaiting review</p>
+          {selectedBriefs.size > 0 && (
             <Badge variant="secondary" className="text-xs">
-              {selectedJobs.size} selected
+              {selectedBriefs.size} selected
             </Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={selectAll}>
-            {selectedJobs.size === queue.length ? "Deselect All" : "Select All"}
+            {selectedBriefs.size === briefs.length ? "Deselect All" : "Select All"}
           </Button>
-          {selectedJobs.size > 0 && (
+          {selectedBriefs.size > 0 && (
             <Button
               size="sm"
-              onClick={() => setBulkSendDialogOpen(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => setBulkApproveDialogOpen(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
-              <Send className="w-4 h-4 mr-1.5" />
-              Send {selectedJobs.size} to Scheduler
+              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+              Approve {selectedBriefs.size} Briefs
             </Button>
           )}
         </div>
       </div>
 
-      {queue.map((job: any) => (
-        <Card key={job.id} className={`hover:shadow-md transition-shadow ${selectedJobs.has(job.id) ? "ring-2 ring-purple-300 border-purple-200" : ""}`}>
-          <CardContent className="p-5">
-            <div className="flex items-start gap-4">
-              {/* Checkbox */}
-              <div className="pt-1">
-                <input
-                  type="checkbox"
-                  checked={selectedJobs.has(job.id)}
-                  onChange={() => toggleJobSelection(job.id)}
-                  className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <StatusBadge status={job.status} />
-                  {job.category && (
-                    <Badge variant="secondary" className="text-xs">{job.category}</Badge>
-                  )}
-                </div>
-                <h4 className="font-semibold text-base mt-2 truncate">{job.title || job.filename}</h4>
-                <div className="flex items-center gap-4 mt-1.5 text-sm text-muted-foreground">
-                  <span>Keyword: <span className="font-medium text-foreground">{job.keyword}</span></span>
-                  {job.sourceUrl && (
-                    <a href={job.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground transition-colors">
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Source
-                    </a>
-                  )}
-                </div>
-                {job.snippet && (
-                  <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.snippet}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-2">
-                  Ingested: {formatDate(job.createdAt)}
-                </p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSendJobId(job.id);
-                    setSendDialogOpen(true);
-                  }}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  <Send className="w-4 h-4 mr-1.5" />
-                  Send to Scheduler
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => {
-                    setRejectJobId(job.id);
-                    setRejectDialogOpen(true);
-                  }}
-                >
-                  <XCircle className="w-4 h-4 mr-1.5" />
-                  Reject
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {briefs.map((brief: any) => (
+        <BriefCard
+          key={brief.id}
+          brief={brief}
+          isSelected={selectedBriefs.has(brief.id)}
+          isEditing={editingBriefId === brief.id}
+          onToggleSelect={() => toggleBriefSelection(brief.id)}
+          onEdit={() => setEditingBriefId(editingBriefId === brief.id ? null : brief.id)}
+          onApprove={() => {
+            setApproveBriefId(brief.id);
+            setApproveDialogOpen(true);
+          }}
+          onReject={() => rejectMutation.mutate({ briefId: brief.id })}
+          onRegenerate={() => regenerateMutation.mutate({ jobId: brief.pipelineJobId, projectId })}
+          projectId={projectId}
+        />
       ))}
 
-      {/* Send to Scheduler Dialog (single) */}
-      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+      {/* Approve Dialog (single) */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-purple-600" />
-              Send to Content Scheduler
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              Approve Brief
             </DialogTitle>
             <DialogDescription>
-              Choose which Scheduled Job to add this keyword to. The Scheduler will generate the article using its configured settings (brand voice, scoring, grading loop, etc.).
+              Choose which Scheduled Job to send this keyword to. The Scheduler will generate the article using its configured settings.
             </DialogDescription>
           </DialogHeader>
 
           {queueModeJobs.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground">
               <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-              <p className="text-sm">No Scheduled Jobs with "Keyword Queue" source found for this project.</p>
-              <p className="text-xs mt-1">Create a Scheduled Job in the Content Scheduler first.</p>
+              <p className="text-sm">No Scheduled Jobs with "Keyword Queue" source found.</p>
+              <p className="text-xs mt-1">Create one in the Content Scheduler first.</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Scheduled Job</Label>
+                <Label>Send to Scheduled Job</Label>
                 <Select value={selectedScheduledJobId} onValueChange={setSelectedScheduledJobId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a scheduled job..." />
@@ -353,12 +311,7 @@ function QueueTab({ projectId }: { projectId: number }) {
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                           <span>{sj.name}</span>
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            {sj.frequency}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {sj.status}
-                          </Badge>
+                          <Badge variant="secondary" className="text-xs ml-1">{sj.frequency}</Badge>
                         </div>
                       </SelectItem>
                     ))}
@@ -369,53 +322,52 @@ function QueueTab({ projectId }: { projectId: number }) {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={() => {
-                if (sendJobId && selectedScheduledJobId) {
-                  sendToSchedulerMutation.mutate({
-                    jobId: sendJobId,
+                if (approveBriefId && selectedScheduledJobId) {
+                  approveMutation.mutate({
+                    briefId: approveBriefId,
                     scheduledJobId: parseInt(selectedScheduledJobId),
                   });
                 }
               }}
-              disabled={!selectedScheduledJobId || sendToSchedulerMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={!selectedScheduledJobId || approveMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {sendToSchedulerMutation.isPending ? (
+              {approveMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
               ) : (
-                <Send className="w-4 h-4 mr-1.5" />
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
               )}
-              Send to Queue
+              Approve & Send
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Send to Scheduler Dialog */}
-      <Dialog open={bulkSendDialogOpen} onOpenChange={setBulkSendDialogOpen}>
+      {/* Bulk Approve Dialog */}
+      <Dialog open={bulkApproveDialogOpen} onOpenChange={setBulkApproveDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-purple-600" />
-              Send {selectedJobs.size} Items to Scheduler
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              Approve {selectedBriefs.size} Briefs
             </DialogTitle>
             <DialogDescription>
-              All selected items will be added to the chosen Scheduled Job's keyword queue.
+              All selected briefs will be approved and their keywords sent to the chosen Scheduled Job.
             </DialogDescription>
           </DialogHeader>
 
           {queueModeJobs.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground">
               <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-              <p className="text-sm">No Scheduled Jobs with "Keyword Queue" source found for this project.</p>
-              <p className="text-xs mt-1">Create a Scheduled Job in the Content Scheduler first.</p>
+              <p className="text-sm">No Scheduled Jobs with "Keyword Queue" source found.</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Scheduled Job</Label>
+                <Label>Send to Scheduled Job</Label>
                 <Select value={selectedScheduledJobId} onValueChange={setSelectedScheduledJobId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a scheduled job..." />
@@ -426,9 +378,7 @@ function QueueTab({ projectId }: { projectId: number }) {
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                           <span>{sj.name}</span>
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            {sj.frequency}
-                          </Badge>
+                          <Badge variant="secondary" className="text-xs ml-1">{sj.frequency}</Badge>
                         </div>
                       </SelectItem>
                     ))}
@@ -439,61 +389,303 @@ function QueueTab({ projectId }: { projectId: number }) {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkSendDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setBulkApproveDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={() => {
                 if (selectedScheduledJobId) {
-                  sendBulkMutation.mutate({
-                    jobIds: Array.from(selectedJobs),
+                  bulkApproveMutation.mutate({
+                    briefIds: Array.from(selectedBriefs),
                     scheduledJobId: parseInt(selectedScheduledJobId),
                   });
                 }
               }}
-              disabled={!selectedScheduledJobId || sendBulkMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={!selectedScheduledJobId || bulkApproveMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {sendBulkMutation.isPending ? (
+              {bulkApproveMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
               ) : (
-                <Send className="w-4 h-4 mr-1.5" />
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
               )}
-              Send All to Queue
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Dialog */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Item</DialogTitle>
-            <DialogDescription>Provide optional feedback for why this item was rejected.</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            placeholder="Optional feedback (e.g., not relevant, already covered, etc.)"
-            value={rejectFeedback}
-            onChange={(e) => setRejectFeedback(e.target.value)}
-            rows={3}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (rejectJobId) {
-                  rejectMutation.mutate({ jobId: rejectJobId, feedback: rejectFeedback || undefined });
-                }
-              }}
-              disabled={rejectMutation.isPending}
-            >
-              {rejectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <XCircle className="w-4 h-4 mr-1.5" />}
-              Reject
+              Approve All
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ---- Brief Card (Editable) ----
+function BriefCard({
+  brief,
+  isSelected,
+  isEditing,
+  onToggleSelect,
+  onEdit,
+  onApprove,
+  onReject,
+  onRegenerate,
+  projectId,
+}: {
+  brief: any;
+  isSelected: boolean;
+  isEditing: boolean;
+  onToggleSelect: () => void;
+  onEdit: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+  onRegenerate: () => void;
+  projectId: number;
+}) {
+  const utils = trpc.useUtils();
+  const [title, setTitle] = useState(brief.title);
+  const [primaryKeyword, setPrimaryKeyword] = useState(brief.primaryKeyword);
+  const [secondaryKeywords, setSecondaryKeywords] = useState<string[]>(brief.secondaryKeywords || []);
+  const [description, setDescription] = useState(brief.description);
+  const [suggestedLinkCount, setSuggestedLinkCount] = useState(brief.suggestedLinkCount);
+  const [suggestedWordCount, setSuggestedWordCount] = useState(brief.suggestedWordCount);
+  const [newKeyword, setNewKeyword] = useState("");
+
+  const updateMutation = trpc.pipeline.updateBrief.useMutation({
+    onSuccess: () => {
+      toast.success("Brief updated.");
+      utils.pipeline.getBriefs.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const saveEdits = () => {
+    updateMutation.mutate({
+      briefId: brief.id,
+      title,
+      primaryKeyword,
+      secondaryKeywords,
+      description,
+      suggestedLinkCount,
+      suggestedWordCount,
+    });
+  };
+
+  const addSecondaryKeyword = () => {
+    if (newKeyword.trim() && !secondaryKeywords.includes(newKeyword.trim())) {
+      setSecondaryKeywords([...secondaryKeywords, newKeyword.trim()]);
+      setNewKeyword("");
+    }
+  };
+
+  const removeSecondaryKeyword = (kw: string) => {
+    setSecondaryKeywords(secondaryKeywords.filter((k: string) => k !== kw));
+  };
+
+  return (
+    <Card className={`transition-all ${isSelected ? "ring-2 ring-green-300 border-green-200" : ""} ${isEditing ? "shadow-lg" : "hover:shadow-md"}`}>
+      <CardContent className="p-5">
+        <div className="flex items-start gap-4">
+          {/* Checkbox */}
+          <div className="pt-1">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span className="text-xs font-medium text-amber-600 uppercase tracking-wide">AI-Generated Brief</span>
+              {brief.editedFields && brief.editedFields.length > 0 && (
+                <Badge variant="secondary" className="text-xs">Edited</Badge>
+              )}
+            </div>
+
+            {isEditing ? (
+              /* ---- Edit Mode ---- */
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Target className="w-3.5 h-3.5" />
+                    Title
+                  </Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} className="font-semibold" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Hash className="w-3.5 h-3.5" />
+                      Primary Keyword
+                    </Label>
+                    <Input value={primaryKeyword} onChange={(e) => setPrimaryKeyword(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        <Link2 className="w-3.5 h-3.5" />
+                        Links
+                      </Label>
+                      <Input
+                        type="number"
+                        value={suggestedLinkCount}
+                        onChange={(e) => setSuggestedLinkCount(parseInt(e.target.value) || 0)}
+                        min={0}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Words
+                      </Label>
+                      <Input
+                        type="number"
+                        value={suggestedWordCount}
+                        onChange={(e) => setSuggestedWordCount(parseInt(e.target.value) || 0)}
+                        min={100}
+                        step={100}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Tags className="w-3.5 h-3.5" />
+                    Secondary Keywords
+                  </Label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {secondaryKeywords.map((kw: string) => (
+                      <Badge key={kw} variant="secondary" className="gap-1 pr-1">
+                        {kw}
+                        <button
+                          onClick={() => removeSecondaryKeyword(kw)}
+                          className="ml-1 hover:text-red-600 transition-colors"
+                        >
+                          <XCircle className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      placeholder="Add keyword..."
+                      className="flex-1"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSecondaryKeyword(); } }}
+                    />
+                    <Button variant="outline" size="sm" onClick={addSecondaryKeyword}>Add</Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <FileText className="w-3.5 h-3.5" />
+                    Description / Main Idea
+                  </Label>
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Button size="sm" onClick={saveEdits} disabled={updateMutation.isPending}>
+                    {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                    Save Changes
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onEdit}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              /* ---- View Mode ---- */
+              <div className="space-y-3">
+                <h4 className="font-semibold text-base">{brief.title}</h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="flex items-center gap-2">
+                    <Hash className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-sm"><span className="text-muted-foreground">Keyword:</span> <span className="font-medium">{brief.primaryKeyword}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-sm"><span className="text-muted-foreground">Links:</span> <span className="font-medium">{brief.suggestedLinkCount}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-sm"><span className="text-muted-foreground">Words:</span> <span className="font-medium">{brief.suggestedWordCount?.toLocaleString()}</span></span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Tags className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground font-medium">Secondary Keywords</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(brief.secondaryKeywords || []).map((kw: string) => (
+                      <Badge key={kw} variant="secondary" className="text-xs">{kw}</Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground font-medium">Description</span>
+                  </div>
+                  <p className="text-sm text-foreground/80 leading-relaxed">{brief.description}</p>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Generated: {formatDate(brief.createdAt)}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          {!isEditing && (
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={onApprove}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                Approve
+              </Button>
+              <Button size="sm" variant="outline" onClick={onEdit}>
+                <Pencil className="w-4 h-4 mr-1.5" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={onRegenerate}
+              >
+                <RotateCcw className="w-4 h-4 mr-1.5" />
+                Regenerate
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={onReject}
+              >
+                <XCircle className="w-4 h-4 mr-1.5" />
+                Reject
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -514,7 +706,7 @@ function ActivityTab({ projectId }: { projectId: number }) {
     onSuccess: () => {
       toast.success("Job deleted.");
       utils.pipeline.getJobs.invalidate();
-      utils.pipeline.getQueue.invalidate();
+      utils.pipeline.getBriefs.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -638,20 +830,12 @@ function SettingsTab({ projectId }: { projectId: number }) {
 
   const [bucketUrl, setBucketUrl] = useState("");
   const [enabled, setEnabled] = useState(true);
-  const [autoOutline, setAutoOutline] = useState(false);
-  const [autoArticle, setAutoArticle] = useState(false);
-  const [wordCount, setWordCount] = useState("1600");
-  const [instructions, setInstructions] = useState("");
   const [initialized, setInitialized] = useState(false);
 
   // Initialize form from settings
   if (settings && !initialized) {
     setBucketUrl(settings.bucketUrl || "marketing-manus-scraper");
     setEnabled(settings.enabled === 1);
-    setAutoOutline(settings.autoGenerateOutline === 1);
-    setAutoArticle(settings.autoGenerateArticle === 1);
-    setWordCount(String(settings.defaultWordCount || 1600));
-    setInstructions(settings.defaultInstructions || "");
     setInitialized(true);
   }
 
@@ -667,7 +851,7 @@ function SettingsTab({ projectId }: { projectId: number }) {
     onSuccess: (result) => {
       toast.success(`Poll complete: ${result.ingested} ingested, ${result.skipped} skipped, ${result.errors} errors`);
       utils.pipeline.getJobs.invalidate();
-      utils.pipeline.getQueue.invalidate();
+      utils.pipeline.getBriefs.invalidate();
     },
     onError: (err: any) => toast.error(`Poll failed: ${err.message}`),
   });
@@ -690,7 +874,7 @@ function SettingsTab({ projectId }: { projectId: number }) {
             Manual Poll
           </CardTitle>
           <CardDescription>
-            Fetch new files from the S3 bucket (incoming/ prefix) and add them to the review queue.
+            Fetch new files from the S3 bucket and generate AI briefs for each article found.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -702,7 +886,7 @@ function SettingsTab({ projectId }: { projectId: number }) {
             {pollMutation.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Polling...
+                Polling & Generating Briefs...
               </>
             ) : (
               <>
@@ -713,22 +897,26 @@ function SettingsTab({ projectId }: { projectId: number }) {
           </Button>
           {pollMutation.data && (
             <p className="text-sm text-muted-foreground mt-3">
-              Last poll: {pollMutation.data.ingested} ingested, {pollMutation.data.skipped} skipped, {pollMutation.data.errors} errors (of {pollMutation.data.total} total files)
+              Last poll: {pollMutation.data.ingested} ingested, {pollMutation.data.skipped} already processed, {pollMutation.data.errors} errors (of {pollMutation.data.total} total files)
             </p>
           )}
         </CardContent>
       </Card>
 
-      {/* Info Card */}
+      {/* How it Works Card */}
       <Card className="border-purple-200 bg-purple-50/30">
         <CardContent className="p-5">
           <div className="flex items-start gap-3">
-            <Send className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
+            <Sparkles className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
             <div>
               <h4 className="font-medium text-sm">How the Pipeline Works</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                Items ingested from S3 appear in the Queue tab. Review them, then use "Send to Scheduler" to add approved keywords to your Content Scheduler's queue. The Scheduler handles article generation with all your configured settings (brand voice, scoring, grading loop, etc.).
-              </p>
+              <ol className="text-xs text-muted-foreground mt-2 space-y-1.5 list-decimal list-inside">
+                <li>Click "Run Poll Now" to fetch new JSON files from your S3 bucket</li>
+                <li>The AI analyzes each article and generates a <strong>Brief</strong> (title, keyword, description, etc.)</li>
+                <li>Review briefs in the <strong>Briefs</strong> tab - edit any fields as needed</li>
+                <li>Approve briefs to send them to the Content Scheduler's keyword queue</li>
+                <li>The Scheduler generates the full article with your configured settings</li>
+              </ol>
             </div>
           </div>
         </CardContent>
@@ -768,10 +956,6 @@ function SettingsTab({ projectId }: { projectId: number }) {
                 projectId,
                 bucketUrl: bucketUrl || undefined,
                 enabled: enabled ? 1 : 0,
-                autoGenerateOutline: autoOutline ? 1 : 0,
-                autoGenerateArticle: autoArticle ? 1 : 0,
-                defaultWordCount: parseInt(wordCount) || 1600,
-                defaultInstructions: instructions || undefined,
               });
             }}
             disabled={saveMutation.isPending}

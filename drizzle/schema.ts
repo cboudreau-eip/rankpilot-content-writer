@@ -741,3 +741,37 @@ export const pipelineSettings = mysqlTable("pipeline_settings", {
 });
 export type PipelineSettingsRow = typeof pipelineSettings.$inferSelect;
 export type InsertPipelineSettings = typeof pipelineSettings.$inferInsert;
+
+/**
+ * Pipeline Briefs — AI-generated article briefs from ingested S3 data, awaiting user review/approval.
+ */
+export const pipelineBriefs = mysqlTable("pipeline_briefs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Reference to the pipeline job this brief was generated from */
+  pipelineJobId: int("pipelineJobId").notNull(),
+  /** AI-suggested article title (editable by user) */
+  title: varchar("briefTitle", { length: 512 }).notNull(),
+  /** Primary target keyword (editable by user) */
+  primaryKeyword: varchar("briefPrimaryKeyword", { length: 255 }).notNull(),
+  /** Secondary/semantic keywords as JSON array (editable by user) */
+  secondaryKeywords: json("briefSecondaryKeywords").$type<string[]>().notNull(),
+  /** Description/main idea of the article (editable by user) */
+  description: text("briefDescription").notNull(),
+  /** AI-suggested number of hyperlinks for the article */
+  suggestedLinkCount: int("suggestedLinkCount").notNull(),
+  /** AI-suggested word count for the article */
+  suggestedWordCount: int("suggestedWordCount").notNull(),
+  /** Review status */
+  status: mysqlEnum("briefStatus", ["pending_review", "approved", "rejected"]).default("pending_review").notNull(),
+  /** When the brief was approved */
+  approvedAt: timestamp("approvedAt"),
+  /** JSON tracking which fields the user edited before approving */
+  editedFields: json("editedFields").$type<string[]>(),
+  /** Project this brief belongs to */
+  projectId: int("projectId").notNull(),
+  /** User who owns this brief */
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PipelineBrief = typeof pipelineBriefs.$inferSelect;
+export type InsertPipelineBrief = typeof pipelineBriefs.$inferInsert;

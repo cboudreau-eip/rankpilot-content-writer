@@ -33,6 +33,7 @@ import {
   getDashboardStats, getRecentArticles, getRecentIdeas, getArticlesOverTime, getRecentActivity,
   getPipelineJobsByProject, getPipelineJobById, getPipelineJobByFileId, createPipelineJob, updatePipelineJob, deletePipelineJob, getPipelineQueue,
   getPipelineSettingsByProject, upsertPipelineSettings,
+  createPipelineBrief, getBriefById, getBriefsByProject, getBriefByJobId, updateBrief, approveBrief, rejectBrief,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
@@ -42,7 +43,7 @@ import type { InvokeParams, InvokeResult } from "./_core/llm";
 import { invokeClaudeLLM } from "./claude";
 import { parseSitemap } from "./sitemap-parser";
 import type { OutlineSection, OutlineSettings, ICPDemographics, SitemapUrl } from "../drizzle/schema";
-import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas, outlineVersions, pipelineJobs, pipelineSettings } from "../drizzle/schema";
+import { articles, projects, brandVoices, citationSources, gscExports, appUsers, scheduledJobs, keywordQueue, projectKeywords, ideas, outlineVersions, pipelineJobs, pipelineSettings, pipelineBriefs } from "../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEntityAnalysisPrompt, getSemanticAnalysisPrompt } from "./entity-prompts";
@@ -7737,14 +7738,11 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
           }
         }
 
-        // Auto-generate for new jobs if settings allow
-        const autoOutline = settings?.autoGenerateOutline ?? 1;
-        const autoArticle = settings?.autoGenerateArticle ?? 1;
-        if ((autoOutline || autoArticle) && newJobIds.length > 0) {
-          // Run generation in background (don't await)
+        // Generate AI briefs for each new job (in background)
+        if (newJobIds.length > 0) {
           for (const jobId of newJobIds) {
-            runPipelineGeneration(jobId, input.projectId).catch(err => {
-              console.error(`[Pipeline] Background generation failed for job ${jobId}:`, err);
+            generateBriefForJob(jobId, input.projectId).catch((err: any) => {
+              console.error(`[Pipeline] Brief generation failed for job ${jobId}:`, err);
             });
           }
         }
@@ -7817,6 +7815,144 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         const outline = await getOutlineById(job.outlineId);
         return outline;
       }),
+
+    // ---- Brief Procedures ----
+
+    /** Get all briefs for a project, optionally filtered by status */
+    getBriefs: publicProcedure
+      .input(z.object({ projectId: z.number(), status: z.enum(["pending_review", "approved", "rejected"]).optional() }))
+      .query(async ({ input }) => {
+        return getBriefsByProject(input.projectId, input.status);
+      }),
+
+    /** Get a single brief by ID */
+    getBrief: publicProcedure
+      .input(z.object({ briefId: z.number() }))
+      .query(async ({ input }) => {
+        const brief = await getBriefById(input.briefId);
+        if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
+        return brief;
+      }),
+
+    /** Update a brief (edit fields before approving) */
+    updateBrief: publicProcedure
+      .input(z.object({
+        briefId: z.number(),
+        title: z.string().optional(),
+        primaryKeyword: z.string().optional(),
+        secondaryKeywords: z.array(z.string()).optional(),
+        description: z.string().optional(),
+        suggestedLinkCount: z.number().optional(),
+        suggestedWordCount: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { briefId, ...updates } = input;
+        const brief = await getBriefById(briefId);
+        if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
+
+        // Track which fields were edited
+        const editedFields: string[] = brief.editedFields || [];
+        for (const [key, value] of Object.entries(updates)) {
+          if (value !== undefined && !editedFields.includes(key)) {
+            editedFields.push(key);
+          }
+        }
+
+        return updateBrief(briefId, { ...updates, editedFields });
+      }),
+
+    /** Approve a brief — sends it to the Scheduler queue */
+    approveBrief: publicProcedure
+      .input(z.object({ briefId: z.number(), scheduledJobId: z.number() }))
+      .mutation(async ({ input }) => {
+        const brief = await getBriefById(input.briefId);
+        if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
+        if (brief.status !== "pending_review") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Brief is not in pending_review status" });
+        }
+
+        // Add the keyword to the Scheduler's queue with brief metadata
+        await addKeywordToQueue({
+          keyword: brief.primaryKeyword,
+          jobId: input.scheduledJobId,
+          status: "pending",
+          secondaryKeywords: brief.secondaryKeywords,
+        });
+
+        // Mark the brief as approved
+        await approveBrief(input.briefId);
+
+        // Update the pipeline job status
+        await updatePipelineJob(brief.pipelineJobId, { status: "sent_to_scheduler" });
+
+        return { success: true };
+      }),
+
+    /** Reject a brief */
+    rejectBrief: publicProcedure
+      .input(z.object({ briefId: z.number() }))
+      .mutation(async ({ input }) => {
+        const brief = await getBriefById(input.briefId);
+        if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
+
+        await rejectBrief(input.briefId);
+        await updatePipelineJob(brief.pipelineJobId, { status: "rejected" });
+
+        return { success: true };
+      }),
+
+    /** Bulk approve briefs */
+    bulkApproveBriefs: publicProcedure
+      .input(z.object({ briefIds: z.array(z.number()), scheduledJobId: z.number() }))
+      .mutation(async ({ input }) => {
+        let approved = 0;
+        let failed = 0;
+        for (const briefId of input.briefIds) {
+          try {
+            const brief = await getBriefById(briefId);
+            if (!brief || brief.status !== "pending_review") {
+              failed++;
+              continue;
+            }
+
+            await addKeywordToQueue({
+              keyword: brief.primaryKeyword,
+              jobId: input.scheduledJobId,
+              status: "pending",
+              secondaryKeywords: brief.secondaryKeywords,
+            });
+
+            await approveBrief(briefId);
+            await updatePipelineJob(brief.pipelineJobId, { status: "sent_to_scheduler" });
+            approved++;
+          } catch (err: any) {
+            console.error(`[Pipeline] Failed to approve brief ${briefId}:`, err.message);
+            failed++;
+          }
+        }
+        return { approved, failed };
+      }),
+
+    /** Regenerate a brief for a pipeline job (if the AI suggestion was poor) */
+    regenerateBrief: publicProcedure
+      .input(z.object({ jobId: z.number(), projectId: z.number() }))
+      .mutation(async ({ input }) => {
+        const job = await getPipelineJobById(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline job not found" });
+
+        // Delete existing brief if any
+        const existingBrief = await getBriefByJobId(input.jobId);
+        if (existingBrief) {
+          const db = await getDb();
+          if (db) {
+            await db.delete(pipelineBriefs).where(eq(pipelineBriefs.id, existingBrief.id));
+          }
+        }
+
+        // Regenerate
+        await generateBriefForJob(input.jobId, input.projectId);
+        return { success: true };
+      }),
   }),
 });
 
@@ -7826,6 +7962,106 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
 
 /**
  * Run outline + article generation for a single pipeline job.
+ * Generates an AI brief for a pipeline job based on its ingested JSON data.
+ * Called in the background after S3 ingestion.
+ */
+async function generateBriefForJob(jobId: number, projectId: number): Promise<void> {
+  const job = await getPipelineJobById(jobId);
+  if (!job) return;
+
+  // Check if a brief already exists for this job
+  const existingBrief = await getBriefByJobId(jobId);
+  if (existingBrief) return;
+
+  try {
+    await updatePipelineJob(jobId, { status: "generating_outline" });
+
+    // Build the AI prompt from the job's ingested data
+    const prompt = `You are an SEO content strategist. Based on the following research data about a competitor article, generate an article brief for our team to produce a superior piece of content.
+
+Source Article:
+- Title: ${job.title || "Unknown"}
+- URL: ${job.sourceUrl || "N/A"}
+- Keyword/Topic: ${job.keyword || "Unknown"}
+- Category: ${job.category || "General"}
+- Summary: ${job.snippet || "No summary available"}
+
+Generate a comprehensive article brief with the following:
+1. A compelling, SEO-optimized article title (improve upon the source title)
+2. The primary target keyword for this article
+3. 5-8 secondary/semantic keywords that support the primary keyword
+4. A 2-3 sentence description of what the article should cover, including the unique angle or value proposition that differentiates it from the source
+5. A suggested number of hyperlinks the article should contain (consider article depth and topic)
+6. A suggested word count based on topic complexity and competitive landscape
+
+IMPORTANT: Do NOT use em dashes in your response.
+
+Respond in JSON format:
+{
+  "title": "string",
+  "primaryKeyword": "string",
+  "secondaryKeywords": ["string", ...],
+  "description": "string",
+  "suggestedLinkCount": number,
+  "suggestedWordCount": number
+}`;
+
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: "You are an expert SEO content strategist. Always respond with valid JSON only, no markdown formatting." },
+        { role: "user", content: prompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "article_brief",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "SEO-optimized article title" },
+              primaryKeyword: { type: "string", description: "Primary target keyword" },
+              secondaryKeywords: { type: "array", items: { type: "string" }, description: "5-8 secondary keywords" },
+              description: { type: "string", description: "2-3 sentence article description and angle" },
+              suggestedLinkCount: { type: "integer", description: "Recommended number of hyperlinks" },
+              suggestedWordCount: { type: "integer", description: "Recommended word count" },
+            },
+            required: ["title", "primaryKeyword", "secondaryKeywords", "description", "suggestedLinkCount", "suggestedWordCount"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) throw new Error("No response from AI");
+
+    const briefData = JSON.parse(content as string);
+
+    // Create the brief in the database
+    await createPipelineBrief({
+      pipelineJobId: jobId,
+      title: briefData.title,
+      primaryKeyword: briefData.primaryKeyword,
+      secondaryKeywords: briefData.secondaryKeywords,
+      description: briefData.description,
+      suggestedLinkCount: briefData.suggestedLinkCount,
+      suggestedWordCount: briefData.suggestedWordCount,
+      status: "pending_review",
+      projectId,
+      userId: job.userId,
+    });
+
+    // Update the pipeline job status
+    await updatePipelineJob(jobId, { status: "pending_approval" });
+
+  } catch (err: any) {
+    console.error(`[Pipeline] Brief generation failed for job ${jobId}:`, err.message);
+    await updatePipelineJob(jobId, { status: "failed", errorMessage: `Brief generation failed: ${err.message}` });
+  }
+}
+
+/**
  * Called in the background (fire-and-forget) after ingestion or retry.
  */
 async function runPipelineGeneration(jobId: number, projectId: number): Promise<void> {
@@ -8228,7 +8464,21 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
     const settings = job.articleSettings ?? {};
 
     // ── Step 0: Auto-suggest secondary keywords (if enabled) ──
+    // Start with job defaults, then merge in queue item's secondary keywords (from pipeline briefs)
     let effectiveSecondaryKeywords: string[] = [...(settings.secondaryKeywords || [])];
+    if (keywordQueueItemId) {
+      const queueItem = await getKeywordQueueItemById(keywordQueueItemId);
+      if (queueItem?.secondaryKeywords && queueItem.secondaryKeywords.length > 0) {
+        const existing = new Set(effectiveSecondaryKeywords.map(k => k.toLowerCase()));
+        for (const kw of queueItem.secondaryKeywords) {
+          if (!existing.has(kw.toLowerCase())) {
+            effectiveSecondaryKeywords.push(kw);
+            existing.add(kw.toLowerCase());
+          }
+        }
+        logFn("keyword_selection", `Merged ${queueItem.secondaryKeywords.length} secondary keywords from pipeline brief`, "info", { briefKeywords: queueItem.secondaryKeywords });
+      }
+    }
     if (settings.suggestKeywordsEnabled) {
       logFn("keyword_suggestion", "Running AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...", "info");
       try {

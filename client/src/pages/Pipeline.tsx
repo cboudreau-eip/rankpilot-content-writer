@@ -451,6 +451,7 @@ function BriefCard({
     onSuccess: () => {
       toast.success("Brief updated.");
       utils.pipeline.getBriefs.invalidate();
+      onEdit(); // Exit edit mode after successful save
     },
     onError: (err: any) => toast.error(err.message),
   });

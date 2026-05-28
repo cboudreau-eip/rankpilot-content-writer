@@ -1409,3 +1409,6 @@
 - [x] Add post-generation brief compliance scoring: LLM checks article vs brief and returns adherence percentage + breakdown
 - [x] Display brief adherence score on generated articles in the UI (Articles page and/or article detail view)
 - [x] Write tests for brief enforcement and compliance scoring
+
+## Bug Fixes
+- [x] Fix: After editing and saving a brief, it stays in edit mode instead of returning to the normal card view with Approve/Edit/Regenerate/Reject buttons

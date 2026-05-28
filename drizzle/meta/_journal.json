@@ -169,6 +169,13 @@
       "when": 1779980453529,
       "tag": "0023_early_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1779987669594,
+      "tag": "0024_simple_namor",
+      "breakpoints": true
     }
   ]
 }

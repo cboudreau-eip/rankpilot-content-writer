@@ -173,6 +173,18 @@ export const articles = mysqlTable("articles", {
   contentType: varchar("contentType", { length: 64 }),
   /** Link to the outline used to generate this article */
   outlineId: int("outlineId"),
+  /** Brief compliance score (0-100) — how well the article matches the pipeline brief */
+  briefComplianceScore: int("briefComplianceScore"),
+  /** Detailed brief compliance breakdown as JSON */
+  briefComplianceDetails: json("briefComplianceDetails").$type<{
+    overallScore: number;
+    titleAdherence: { score: number; maxScore: number; notes: string };
+    keywordCoverage: { score: number; maxScore: number; notes: string };
+    angleAlignment: { score: number; maxScore: number; notes: string };
+    wordCountAccuracy: { score: number; maxScore: number; notes: string };
+    linkCountAccuracy: { score: number; maxScore: number; notes: string };
+    summary: string;
+  }>(),
   projectId: int("projectId").notNull(),
   userId: int("userId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -517,6 +529,15 @@ export const keywordQueue = mysqlTable("keyword_queue", {
   generatedArticleId: int("generatedArticleId"),
   /** Error message if generation failed */
   errorMessage: text("errorMessage"),
+  /** Full brief data from the Pipeline (title, description, wordCount, linkCount, etc.) */
+  briefData: json("briefData").$type<{
+    title: string;
+    description: string;
+    suggestedWordCount: number;
+    suggestedLinkCount: number;
+    primaryKeyword: string;
+    secondaryKeywords: string[];
+  }>(),
   /** When this keyword was processed */
   processedAt: timestamp("processedAt"),
   jobId: int("jobId").notNull(),

@@ -1402,3 +1402,10 @@
 - [x] Tests passing (506 tests, 37 files)
 
 - [x] Activity tab: Add checkboxes with select all and bulk delete for pipeline jobs
+
+## Brief Enforcement & Compliance Scoring (Option 3)
+- [x] Store full brief data (title, description, word count, link count, secondary keywords) alongside keyword in Scheduler queue
+- [x] Modify article generation prompts to include brief as creative directive (title direction, description/angle, word count target, link count target)
+- [x] Add post-generation brief compliance scoring: LLM checks article vs brief and returns adherence percentage + breakdown
+- [x] Display brief adherence score on generated articles in the UI (Articles page and/or article detail view)
+- [x] Write tests for brief enforcement and compliance scoring

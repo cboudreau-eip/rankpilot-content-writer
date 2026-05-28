@@ -7882,12 +7882,20 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
           throw new TRPCError({ code: "BAD_REQUEST", message: "Brief is not in pending_review status" });
         }
 
-        // Add the keyword to the Scheduler's queue with brief metadata
+        // Add the keyword to the Scheduler's queue with FULL brief data
         await addKeywordToQueue({
           keyword: brief.primaryKeyword,
           jobId: input.scheduledJobId,
           status: "pending",
           secondaryKeywords: brief.secondaryKeywords,
+          briefData: {
+            title: brief.title,
+            description: brief.description,
+            suggestedWordCount: brief.suggestedWordCount,
+            suggestedLinkCount: brief.suggestedLinkCount,
+            primaryKeyword: brief.primaryKeyword,
+            secondaryKeywords: brief.secondaryKeywords,
+          },
         });
 
         // Mark the brief as approved
@@ -7931,6 +7939,14 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
               jobId: input.scheduledJobId,
               status: "pending",
               secondaryKeywords: brief.secondaryKeywords,
+              briefData: {
+                title: brief.title,
+                description: brief.description,
+                suggestedWordCount: brief.suggestedWordCount,
+                suggestedLinkCount: brief.suggestedLinkCount,
+                primaryKeyword: brief.primaryKeyword,
+                secondaryKeywords: brief.secondaryKeywords,
+              },
             });
 
             await approveBrief(briefId);
@@ -8432,6 +8448,7 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
 
     // Determine the keyword for this run
     let keyword: string;
+    let briefData: { title: string; description: string; suggestedWordCount: number; suggestedLinkCount: number; primaryKeyword: string; secondaryKeywords: string[] } | null = null;
     if (job.keywordSource === "queue") {
       const nextItem = await getNextPendingKeyword(job.id);
       if (!nextItem) {
@@ -8441,6 +8458,7 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       }
       keyword = nextItem.keyword;
       keywordQueueItemId = nextItem.id;
+      briefData = (nextItem as any).briefData ?? null;
       await updateKeywordQueueItem(nextItem.id, { status: "processing" });
     } else {
       keyword = await suggestNextKeyword(job);
@@ -8539,14 +8557,19 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       }
     }
 
+    // Log brief data if present
+    if (briefData) {
+      logFn("brief_enforcement", `Pipeline brief attached: "${briefData.title}" — ${briefData.suggestedWordCount} words, ${briefData.suggestedLinkCount} links`, "info", { briefData });
+    }
+
     // ── Step 2: Generate outline ──
     logFn("outline", `Generating outline for "${keyword}"...`, "info");
-    const outline = await generateOutlineForScheduler(job, keyword, effectiveSecondaryKeywords, researchFindings);
+    const outline = await generateOutlineForScheduler(job, keyword, effectiveSecondaryKeywords, researchFindings, briefData);
     logFn("outline", `Outline created: "${outline.title}" with ${outline.sections?.length ?? 0} sections`, "success", { outlineId: outline.id, title: outline.title });
 
     // ── Step 3: Generate article ──
     logFn("article", `Generating article from outline...`, "info");
-    const article = await generateArticleForScheduler(job, outline, effectiveSecondaryKeywords, researchFindings, logFn);
+    const article = await generateArticleForScheduler(job, outline, effectiveSecondaryKeywords, researchFindings, logFn, briefData);
     logFn("article", `Article generated: ${article.wordCount ?? 0} words`, "success", { articleId: article.id, wordCount: article.wordCount });
 
     // ── Step 4: Em-dash removal ──
@@ -8556,6 +8579,25 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       const cleanedContent = article.content.replace(/\u2014/g, " - ");
       await updateArticle(article.id, { content: cleanedContent });
       logFn("em_dash_removal", `Removed ${emDashCount} em-dashes`, "success");
+    }
+
+    // ── Step 4b: Brief Compliance Scoring (if brief data exists) ──
+    if (briefData && article?.id) {
+      try {
+        logFn("brief_compliance", `Scoring article against pipeline brief...`, "info");
+        const complianceResult = await scoreBriefCompliance(article, briefData, job.projectId);
+        if (complianceResult) {
+          await updateArticle(article.id, {
+            briefComplianceScore: complianceResult.overallScore,
+            briefComplianceDetails: complianceResult,
+          });
+          logFn("brief_compliance", `Brief compliance score: ${complianceResult.overallScore}% — ${complianceResult.summary}`, "success", { complianceScore: complianceResult.overallScore, details: complianceResult });
+          console.log(`[Scheduler] Brief compliance score for article #${article.id}: ${complianceResult.overallScore}%`);
+        }
+      } catch (err: any) {
+        logFn("brief_compliance", `Brief compliance scoring failed (non-fatal): ${err.message}`, "warning");
+        console.error(`[Scheduler] Brief compliance scoring failed:`, err.message);
+      }
     }
 
     // ── Step 5: Complete ──
@@ -8652,6 +8694,7 @@ async function generateOutlineForScheduler(
   keyword: string,
   effectiveSecondaryKeywords: string[],
   researchFindings: any,
+  briefData?: { title: string; description: string; suggestedWordCount: number; suggestedLinkCount: number; primaryKeyword: string; secondaryKeywords: string[] } | null,
 ): Promise<any> {
   const settings = job.articleSettings ?? {};
   const project = await getProjectById(job.projectId);
@@ -8714,12 +8757,36 @@ async function generateOutlineForScheduler(
   const audienceInstruction = settings.targetAudience ? `- Target audience: ${settings.targetAudience} \u2014 structure the outline to address this audience's specific needs` : '';
   const secondaryKwInstruction = effectiveSecondaryKeywords.length ? `- Secondary keywords to weave in: ${effectiveSecondaryKeywords.join(', ')}` : '';
 
+  // Build brief directive section if brief data is available
+  let briefDirective = "";
+  if (briefData) {
+    briefDirective = `
+=== PIPELINE BRIEF DIRECTIVE (MUST FOLLOW) ===
+This article was initiated from an approved content brief. You MUST structure the outline to fulfill this brief.
+
+BRIEF TITLE DIRECTION: "${briefData.title}"
+- The outline title should closely align with this suggested title. You may refine it for SEO, but preserve the core angle and topic.
+
+BRIEF DESCRIPTION / CONTENT ANGLE:
+"${briefData.description}"
+- This is the approved editorial direction. The outline MUST be structured to deliver on this description.
+- Every major section should contribute to fulfilling this content angle.
+
+BRIEF TARGETS:
+- Target word count: ${briefData.suggestedWordCount} words (distribute across sections proportionally)
+- Target link count: ${briefData.suggestedLinkCount} links (plan sections that naturally accommodate citations)
+
+BRIEF COMPLIANCE: The generated article will be scored against this brief. Ensure the outline fully covers the described angle.
+=== END BRIEF DIRECTIVE ===
+`;
+  }
+
   const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the keyword "${keyword}".
 
 Requirements:
 - Create ${numSections} main H2 sections
 - Include a FAQ section with ${numFaqs} questions
-- Target ${targetWordCount} words
+- Target ${briefData?.suggestedWordCount ?? targetWordCount} words
 - Each section should have 2-4 bullet points describing what to cover
 ${settings.contentType ? `- Content type: ${settings.contentType}` : ''}
 ${toneInstruction}
@@ -8731,6 +8798,7 @@ ${icpSection}
 ${voiceSection}
 ${researchSection}
 ${outlineReferenceDocSection}
+${briefDirective}
 
 Return a JSON object with this structure:
 {
@@ -8798,6 +8866,7 @@ async function generateArticleForScheduler(
   effectiveSecondaryKeywords: string[],
   researchFindings: any,
   logFn?: (step: string, message: string, level?: string, metadata?: Record<string, any>) => void,
+  briefData?: { title: string; description: string; suggestedWordCount: number; suggestedLinkCount: number; primaryKeyword: string; secondaryKeywords: string[] } | null,
 ): Promise<any> {
   const settings = job.articleSettings ?? {};
   const project = await getProjectById(job.projectId);
@@ -9083,7 +9152,7 @@ IMPORTANT \u2014 CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${current
 
 Guidelines:
 - Write in ${settings.tone ?? "a professional and informative"} tone
-- Target approximately ${targetWordCount} words total
+- Target approximately ${briefData?.suggestedWordCount ?? targetWordCount} words total
 - PER-SECTION WORD TARGETS: Each section in the outline may include a [TARGET: ~N words] directive. You MUST respect these per-section word counts. Do NOT significantly exceed any section's target — if a section says ~200 words, write 180-220 words for it, not 400. The per-section targets are designed to keep the total article within the overall word count.
 ${formatInstructions}
 - Include a compelling introduction that hooks the reader
@@ -9122,7 +9191,25 @@ ${secondaryKeywordsInstructions}
 ${linkingInstructions}
 ${referenceDocSection}
 ${researchContext}
+${briefData ? `
+=== PIPELINE BRIEF DIRECTIVE (MUST FOLLOW) ===
+This article was initiated from an approved content brief. You MUST write the article to fulfill this brief.
 
+BRIEF TITLE: "${briefData.title}"
+- Use this as the article's direction. The outline title should already reflect this.
+
+BRIEF CONTENT ANGLE:
+"${briefData.description}"
+- This is the approved editorial direction. The article MUST deliver on this description.
+- The introduction should set up this angle. The body should fulfill it. The conclusion should reinforce it.
+
+BRIEF TARGETS:
+- Target word count: ${briefData.suggestedWordCount} words
+- Target link count: ${briefData.suggestedLinkCount} links (include this many relevant citations/links)
+
+COMPLIANCE NOTE: After generation, this article will be scored against the brief for adherence. Ensure full coverage of the described angle and targets.
+=== END BRIEF DIRECTIVE ===
+` : ''}
 OUTLINE:
 ${outlineText}
 
@@ -9439,6 +9526,104 @@ async function runAutoGradeLoop({
   }
 
   return { finalGrade, iterationsRun };
+}
+
+// ============================================================
+// BRIEF COMPLIANCE SCORING
+// ============================================================
+
+/**
+ * Score how well a generated article adheres to its pipeline brief.
+ * Returns a detailed compliance breakdown with an overall percentage score.
+ */
+async function scoreBriefCompliance(
+  article: any,
+  briefData: { title: string; description: string; suggestedWordCount: number; suggestedLinkCount: number; primaryKeyword: string; secondaryKeywords: string[] },
+  projectId: number,
+): Promise<{
+  overallScore: number;
+  titleAdherence: { score: number; maxScore: number; notes: string };
+  keywordCoverage: { score: number; maxScore: number; notes: string };
+  angleAlignment: { score: number; maxScore: number; notes: string };
+  wordCountAccuracy: { score: number; maxScore: number; notes: string };
+  linkCountAccuracy: { score: number; maxScore: number; notes: string };
+  summary: string;
+} | null> {
+  const content = article.content || "";
+  const plainText = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const actualWordCount = plainText.split(/\s+/).length;
+  const linkMatches = content.match(/<a\s[^>]*>/gi);
+  const actualLinkCount = linkMatches ? linkMatches.length : 0;
+
+  const systemPrompt = `You are a content compliance auditor. Score how well the article fulfills the original content brief.
+
+RETURN ONLY VALID JSON matching this exact schema:
+{
+  "titleAdherence": { "score": <0-20>, "maxScore": 20, "notes": "<1-2 sentences>" },
+  "keywordCoverage": { "score": <0-25>, "maxScore": 25, "notes": "<1-2 sentences>" },
+  "angleAlignment": { "score": <0-30>, "maxScore": 30, "notes": "<1-2 sentences>" },
+  "wordCountAccuracy": { "score": <0-15>, "maxScore": 15, "notes": "<1-2 sentences>" },
+  "linkCountAccuracy": { "score": <0-10>, "maxScore": 10, "notes": "<1-2 sentences>" },
+  "summary": "<1-2 sentence overall assessment>"
+}
+
+SCORING CRITERIA:
+
+1. TITLE ADHERENCE (20 pts):
+   - Does the article title closely match the brief's suggested title direction?
+   - 20 = nearly identical angle, 15 = same topic with slight variation, 10 = related but different angle, 5 = loosely related, 0 = completely different
+
+2. KEYWORD COVERAGE (25 pts):
+   - Primary keyword: Is "${briefData.primaryKeyword}" used naturally in the title, intro, headings, and body? (15 pts)
+   - Secondary keywords: Are these used throughout the article? (10 pts): ${briefData.secondaryKeywords.join(", ")}
+   - Count how many secondary keywords appear at least once in the article.
+
+3. ANGLE ALIGNMENT (30 pts) — MOST IMPORTANT:
+   - Does the article deliver on the brief's described content angle/description?
+   - Does the introduction set up this angle?
+   - Do the body sections fulfill the promised coverage?
+   - Does the conclusion reinforce it?
+   - 30 = perfect alignment, 20 = mostly aligned with minor gaps, 10 = partially aligned, 0 = different angle entirely
+
+4. WORD COUNT ACCURACY (15 pts):
+   - Brief target: ${briefData.suggestedWordCount} words. Actual: ${actualWordCount} words.
+   - Within ±10%: 15 pts. Within ±20%: 10 pts. Within ±30%: 5 pts. Beyond ±30%: 0 pts.
+
+5. LINK COUNT ACCURACY (10 pts):
+   - Brief target: ${briefData.suggestedLinkCount} links. Actual: ${actualLinkCount} links.
+   - Within ±2: 10 pts. Within ±4: 7 pts. Within ±6: 3 pts. Beyond ±6: 0 pts.`;
+
+  const response = await callLLM({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `BRIEF TITLE: "${briefData.title}"\nBRIEF DESCRIPTION: "${briefData.description}"\n\nARTICLE TITLE: "${article.title}"\nARTICLE CONTENT (first 3000 chars):\n${plainText.substring(0, 3000)}` },
+    ],
+    response_format: { type: "json_object" },
+  }, projectId);
+
+  const rawContent = response.choices?.[0]?.message?.content;
+  const text = typeof rawContent === "string" ? rawContent : (rawContent as any)?.[0]?.text ?? "";
+  const parsed = extractJSON(text);
+  if (!parsed) return null;
+
+  // Calculate overall score as sum of all category scores
+  const overallScore = Math.round(
+    ((parsed.titleAdherence?.score ?? 0) +
+    (parsed.keywordCoverage?.score ?? 0) +
+    (parsed.angleAlignment?.score ?? 0) +
+    (parsed.wordCountAccuracy?.score ?? 0) +
+    (parsed.linkCountAccuracy?.score ?? 0))
+  );
+
+  return {
+    overallScore,
+    titleAdherence: parsed.titleAdherence ?? { score: 0, maxScore: 20, notes: "Not scored" },
+    keywordCoverage: parsed.keywordCoverage ?? { score: 0, maxScore: 25, notes: "Not scored" },
+    angleAlignment: parsed.angleAlignment ?? { score: 0, maxScore: 30, notes: "Not scored" },
+    wordCountAccuracy: parsed.wordCountAccuracy ?? { score: 0, maxScore: 15, notes: "Not scored" },
+    linkCountAccuracy: parsed.linkCountAccuracy ?? { score: 0, maxScore: 10, notes: "Not scored" },
+    summary: parsed.summary ?? "Compliance scoring complete.",
+  };
 }
 
 export type AppRouter = typeof appRouter;

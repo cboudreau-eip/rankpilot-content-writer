@@ -203,7 +203,7 @@ export async function createArticle(data: InsertArticle) {
   return getArticleById(result[0].insertId);
 }
 
-export async function updateArticle(articleId: number, data: Partial<Pick<InsertArticle, "title" | "content" | "excerpt" | "keyword" | "keywords" | "metaTitle" | "metaDescription" | "slug" | "wordCount" | "status" | "contentType">>) {
+export async function updateArticle(articleId: number, data: Partial<Pick<InsertArticle, "title" | "content" | "excerpt" | "keyword" | "keywords" | "metaTitle" | "metaDescription" | "slug" | "wordCount" | "status" | "contentType" | "briefComplianceScore" | "briefComplianceDetails">>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(articles).set(data).where(eq(articles.id, articleId));

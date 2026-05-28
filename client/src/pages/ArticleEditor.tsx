@@ -1482,6 +1482,63 @@ export default function ArticleEditor() {
           />
         )}
 
+        {/* Brief Compliance Panel */}
+        {article.briefComplianceScore != null && article.briefComplianceDetails && (
+          <div className="w-80 bg-card rounded-xl border border-border/60 p-5 space-y-4 flex-shrink-0 self-start sticky top-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-indigo-600" />
+                Brief Compliance
+              </h3>
+              <span className={`text-2xl font-bold ${
+                article.briefComplianceScore >= 80 ? 'text-emerald-600' :
+                article.briefComplianceScore >= 60 ? 'text-amber-600' :
+                'text-red-600'
+              }`}>
+                {article.briefComplianceScore}%
+              </span>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              {(article.briefComplianceDetails as any).summary}
+            </p>
+
+            {/* Category Breakdown */}
+            {[
+              { key: 'titleAdherence', label: 'Title Adherence', icon: '\uD83C\uDFAF' },
+              { key: 'keywordCoverage', label: 'Keyword Coverage', icon: '\uD83D\uDD11' },
+              { key: 'angleAlignment', label: 'Angle Alignment', icon: '\uD83E\uDDED' },
+              { key: 'wordCountAccuracy', label: 'Word Count', icon: '\uD83D\uDCDD' },
+              { key: 'linkCountAccuracy', label: 'Link Count', icon: '\uD83D\uDD17' },
+            ].map(({ key, label, icon }) => {
+              const cat = (article.briefComplianceDetails as any)?.[key];
+              if (!cat) return null;
+              const pct = Math.round((cat.score / cat.maxScore) * 100);
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{icon} {label}</span>
+                    <span className={`font-semibold ${
+                      pct >= 80 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-red-600'
+                    }`}>
+                      {cat.score}/{cat.maxScore}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">{cat.notes}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* SEO Sidebar */}
         {showSeo && (
           <div className="w-80 bg-card rounded-xl border border-border/60 p-5 space-y-5 flex-shrink-0 self-start sticky top-4">

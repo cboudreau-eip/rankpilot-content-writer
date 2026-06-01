@@ -1427,3 +1427,4 @@
 - [x] Create a reusable Teams notification helper (sends adaptive cards to webhook)
 - [x] Send Teams notification when pipeline briefs are generated (summary with count and link to Pipeline page)
 - [x] Send Teams notification when Scheduler finishes writing an article (title, keyword, compliance score, link to article)
+- [x] Add timestamp to completed keyword queue items in the Scheduler (shows date/time when article was generated)

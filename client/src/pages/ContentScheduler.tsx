@@ -1785,6 +1785,11 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
                 <span className={`text-sm truncate ${kw.status === "completed" ? "text-muted-foreground line-through" : ""}`}>
                   {kw.keyword}
                 </span>
+                {kw.status === "completed" && kw.processedAt && (
+                  <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                    {new Date(kw.processedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} at {new Date(kw.processedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {kw.status === "completed" && kw.generatedArticleId && (

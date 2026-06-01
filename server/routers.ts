@@ -8641,6 +8641,7 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
       await updateKeywordQueueItem(keywordQueueItemId, {
         status: "completed",
         generatedArticleId: article.id,
+        processedAt: new Date(),
       });
     }
 

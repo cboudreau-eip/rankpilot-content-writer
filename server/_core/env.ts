@@ -10,4 +10,5 @@ export const ENV = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   keywordsEverywhereApiKey: process.env.KEYWORDS_EVERYWHERE_API_KEY ?? "",
   teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL ?? "",
+  cmsPassword: process.env.CMS_PASSWORD ?? "",
 };

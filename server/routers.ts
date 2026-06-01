@@ -2909,6 +2909,46 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         return deleteArticle(input.id);
       }),
 
+    /** Publish an article to the MedicareFAQ CMS (GitHub Editor) */
+    publishToCms: publicProcedure
+      .input(z.object({
+        articleId: z.number(),
+        category: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { publishToCms, generateSlug } = await import("./cmsPublish");
+
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+        if (!article.content) throw new TRPCError({ code: "BAD_REQUEST", message: "Article has no content" });
+        if (!article.title) throw new TRPCError({ code: "BAD_REQUEST", message: "Article has no title" });
+
+        const slug = article.slug || generateSlug(article.title);
+        const excerpt = article.excerpt || article.metaDescription || undefined;
+
+        const result = await publishToCms({
+          title: article.title,
+          slug,
+          content: article.content,
+          excerpt,
+          category: input.category || "General",
+        });
+
+        // Update article status to published and store the slug
+        await updateArticle(article.id, {
+          status: "published" as any,
+          slug,
+        });
+
+        return {
+          success: true,
+          commitSha: result.commitSha,
+          slug: result.slug,
+          liveUrl: `/blog/${result.slug}/`,
+          message: result.message,
+        };
+      }),
+
     /** Regenerate a single section of an article using AI */
     regenerateSection: publicProcedure
       .input(z.object({

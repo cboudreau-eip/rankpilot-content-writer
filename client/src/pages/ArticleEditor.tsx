@@ -24,7 +24,7 @@ import {
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
   FileCheck, Info, ExternalLink, Repeat2, MoreVertical, Download, Scan, Image, ImagePlus, Trash2, RefreshCw, Palette,
-  ListTree, FolderKanban, Unlink, Link2,
+  ListTree, FolderKanban, Unlink, Link2, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -627,6 +627,17 @@ export default function ArticleEditor() {
   // Links Audit state
   const [showLinksAudit, setShowLinksAudit] = useState(false);
 
+  // Publish to CMS state
+  const publishCmsMutation = trpc.articles.publishToCms.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Published! Live at /blog/${data.slug}/ in 1-2 minutes.`);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to publish to CMS");
+    },
+  });
+
   const brokenLinksMutation = trpc.brokenLinks.check.useMutation({
     onSuccess: (data) => {
       setBrokenLinksResult(data);
@@ -1046,6 +1057,24 @@ export default function ArticleEditor() {
                 Links Audit
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!articleId) return;
+                  if (article?.status === "published") {
+                    toast.info("Article is already published");
+                    return;
+                  }
+                  publishCmsMutation.mutate({ articleId });
+                }}
+                disabled={publishCmsMutation.isPending || article?.status === "published"}
+              >
+                {publishCmsMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Globe className="w-4 h-4 mr-2 text-emerald-600" />
+                )}
+                {article?.status === "published" ? "Published to CMS" : "Publish to CMS"}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
                   if (!editor) return;

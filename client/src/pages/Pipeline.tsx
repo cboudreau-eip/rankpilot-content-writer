@@ -806,7 +806,7 @@ function ActivityTab({ projectId }: { projectId: number }) {
 
   const deleteMutation = trpc.pipeline.deleteJob.useMutation({
     onSuccess: () => {
-      toast.success("Job deleted.");
+      toast.success("Job dismissed.");
       utils.pipeline.getJobs.invalidate();
       utils.pipeline.getBriefs.invalidate();
     },
@@ -815,7 +815,7 @@ function ActivityTab({ projectId }: { projectId: number }) {
 
   const bulkDeleteMutation = trpc.pipeline.bulkDeleteJobs.useMutation({
     onSuccess: (data: any) => {
-      toast.success(`${data.deleted} job${data.deleted !== 1 ? "s" : ""} deleted.`);
+      toast.success(`${data.deleted} job${data.deleted !== 1 ? "s" : ""} dismissed.`);
       setSelectedIds(new Set());
       utils.pipeline.getJobs.invalidate();
       utils.pipeline.getBriefs.invalidate();
@@ -844,7 +844,7 @@ function ActivityTab({ projectId }: { projectId: number }) {
   };
 
   const handleBulkDelete = () => {
-    if (confirm(`Delete ${selectedIds.size} selected job${selectedIds.size !== 1 ? "s" : ""}?`)) {
+    if (confirm(`Dismiss ${selectedIds.size} selected job${selectedIds.size !== 1 ? "s" : ""}? They won't be re-ingested from S3.`)) {
       bulkDeleteMutation.mutate({ jobIds: Array.from(selectedIds) });
     }
   };
@@ -887,7 +887,7 @@ function ActivityTab({ projectId }: { projectId: number }) {
             ) : (
               <Trash2 className="w-4 h-4 mr-1" />
             )}
-            Delete {selectedIds.size} Selected
+            Dismiss {selectedIds.size} Selected
           </Button>
         )}
       </div>
@@ -955,13 +955,13 @@ function ActivityTab({ projectId }: { projectId: number }) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-orange-500"
                       onClick={() => {
-                        if (confirm("Delete this pipeline job?")) {
+                        if (confirm("Dismiss this job? It won't be re-ingested from S3.")) {
                           deleteMutation.mutate({ jobId: job.id });
                         }
                       }}
-                      title="Delete"
+                      title="Dismiss (won't re-ingest)"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

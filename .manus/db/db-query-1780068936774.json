@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, title, slug, wordCount, articleStatus, metaTitle FROM articles WHERE slug = 'medicare-savings-programs-guide';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, title, slug, wordCount, articleStatus, metaTitle FROM articles WHERE slug = 'medicare-savings-programs-guide';",
+  "rows": [
+    {
+      "id": "2670004",
+      "title": "Medicare Savings Programs: Eligibility & Benefits",
+      "slug": "medicare-savings-programs-guide",
+      "wordCount": "2294",
+      "articleStatus": "complete",
+      "metaTitle": "Medicare Savings Programs: Eligibility & Benefits"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tslug\twordCount\tarticleStatus\tmetaTitle\n2670004\tMedicare Savings Programs: Eligibility & Benefits\tmedicare-savings-programs-guide\t2294\tcomplete\tMedicare Savings Programs: Eligibility & Benefits\n",
+  "stderr": "",
+  "execution_time_ms": 285
+}

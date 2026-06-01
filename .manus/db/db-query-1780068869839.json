@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, name, role FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, role FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "cboudreau",
+      "role": "admin"
+    },
+    {
+      "id": "2760082",
+      "name": "Gabriel Lopez-Seco",
+      "role": "user"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\trole\n1\tcboudreau\tadmin\n2760082\tGabriel Lopez-Seco\tuser\n",
+  "stderr": "",
+  "execution_time_ms": 292
+}

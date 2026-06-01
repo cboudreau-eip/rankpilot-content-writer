@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, like, inArray, asc } from "drizzle-orm";
+import { eq, desc, and, sql, like, inArray, asc, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, scheduledJobs, InsertScheduledJob, keywordQueue, InsertKeywordQueueItem, jobRunHistory, InsertJobRunHistoryEntry, schedulerRunLogs, InsertSchedulerRunLog, projectKeywords, InsertProjectKeyword, ideas, InsertIdea, pipelineJobs, InsertPipelineJob, pipelineSettings, InsertPipelineSettings, pipelineBriefs, InsertPipelineBrief } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -984,10 +984,15 @@ export async function deleteOutlineVersions(outlineId: number) {
 
 // ---- Pipeline Job Helpers ----
 
-export async function getPipelineJobsByProject(projectId: number) {
+export async function getPipelineJobsByProject(projectId: number, includeDismissed = false) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(pipelineJobs).where(eq(pipelineJobs.projectId, projectId)).orderBy(desc(pipelineJobs.createdAt));
+  if (includeDismissed) {
+    return db.select().from(pipelineJobs).where(eq(pipelineJobs.projectId, projectId)).orderBy(desc(pipelineJobs.createdAt));
+  }
+  return db.select().from(pipelineJobs).where(
+    and(eq(pipelineJobs.projectId, projectId), not(eq(pipelineJobs.status, "dismissed")))
+  ).orderBy(desc(pipelineJobs.createdAt));
 }
 
 export async function getPipelineJobById(jobId: number) {
@@ -1023,7 +1028,15 @@ export async function updatePipelineJob(jobId: number, data: Partial<Pick<Insert
 export async function deletePipelineJob(jobId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(pipelineJobs).where(eq(pipelineJobs.id, jobId));
+  // Soft delete: mark as dismissed instead of actually deleting
+  await db.update(pipelineJobs).set({ status: "dismissed" }).where(eq(pipelineJobs.id, jobId));
+  return { success: true };
+}
+
+export async function undismissPipelineJob(jobId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(pipelineJobs).set({ status: "pending" }).where(eq(pipelineJobs.id, jobId));
   return { success: true };
 }
 

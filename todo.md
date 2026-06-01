@@ -1414,3 +1414,10 @@
 - [x] Fix: After editing and saving a brief, it stays in edit mode instead of returning to the normal card view with Approve/Edit/Regenerate/Reject buttons
 - [x] Add "Approved" section to the Briefs tab showing history of approved briefs with details and which Scheduler job they were sent to
 - [x] Move approved briefs to a separate "Approved" tab (4th tab) on the Pipeline page, remove from Briefs tab
+
+## Pipeline Soft Delete (Dismiss)
+- [x] Add 'dismissed' status or flag to pipeline_jobs schema
+- [x] Update Activity tab to filter out dismissed jobs from the default view
+- [x] Change delete button to "Dismiss" in the UI
+- [x] Ensure dedup logic still sees dismissed records (no re-ingestion)
+- [ ] Add option to view/un-dismiss dismissed jobs if needed (backend ready, UI deferred)

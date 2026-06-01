@@ -176,6 +176,13 @@
       "when": 1779987669594,
       "tag": "0024_simple_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1780324383569,
+      "tag": "0025_colossal_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

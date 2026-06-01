@@ -707,6 +707,7 @@ export const pipelineJobs = mysqlTable("pipeline_jobs", {
     "sent_to_scheduler",
     "rejected",
     "failed",
+    "dismissed",
   ]).default("pending").notNull(),
   /** Source URL of the competitor article (optional) */
   sourceUrl: varchar("sourceUrl", { length: 1024 }),

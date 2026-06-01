@@ -7751,11 +7751,37 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
 
         // Generate AI briefs for each new job (in background)
         if (newJobIds.length > 0) {
-          for (const jobId of newJobIds) {
-            generateBriefForJob(jobId, input.projectId).catch((err: any) => {
+          // Track brief generation completions for Teams notification
+          let briefsGenerated = 0;
+          let briefsFailed = 0;
+          const briefPromises = newJobIds.map(async (jobId) => {
+            try {
+              await generateBriefForJob(jobId, input.projectId);
+              briefsGenerated++;
+            } catch (err: any) {
               console.error(`[Pipeline] Brief generation failed for job ${jobId}:`, err);
-            });
-          }
+              briefsFailed++;
+            }
+          });
+
+          // Fire-and-forget: wait for all briefs then send Teams notification
+          Promise.all(briefPromises).then(async () => {
+            if (briefsGenerated > 0) {
+              const { sendTeamsNotification } = await import("./teamsNotify");
+              await sendTeamsNotification({
+                title: "New Briefs Ready for Review",
+                message: `${briefsGenerated} new brief${briefsGenerated === 1 ? " has" : "s have"} been generated and ${briefsGenerated === 1 ? "is" : "are"} awaiting your review.${briefsFailed > 0 ? ` (${briefsFailed} failed)` : ""}`,
+                facts: [
+                  { title: "Briefs Generated", value: String(briefsGenerated) },
+                  ...(briefsFailed > 0 ? [{ title: "Failed", value: String(briefsFailed) }] : []),
+                  { title: "Source", value: "S3 Pipeline Ingestion" },
+                ],
+                themeColor: briefsFailed > 0 ? "warning" : "good",
+              });
+            }
+          }).catch((err) => {
+            console.error("[Pipeline] Error in brief generation batch:", err);
+          });
         }
 
         return { ingested, skipped, errors, total: s3Keys.length, newJobIds };

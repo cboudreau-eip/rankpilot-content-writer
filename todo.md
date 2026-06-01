@@ -1421,3 +1421,8 @@
 - [x] Change delete button to "Dismiss" in the UI
 - [x] Ensure dedup logic still sees dismissed records (no re-ingestion)
 - [ ] Add option to view/un-dismiss dismissed jobs if needed (backend ready, UI deferred)
+
+## Teams Notifications
+- [x] Store Teams webhook URL as a secret/env variable
+- [x] Create a reusable Teams notification helper (sends adaptive cards to webhook)
+- [x] Send Teams notification when pipeline briefs are generated (summary with count and link to Pipeline page)

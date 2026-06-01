@@ -9,4 +9,5 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   keywordsEverywhereApiKey: process.env.KEYWORDS_EVERYWHERE_API_KEY ?? "",
+  teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL ?? "",
 };

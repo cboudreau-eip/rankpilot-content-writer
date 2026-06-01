@@ -8608,11 +8608,13 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
     }
 
     // ── Step 4b: Brief Compliance Scoring (if brief data exists) ──
+    let complianceScoreForNotification: number | null = null;
     if (briefData && article?.id) {
       try {
         logFn("brief_compliance", `Scoring article against pipeline brief...`, "info");
         const complianceResult = await scoreBriefCompliance(article, briefData, job.projectId);
         if (complianceResult) {
+          complianceScoreForNotification = complianceResult.overallScore;
           await updateArticle(article.id, {
             briefComplianceScore: complianceResult.overallScore,
             briefComplianceDetails: complianceResult,
@@ -8651,6 +8653,29 @@ export async function executeScheduledJob(jobId: number): Promise<void> {
 
     logFn("complete", `Pipeline complete in ${Math.round(durationMs / 1000)}s \u2014 article #${article.id}`, "success", { articleId: article.id, durationMs });
     console.log(`[Scheduler] Job ${job.id} completed. Article #${article.id} in ${Math.round(durationMs / 1000)}s`);
+
+    // ── Step 6: Teams notification (fire-and-forget) ──
+    try {
+      const { sendTeamsNotification } = await import("./teamsNotify");
+      const facts: Array<{ title: string; value: string }> = [
+        { title: "Keyword", value: keyword },
+        { title: "Word Count", value: `${article.wordCount ?? 0}` },
+        { title: "Duration", value: `${Math.round(durationMs / 1000)}s` },
+      ];
+      if (complianceScoreForNotification != null) {
+        facts.push({ title: "Brief Compliance", value: `${complianceScoreForNotification}%` });
+      }
+      sendTeamsNotification({
+        title: `Article Created: ${article.title ?? keyword}`,
+        message: `The Scheduler has finished writing an article for "${keyword}". It is now ready for review.`,
+        facts,
+        actionUrl: `https://contentwriter.teameip.com/articles/${article.id}`,
+        actionLabel: "View Article",
+        themeColor: "good",
+      }).catch((err) => console.error("[Teams] Article notification failed:", err));
+    } catch (err) {
+      console.error("[Teams] Failed to load notification module:", err);
+    }
 
   } catch (error: any) {
     console.error(`[Scheduler] Job ${job.id} failed:`, error);

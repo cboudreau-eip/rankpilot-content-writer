@@ -627,10 +627,10 @@ export default function ArticleEditor() {
   // Links Audit state
   const [showLinksAudit, setShowLinksAudit] = useState(false);
 
-  // Publish to CMS state
+  // Save to CMS as draft state
   const publishCmsMutation = trpc.articles.publishToCms.useMutation({
     onSuccess: (data) => {
-      toast.success(`Published! Live at /blog/${data.slug}/ in 1-2 minutes.`);
+      toast.success(`Draft saved to CMS! Review and publish from the CMS editor.`);
       refetch();
     },
     onError: (err) => {
@@ -1073,7 +1073,7 @@ export default function ArticleEditor() {
                 ) : (
                   <Globe className="w-4 h-4 mr-2 text-emerald-600" />
                 )}
-                {article?.status === "published" ? "Published to CMS" : "Publish to CMS"}
+                {article?.status === "published" ? "Sent to CMS" : "Send to CMS (Draft)"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {

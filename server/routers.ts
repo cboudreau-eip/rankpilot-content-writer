@@ -2909,14 +2909,14 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         return deleteArticle(input.id);
       }),
 
-    /** Publish an article to the MedicareFAQ CMS (GitHub Editor) */
+    /** Save an article as a draft in the MedicareFAQ CMS (GitHub Editor) */
     publishToCms: publicProcedure
       .input(z.object({
         articleId: z.number(),
         category: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { publishToCms, generateSlug } = await import("./cmsPublish");
+        const { saveDraftToCms, generateSlug } = await import("./cmsPublish");
 
         const article = await getArticleById(input.articleId);
         if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
@@ -2925,16 +2925,22 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
 
         const slug = article.slug || generateSlug(article.title);
         const excerpt = article.excerpt || article.metaDescription || undefined;
+        const seoTitle = article.metaTitle || undefined;
+        const seoDescription = article.metaDescription || undefined;
 
-        const result = await publishToCms({
+        const result = await saveDraftToCms({
           title: article.title,
           slug,
-          content: article.content,
+          rawContent: article.content,
           excerpt,
           category: input.category || "General",
+          author: "David Haass",
+          reviewer: "Ashlee Zareczny",
+          seoTitle,
+          seoDescription,
         });
 
-        // Update article status to published and store the slug
+        // Update article status to published (meaning sent to CMS) and store the slug
         await updateArticle(article.id, {
           status: "published" as any,
           slug,
@@ -2942,10 +2948,9 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
 
         return {
           success: true,
-          commitSha: result.commitSha,
+          draftId: result.id,
           slug: result.slug,
-          liveUrl: `/blog/${result.slug}/`,
-          message: result.message,
+          message: `Draft saved to CMS. Review it at the CMS editor before publishing.`,
         };
       }),
 

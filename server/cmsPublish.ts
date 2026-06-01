@@ -1,14 +1,38 @@
 /**
  * CMS Publish Helper
- * Publishes articles to the MedicareFAQ CMS via its GitHub Editor API.
+ * Saves articles as drafts in the MedicareFAQ CMS via its GitHub Editor API.
  * 
- * API: POST https://medicarefaq-next-nine.vercel.app/api/cms/create/
+ * Draft API: PUT https://medicarefaq-next-nine.vercel.app/api/cms/drafts
+ * Publish API: POST https://medicarefaq-next-nine.vercel.app/api/cms/create/
  * Auth: x-cms-password header
  */
 
 import { ENV } from "./_core/env";
 
-const CMS_API_URL = "https://medicarefaq-next-nine.vercel.app/api/cms/create/";
+const CMS_BASE_URL = "https://medicarefaq-next-nine.vercel.app";
+const CMS_DRAFTS_URL = `${CMS_BASE_URL}/api/cms/drafts`;
+const CMS_CREATE_URL = `${CMS_BASE_URL}/api/cms/create/`;
+
+export interface CmsDraftInput {
+  title: string;
+  slug: string;
+  rawContent: string; // HTML body
+  excerpt?: string;
+  category?: string;
+  author?: string;
+  reviewer?: string;
+  image?: string;
+  imageAlt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  keyTakeaways?: string[];
+}
+
+export interface CmsDraftResult {
+  id: string;
+  updatedAt: string;
+  slug: string;
+}
 
 export interface CmsPublishInput {
   title: string;
@@ -42,8 +66,58 @@ export function generateSlug(title: string): string {
 }
 
 /**
- * Publish an article to the MedicareFAQ CMS.
- * Returns the commit result or throws on failure.
+ * Save an article as a draft in the MedicareFAQ CMS.
+ * The article can then be reviewed and published from the CMS editor.
+ * Returns the draft ID and timestamp.
+ */
+export async function saveDraftToCms(input: CmsDraftInput): Promise<CmsDraftResult> {
+  const password = ENV.cmsPassword;
+  if (!password) {
+    throw new Error("CMS_PASSWORD environment variable is not set");
+  }
+
+  const body: Record<string, any> = {
+    title: input.title,
+    slug: input.slug,
+    rawContent: input.rawContent,
+  };
+
+  // Add optional fields
+  if (input.excerpt) body.excerpt = input.excerpt;
+  if (input.category) body.category = input.category;
+  if (input.author) body.author = input.author;
+  if (input.reviewer) body.reviewer = input.reviewer;
+  if (input.image) body.image = input.image;
+  if (input.imageAlt) body.imageAlt = input.imageAlt;
+  if (input.seoTitle) body.seoTitle = input.seoTitle;
+  if (input.seoDescription) body.seoDescription = input.seoDescription;
+  if (input.keyTakeaways && input.keyTakeaways.length > 0) body.keyTakeaways = input.keyTakeaways;
+
+  const response = await fetch(CMS_DRAFTS_URL, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-cms-password": password,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || `CMS draft save failed with status ${response.status}`);
+  }
+
+  return {
+    id: data.id,
+    updatedAt: data.updatedAt,
+    slug: input.slug,
+  };
+}
+
+/**
+ * Publish an article directly to the MedicareFAQ CMS (commits to GitHub, goes live).
+ * Use saveDraftToCms() instead if you want to review before publishing.
  */
 export async function publishToCms(input: CmsPublishInput): Promise<CmsPublishResult> {
   const password = ENV.cmsPassword;
@@ -57,7 +131,6 @@ export async function publishToCms(input: CmsPublishInput): Promise<CmsPublishRe
     content: input.content,
   };
 
-  // Add optional fields if provided
   if (input.excerpt) body.excerpt = input.excerpt;
   if (input.category) body.category = input.category;
   if (input.image) {
@@ -66,7 +139,7 @@ export async function publishToCms(input: CmsPublishInput): Promise<CmsPublishRe
   }
   if (input.imageAlt) body.imageAlt = input.imageAlt;
 
-  const response = await fetch(CMS_API_URL, {
+  const response = await fetch(CMS_CREATE_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

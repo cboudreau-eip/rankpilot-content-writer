@@ -1436,3 +1436,4 @@
 - [x] Add articles.publishToCms tRPC procedure (fetches article, publishes to CMS, updates status to published)
 - [x] Add "Publish to CMS" button in Article Editor overflow menu (with loading state, disabled when already published)
 - [x] Write vitest test validating CMS_PASSWORD secret
+- [x] Change CMS integration to save as DRAFT instead of publishing directly (uses /api/cms/drafts endpoint, article can be reviewed in CMS before going live)

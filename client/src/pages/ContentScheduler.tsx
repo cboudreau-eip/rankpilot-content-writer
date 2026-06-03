@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +42,7 @@ import {
   Link2,
   Globe,
   X,
+  GripVertical,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -1660,10 +1664,53 @@ function JobDetailView({ jobId, projectId, onBack }: { jobId: number; projectId:
 // KEYWORD QUEUE MANAGER
 // ============================================================
 
+/** Sortable row for a single pending keyword */
+function SortableKeywordRow({ kw, index, onRemove }: { kw: any; index: number; onRemove: (id: number) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: kw.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between p-3 rounded-lg border bg-background border-border ${
+        isDragging ? "shadow-lg ring-2 ring-indigo-200" : ""
+      }`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+        <span className="text-xs text-muted-foreground w-6 text-right">{index + 1}</span>
+        <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span className="text-sm truncate">{kw.keyword}</span>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-muted-foreground hover:text-red-500"
+        onClick={() => onRemove(kw.id)}
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 function KeywordQueueManager({ jobId }: { jobId: number }) {
   const utils = trpc.useUtils();
   const [newKeywords, setNewKeywords] = useState("");
   const [, navigate] = useLocation();
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const { data: keywords, isLoading } = trpc.scheduler.listKeywords.useQuery({ jobId });
 
@@ -1683,6 +1730,13 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
     },
   });
 
+  const reorderMutation = trpc.scheduler.reorderKeywords.useMutation({
+    onSuccess: () => {
+      utils.scheduler.listKeywords.invalidate({ jobId });
+    },
+    onError: (err) => toast.error("Failed to reorder: " + err.message),
+  });
+
   const handleAdd = () => {
     const kws = newKeywords.split("\n").map(k => k.trim()).filter(Boolean);
     if (kws.length === 0) {
@@ -1699,6 +1753,33 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
   const processingKeywords = keywords?.filter(k => k.status === "processing") ?? [];
   const completedKeywords = keywords?.filter(k => k.status === "completed") ?? [];
   const failedKeywords = keywords?.filter(k => k.status === "failed") ?? [];
+
+  // Drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = pendingKeywords.findIndex(k => k.id === active.id);
+    const newIndex = pendingKeywords.findIndex(k => k.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(pendingKeywords, oldIndex, newIndex);
+    // Optimistic update via cache
+    utils.scheduler.listKeywords.setData({ jobId }, (old) => {
+      if (!old) return old;
+      const nonPending = old.filter(k => k.status !== "pending");
+      return [...reordered, ...nonPending];
+    });
+    // Persist to backend
+    reorderMutation.mutate({
+      jobId,
+      orderedIds: reordered.map(k => k.id),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -1760,66 +1841,103 @@ function KeywordQueueManager({ jobId }: { jobId: number }) {
           <p>No keywords in queue yet. Add some above.</p>
         </div>
       ) : (
-        <div className="space-y-1">
-          {keywords.map((kw, index) => (
-            <div
-              key={kw.id}
-              className={`flex items-center justify-between p-3 rounded-lg border ${
-                kw.status === "completed" ? "bg-green-50/50 border-green-100" :
-                kw.status === "failed" ? "bg-red-50/50 border-red-100" :
-                kw.status === "processing" ? "bg-blue-50/50 border-blue-100" :
-                "bg-background border-border"
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs text-muted-foreground w-6 text-right">{index + 1}</span>
-                {kw.status === "completed" ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                ) : kw.status === "failed" ? (
-                  <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-                ) : kw.status === "processing" ? (
-                  <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
-                ) : (
-                  <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
-                )}
-                <span className={`text-sm truncate ${kw.status === "completed" ? "text-muted-foreground line-through" : ""}`}>
-                  {kw.keyword}
-                </span>
-                {kw.status === "completed" && kw.processedAt && (
-                  <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                    {new Date(kw.processedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} at {new Date(kw.processedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {kw.status === "completed" && kw.generatedArticleId && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-indigo-600 hover:text-indigo-700"
-                    onClick={() => navigate(`/articles/${kw.generatedArticleId}`)}
-                  >
-                    View Article
-                  </Button>
-                )}
-                {kw.status === "failed" && kw.errorMessage && (
-                  <span className="text-xs text-red-500 max-w-48 truncate" title={kw.errorMessage}>
-                    {kw.errorMessage}
-                  </span>
-                )}
-                {kw.status === "pending" && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-red-500"
-                    onClick={() => removeMutation.mutate({ id: kw.id })}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                )}
+        <div className="space-y-6">
+          {/* Up Next — Draggable pending keywords */}
+          {pendingKeywords.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Up Next ({pendingKeywords.length})</h4>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={pendingKeywords.map(k => k.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1">
+                    {pendingKeywords.map((kw, index) => (
+                      <SortableKeywordRow
+                        key={kw.id}
+                        kw={kw}
+                        index={index}
+                        onRemove={(id) => removeMutation.mutate({ id })}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+          )}
+
+          {/* Processing */}
+          {processingKeywords.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-3">Processing</h4>
+              <div className="space-y-1">
+                {processingKeywords.map((kw) => (
+                  <div key={kw.id} className="flex items-center justify-between p-3 rounded-lg border bg-blue-50/50 border-blue-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+                      <span className="text-sm truncate">{kw.keyword}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {/* Failed */}
+          {failedKeywords.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-3">Failed ({failedKeywords.length})</h4>
+              <div className="space-y-1">
+                {failedKeywords.map((kw) => (
+                  <div key={kw.id} className="flex items-center justify-between p-3 rounded-lg border bg-red-50/50 border-red-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      <span className="text-sm truncate">{kw.keyword}</span>
+                    </div>
+                    <span className="text-xs text-red-500 max-w-48 truncate" title={kw.errorMessage ?? ""}>
+                      {kw.errorMessage}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Written (Completed) — Collapsible */}
+          {completedKeywords.length > 0 && (
+            <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-2 text-sm font-semibold text-green-700 uppercase tracking-wide mb-3 hover:text-green-800 transition-colors">
+                  {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  Written ({completedKeywords.length})
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-1">
+                  {completedKeywords.map((kw) => (
+                    <div key={kw.id} className="flex items-center justify-between p-3 rounded-lg border bg-green-50/50 border-green-100">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                        <span className="text-sm truncate text-muted-foreground">{kw.keyword}</span>
+                        {kw.processedAt && (
+                          <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                            {new Date(kw.processedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} at {new Date(kw.processedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                      {kw.generatedArticleId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-indigo-600 hover:text-indigo-700"
+                          onClick={() => navigate(`/articles/${kw.generatedArticleId}`)}
+                        >
+                          View Article
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       )}
     </div>

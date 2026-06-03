@@ -1437,3 +1437,14 @@
 - [x] Add "Publish to CMS" button in Article Editor overflow menu (with loading state, disabled when already published)
 - [x] Write vitest test validating CMS_PASSWORD secret
 - [x] Change CMS integration to save as DRAFT instead of publishing directly (uses /api/cms/drafts endpoint, article can be reviewed in CMS before going live)
+
+## Keyword Queue: Drag-and-Drop Reordering + Section Separation
+- [x] Install drag-and-drop library (dnd-kit or similar)
+- [x] Separate keyword queue into two sections: "Up Next" (pending) and "Written" (completed)
+- [x] Add drag-and-drop reordering to the pending keywords section
+- [x] Add drag handle icon to each pending keyword row
+- [x] Persist new sort order to backend on drop (update sortOrder field)
+- [x] Add backend tRPC mutation for bulk reorder (update sortOrder for multiple items) — already existed
+- [x] Completed keywords show in collapsed "Written" section with View Article links
+- [x] Write vitest tests for reorder mutation
+- [x] Save checkpoint

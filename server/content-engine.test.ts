@@ -23,11 +23,13 @@ describe("Content Engine - Route and Navigation", () => {
     expect(appContent).toContain("ContentEngine");
   });
 
-  it("AppLayout nav includes Content Engine link", async () => {
+  it("AppLayout nav includes Content Engine link and Pipeline is removed", async () => {
     const fs = await import("fs");
     const layoutContent = fs.readFileSync("client/src/components/AppLayout.tsx", "utf-8");
     expect(layoutContent).toContain('"Content Engine"');
     expect(layoutContent).toContain('"/engine"');
+    // Pipeline nav item should be removed
+    expect(layoutContent).not.toContain('"Pipeline"');
   });
 
   it("Content Engine page uses all 5 expected tabs", async () => {

@@ -109,7 +109,6 @@ const navSections = [
     title: "Automation",
     items: [
       { icon: Zap, label: "Content Engine", path: "/engine" },
-      { icon: Rocket, label: "Pipeline", path: "/pipeline" },
     ],
   },
 ];

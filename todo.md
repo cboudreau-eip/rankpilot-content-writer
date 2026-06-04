@@ -1463,3 +1463,10 @@
 - [x] Support multiple jobs per project
 - [x] Write vitest tests for the new page
 - [x] Save checkpoint
+
+## Remove Old Pipeline/Scheduler Pages
+- [x] Remove Pipeline nav item from AppLayout sidebar
+- [x] Remove ProjectScheduler route from App.tsx
+- [x] Remove Pipeline route from App.tsx (or redirect to /engine)
+- [x] Add redirects from /pipeline and /project-scheduler to /engine
+- [x] Remove Pipeline.tsx and ContentScheduler.tsx page files

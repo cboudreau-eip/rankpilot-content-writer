@@ -17,14 +17,12 @@ import ThinContent from "./pages/ThinContent";
 import GradeContent from "./pages/GradeContent";
 import EntityAnalyzer from "./pages/EntityAnalyzer";
 import GscAnalyzer from "./pages/GscAnalyzer";
-import ProjectScheduler from "./pages/ProjectScheduler";
 import AdminUsers from "./pages/AdminUsers";
 import Login from "./pages/Login";
 import KeywordResearch from "./pages/KeywordResearch";
 import ProjectKeywords from "./pages/ProjectKeywords";
 import Ideas from "./pages/Ideas";
 import Outlines from "./pages/Outlines";
-import Pipeline from "./pages/Pipeline";
 import ContentEngine from "./pages/ContentEngine";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
@@ -84,7 +82,7 @@ function App() {
                       <Route path="/articles/:id" component={ArticleEditor} />
                       <Route path="/generate" component={GenerateArticle} />
                       <Route path="/project-settings" component={ProjectSettings} />
-                      <Route path="/project-scheduler" component={ProjectScheduler} />
+                      <Route path="/project-scheduler">{() => <Redirect to="/engine" />}</Route>
                       <Route path="/settings" component={GeneralSettings} />
                       <Route path="/admin/users" component={AdminUsers} />
                       <Route path="/calendar">{() => <ComingSoon title="Calendar" description="Plan and schedule your content pipeline with a visual calendar." />}</Route>
@@ -101,7 +99,7 @@ function App() {
                       <Route path="/grade" component={GradeContent} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
                       <Route path="/ideas" component={Ideas} />
-                      <Route path="/pipeline" component={Pipeline} />
+                      <Route path="/pipeline">{() => <Redirect to="/engine" />}</Route>
                       <Route path="/engine" component={ContentEngine} />
                       <Route component={NotFound} />
                     </Switch>

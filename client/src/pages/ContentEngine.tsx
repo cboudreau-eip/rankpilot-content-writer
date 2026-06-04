@@ -418,6 +418,7 @@ function ReviewTab({ projectId }: { projectId: number }) {
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [approveBriefId, setApproveBriefId] = useState<number | null>(null);
   const [bulkApproveDialogOpen, setBulkApproveDialogOpen] = useState(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [selectedBriefs, setSelectedBriefs] = useState<Set<number>>(new Set());
   const [selectedScheduledJobId, setSelectedScheduledJobId] = useState<string>("");
 
@@ -446,6 +447,17 @@ function ReviewTab({ projectId }: { projectId: number }) {
   const rejectMutation = trpc.pipeline.rejectBrief.useMutation({
     onSuccess: () => {
       toast.success("Brief rejected.");
+      utils.pipeline.getBriefs.invalidate();
+      utils.pipeline.getJobs.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const bulkDeleteMutation = trpc.pipeline.bulkDeleteJobs.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.deleted} brief${result.deleted !== 1 ? "s" : ""} deleted.`);
+      setBulkDeleteDialogOpen(false);
+      setSelectedBriefs(new Set());
       utils.pipeline.getBriefs.invalidate();
       utils.pipeline.getJobs.invalidate();
     },
@@ -506,6 +518,15 @@ function ReviewTab({ projectId }: { projectId: number }) {
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={selectAll}>
                 {selectedBriefs.size === briefs!.length ? "Deselect All" : "Select All"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkDeleteDialogOpen(true)}
+                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Delete All
               </Button>
               {selectedBriefs.size > 0 && (
                 <Button
@@ -613,6 +634,40 @@ function ReviewTab({ projectId }: { projectId: number }) {
                 <CheckCircle2 className="w-4 h-4 mr-1.5" />
               )}
               Approve & Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              Delete All Briefs
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete all {briefs?.length ?? 0} briefs awaiting review and their associated pipeline jobs. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!briefs) return;
+                const jobIds = briefs.map((b: any) => b.pipelineJobId);
+                bulkDeleteMutation.mutate({ jobIds });
+              }}
+              disabled={bulkDeleteMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {bulkDeleteMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-1.5" />
+              )}
+              Delete All Briefs
             </Button>
           </DialogFooter>
         </DialogContent>

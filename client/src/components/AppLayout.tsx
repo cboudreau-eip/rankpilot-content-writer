@@ -15,11 +15,9 @@ import {
   FolderKanban,
   CalendarDays,
   Search,
-  ShieldCheck,
-  Swords,
-  Crosshair,
+
   BarChart3,
-  Lightbulb,
+
   Flame,
   Sparkles,
   FileText,
@@ -79,11 +77,9 @@ const navSections = [
     items: [
       { icon: Search, label: "Keyword Research", path: "/keywords" },
       { icon: KeyRound, label: "Project Keywords", path: "/project-keywords" },
-      { icon: ShieldCheck, label: "Keyword Auditor", path: "/audit" },
-      { icon: Swords, label: "Competitor Analyzer", path: "/competitor-analyzer" },
-      { icon: Crosshair, label: "Position Tracker", path: "/kpt" },
+
       { icon: BarChart3, label: "GSC Analyzer", path: "/gsc-analyzer" },
-      { icon: Lightbulb, label: "Keyword Insights", path: "/seo-intelligence" },
+
       { icon: Flame, label: "Thin Content", path: "/thin-content" },
     ],
   },

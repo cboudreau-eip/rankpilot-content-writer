@@ -966,27 +966,6 @@ export default function ArticleEditor() {
             {copied ? "Copied" : "Copy"}
           </Button>
 
-          {/* Push to CMS */}
-          <Button
-            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0"
-            onClick={() => {
-              if (!articleId) return;
-              if (article?.status === "published") {
-                toast.info("Article already sent to CMS");
-                return;
-              }
-              publishCmsMutation.mutate({ articleId });
-            }}
-            disabled={publishCmsMutation.isPending || article?.status === "published"}
-          >
-            {publishCmsMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <Globe className="w-4 h-4 mr-1.5" />
-            )}
-            {article?.status === "published" ? "Sent to CMS" : "Push to CMS"}
-          </Button>
-
           {/* Overflow Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1106,6 +1085,27 @@ export default function ArticleEditor() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Push to CMS */}
+          <Button
+            className="bg-orange-500 hover:bg-orange-600 text-white border-0"
+            onClick={() => {
+              if (!articleId) return;
+              if (article?.status === "published") {
+                toast.info("Article already sent to CMS");
+                return;
+              }
+              publishCmsMutation.mutate({ articleId });
+            }}
+            disabled={publishCmsMutation.isPending || article?.status === "published"}
+          >
+            {publishCmsMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Globe className="w-4 h-4 mr-1.5" />
+            )}
+            {article?.status === "published" ? "Sent to CMS" : "Push to CMS"}
+          </Button>
 
           {/* Save */}
           <Button

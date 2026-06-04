@@ -31,7 +31,6 @@ import {
   Zap,
   Bell,
   Settings,
-  Plus,
   MoreHorizontal,
   LogOut,
   ChevronDown,
@@ -353,11 +352,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </button>
               </Link>
 
-              {/* New Article */}
-              <Button className="gap-2 rounded-xl font-bold shadow-md px-5">
-                <Plus className="w-[18px] h-[18px]" />
-                New Article
-              </Button>
+
             </div>
           </header>
 

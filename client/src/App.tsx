@@ -25,6 +25,7 @@ import ProjectKeywords from "./pages/ProjectKeywords";
 import Ideas from "./pages/Ideas";
 import Outlines from "./pages/Outlines";
 import Pipeline from "./pages/Pipeline";
+import ContentEngine from "./pages/ContentEngine";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -101,6 +102,7 @@ function App() {
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
                       <Route path="/ideas" component={Ideas} />
                       <Route path="/pipeline" component={Pipeline} />
+                      <Route path="/engine" component={ContentEngine} />
                       <Route component={NotFound} />
                     </Switch>
                   </AppLayout>

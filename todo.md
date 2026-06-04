@@ -1448,3 +1448,18 @@
 - [x] Completed keywords show in collapsed "Written" section with View Article links
 - [x] Write vitest tests for reorder mutation
 - [x] Save checkpoint
+
+## Unified Content Engine Page (consolidate Pipeline + Scheduler)
+- [x] Create ContentEngine.tsx page at /engine with 5 tabs: Intake, Review, Queue, Schedule, Output
+- [x] Intake tab: S3 polling + manual keyword entry (from Pipeline Settings + Scheduler keyword add)
+- [x] Review tab: Brief review with approve/reject/edit (from Pipeline Briefs tab)
+- [x] Queue tab: Drag-and-drop ordered keyword queue with sections (from Scheduler keywords)
+- [x] Schedule tab: Job list with create/edit/pause/resume/delete/run-now (from Scheduler)
+- [x] Output tab: Run history + generated articles + CMS push status (from both Activity tabs)
+- [x] Add /engine route to App.tsx
+- [x] Update sidebar nav: add "Content Engine" pointing to /engine in Automation section
+- [ ] Redirect /pipeline and /project-scheduler to /engine (kept both for now — old pages still accessible)
+- [x] Keep drafts-only CMS push (no auto-publish)
+- [x] Support multiple jobs per project
+- [x] Write vitest tests for the new page
+- [x] Save checkpoint

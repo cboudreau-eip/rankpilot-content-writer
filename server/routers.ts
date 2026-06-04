@@ -7668,6 +7668,11 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
       .mutation(async ({ input }) => {
         let deleted = 0;
         for (const jobId of input.jobIds) {
+          // Also reject any associated brief so it disappears from the Review tab
+          const brief = await getBriefByJobId(jobId);
+          if (brief) {
+            await rejectBrief(brief.id);
+          }
           await deletePipelineJob(jobId);
           deleted++;
         }

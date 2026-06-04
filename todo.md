@@ -1470,3 +1470,8 @@
 - [x] Remove Pipeline route from App.tsx (or redirect to /engine)
 - [x] Add redirects from /pipeline and /project-scheduler to /engine
 - [x] Remove Pipeline.tsx and ContentScheduler.tsx page files
+
+## Push to CMS Button on Article Editor
+- [x] Replace the "Edit" button with "Push to CMS" button (green background)
+- [x] Wire button to call the CMS publish tRPC mutation
+- [x] Show loading state while pushing and success/error toast

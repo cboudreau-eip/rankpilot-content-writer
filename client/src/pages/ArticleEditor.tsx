@@ -966,13 +966,25 @@ export default function ArticleEditor() {
             {copied ? "Copied" : "Copy"}
           </Button>
 
-          {/* Edit (toggle editor focus) */}
+          {/* Push to CMS */}
           <Button
-            variant="outline"
-            onClick={() => editor?.chain().focus().run()}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+            onClick={() => {
+              if (!articleId) return;
+              if (article?.status === "published") {
+                toast.info("Article already sent to CMS");
+                return;
+              }
+              publishCmsMutation.mutate({ articleId });
+            }}
+            disabled={publishCmsMutation.isPending || article?.status === "published"}
           >
-            <Wand2 className="w-4 h-4 mr-1.5" />
-            Edit
+            {publishCmsMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Globe className="w-4 h-4 mr-1.5" />
+            )}
+            {article?.status === "published" ? "Sent to CMS" : "Push to CMS"}
           </Button>
 
           {/* Overflow Menu */}

@@ -3826,11 +3826,9 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           }
         }
 
-        // Generate slug
-        const slug = outline.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "");
+        // Generate slug: prefer the target keyword over the full title, cap at 50 chars
+        const { generateSlug: makeSlugFn } = await import("./cmsPublish");
+        const slug = makeSlugFn(outline.keyword || outline.title);
 
         // Create the article
         const article = await createArticle({
@@ -9445,11 +9443,9 @@ Return ONLY the ${outputFormat === "plaintext" ? "plain text" : "HTML"} content 
     }
   }
 
-  // Generate slug
-  const slug = outline.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  // Generate slug: prefer the target keyword over the full title, cap at 50 chars
+  const { generateSlug: makeSlugFnSched } = await import("./cmsPublish");
+  const slug = makeSlugFnSched(outline.keyword || outline.title);
 
   // Save article to DB
   const article = await createArticle({

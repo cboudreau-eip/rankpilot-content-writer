@@ -556,6 +556,7 @@ export default function ArticleEditor() {
 
   const [showSeo, setShowSeo] = useState(false);
   const [showGrade, setShowGrade] = useState(false);
+  const [hideBriefPanel, setHideBriefPanel] = useState(false);
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [slug, setSlug] = useState("");
@@ -1524,20 +1525,29 @@ export default function ArticleEditor() {
         )}
 
         {/* Brief Compliance Panel */}
-        {article.briefComplianceScore != null && article.briefComplianceDetails && (
+        {article.briefComplianceScore != null && article.briefComplianceDetails && !hideBriefPanel && (
           <div className="w-80 bg-card rounded-xl border border-border/60 p-5 space-y-4 flex-shrink-0 self-start sticky top-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-indigo-600" />
                 Brief Compliance
               </h3>
-              <span className={`text-2xl font-bold ${
-                article.briefComplianceScore >= 80 ? 'text-emerald-600' :
-                article.briefComplianceScore >= 60 ? 'text-amber-600' :
-                'text-red-600'
-              }`}>
-                {article.briefComplianceScore}%
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-2xl font-bold ${
+                  article.briefComplianceScore >= 80 ? 'text-emerald-600' :
+                  article.briefComplianceScore >= 60 ? 'text-amber-600' :
+                  'text-red-600'
+                }`}>
+                  {article.briefComplianceScore}%
+                </span>
+                <button
+                  onClick={() => setHideBriefPanel(true)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+                  title="Close panel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <p className="text-sm text-muted-foreground">

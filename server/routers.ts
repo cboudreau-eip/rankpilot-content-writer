@@ -2950,20 +2950,20 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         let transformed = false;
         try {
           const cmsPassword = process.env.CMS_PASSWORD;
-          const transformRes = await fetch(
-            `https://rebuild.medicarecompared.com/api/cms/drafts/${result.id}/transform`,
-            {
-              method: "POST",
-              headers: {
-                "x-cms-password": cmsPassword || "",
-              },
-            }
-          );
+          const transformUrl = `https://medicarefaq-next-nine.vercel.app/api/cms/drafts/${result.id}/transform`;
+          console.log(`[CMS] Calling Transform with AI: ${transformUrl}`);
+          const transformRes = await fetch(transformUrl, {
+            method: "POST",
+            headers: {
+              "x-cms-password": cmsPassword || "",
+            },
+          });
+          const transformBody = await transformRes.text();
           if (transformRes.ok) {
             transformed = true;
             console.log(`[CMS] Transform with AI completed for draft ${result.id}`);
           } else {
-            console.warn(`[CMS] Transform with AI failed: ${transformRes.status} ${transformRes.statusText}`);
+            console.warn(`[CMS] Transform with AI failed: ${transformRes.status} ${transformRes.statusText} — ${transformBody.substring(0, 200)}`);
           }
         } catch (err) {
           console.warn(`[CMS] Transform with AI error:`, err);

@@ -1481,3 +1481,9 @@
 - [x] Use CMS_PASSWORD for auth (x-cms-password header)
 - [x] Update the publishToCms tRPC procedure to chain the transform call
 - [x] Show transform status in the UI (success/failure toast via return message)
+
+## Bug Fix: Transform with AI Not Triggering After CMS Push
+- [x] Identified root cause: transform call was hitting wrong domain (rebuild.medicarecompared.com returns HTML, not the API)
+- [x] Fixed transform URL to use correct API domain (medicarefaq-next-nine.vercel.app)
+- [x] Added detailed logging for transform call (URL, status, response body)
+- [x] Added 3 vitest tests confirming correct domain usage and transform success

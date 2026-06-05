@@ -2946,11 +2946,37 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
           slug,
         });
 
+        // Chain "Transform with AI" on the CMS draft
+        let transformed = false;
+        try {
+          const cmsPassword = process.env.CMS_PASSWORD;
+          const transformRes = await fetch(
+            `https://rebuild.medicarecompared.com/api/cms/drafts/${result.id}/transform`,
+            {
+              method: "POST",
+              headers: {
+                "x-cms-password": cmsPassword || "",
+              },
+            }
+          );
+          if (transformRes.ok) {
+            transformed = true;
+            console.log(`[CMS] Transform with AI completed for draft ${result.id}`);
+          } else {
+            console.warn(`[CMS] Transform with AI failed: ${transformRes.status} ${transformRes.statusText}`);
+          }
+        } catch (err) {
+          console.warn(`[CMS] Transform with AI error:`, err);
+        }
+
         return {
           success: true,
           draftId: result.id,
           slug: result.slug,
-          message: `Draft saved to CMS. Review it at the CMS editor before publishing.`,
+          transformed,
+          message: transformed
+            ? `Draft saved to CMS and transformed with AI.`
+            : `Draft saved to CMS. Transform with AI failed — you can run it manually in the CMS.`,
         };
       }),
 

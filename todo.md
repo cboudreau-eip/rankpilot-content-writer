@@ -1475,3 +1475,9 @@
 - [x] Replace the "Edit" button with "Push to CMS" button (green background)
 - [x] Wire button to call the CMS publish tRPC mutation
 - [x] Show loading state while pushing and success/error toast
+
+## Chain "Transform with AI" After CMS Push
+- [x] After pushing a draft to CMS, automatically call POST /api/cms/drafts/{draft-id}/transform
+- [x] Use CMS_PASSWORD for auth (x-cms-password header)
+- [x] Update the publishToCms tRPC procedure to chain the transform call
+- [x] Show transform status in the UI (success/failure toast via return message)

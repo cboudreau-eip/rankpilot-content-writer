@@ -53,16 +53,24 @@ export interface CmsPublishResult {
 }
 
 /**
- * Generate a URL-safe slug from a title.
+ * Generate a URL-safe slug from a string.
  * e.g. "Medicare Part D Plans" → "medicare-part-d-plans"
+ * Truncates at word boundaries to stay within maxLength (default 50 chars).
  */
-export function generateSlug(title: string): string {
-  return title
+export function generateSlug(title: string, maxLength = 50): string {
+  const raw = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "") // remove special chars
     .replace(/\s+/g, "-") // spaces to hyphens
     .replace(/-+/g, "-") // collapse multiple hyphens
     .replace(/^-|-$/g, ""); // trim leading/trailing hyphens
+
+  if (raw.length <= maxLength) return raw;
+
+  // Truncate at the last hyphen within the limit
+  const truncated = raw.slice(0, maxLength);
+  const lastHyphen = truncated.lastIndexOf("-");
+  return lastHyphen > 0 ? truncated.slice(0, lastHyphen) : truncated;
 }
 
 /**

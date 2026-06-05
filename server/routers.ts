@@ -2923,7 +2923,11 @@ Respond with ONLY the JSON object. No markdown, no explanation.`;
         if (!article.content) throw new TRPCError({ code: "BAD_REQUEST", message: "Article has no content" });
         if (!article.title) throw new TRPCError({ code: "BAD_REQUEST", message: "Article has no title" });
 
-        const slug = article.slug || generateSlug(article.title);
+        // Prefer the target keyword as the slug base (concise, SEO-relevant).
+        // Fall back to the article title if no keyword is set.
+        // Either way, generateSlug caps at 50 chars at a word boundary.
+        const slugSource = article.keyword || article.title;
+        const slug = article.slug || generateSlug(slugSource);
         const excerpt = article.excerpt || article.metaDescription || undefined;
         const seoTitle = article.metaTitle || undefined;
         const seoDescription = article.metaDescription || undefined;

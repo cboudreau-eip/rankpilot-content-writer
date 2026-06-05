@@ -788,6 +788,23 @@ export default function ArticleEditor() {
   // Load article data into editor
   useEffect(() => {
     if (article && editor) {
+      // Helper: generate a slug from a string, capped at 50 chars at a word boundary
+      const makeSlug = (text: string, max = 50) => {
+        const raw = text
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+        if (raw.length <= max) return raw;
+        const truncated = raw.slice(0, max);
+        const lastHyphen = truncated.lastIndexOf("-");
+        return lastHyphen > 0 ? truncated.slice(0, lastHyphen) : truncated;
+      };
+      // Prefer keyword as slug source; fall back to title. Cap at 50 chars.
+      const slugSource = article.keyword || article.title;
+      const derivedSlug = article.slug || makeSlug(slugSource);
+
       // After applying improvements, skip the content sync to preserve highlights
       if (skipNextSyncRef.current) {
         skipNextSyncRef.current = false;
@@ -795,7 +812,7 @@ export default function ArticleEditor() {
         setTitle(article.title);
         setMetaTitle(article.metaTitle || "");
         setMetaDescription(article.metaDescription || "");
-        setSlug(article.slug || "");
+        setSlug(derivedSlug);
         setKeyword(article.keyword || "");
         return;
       }
@@ -803,7 +820,7 @@ export default function ArticleEditor() {
       setTitle(article.title);
       setMetaTitle(article.metaTitle || "");
       setMetaDescription(article.metaDescription || "");
-      setSlug(article.slug || "");
+      setSlug(derivedSlug);
       setKeyword(article.keyword || "");
     }
   }, [article, editor]);

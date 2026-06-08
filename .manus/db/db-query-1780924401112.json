@@ -1,0 +1,138 @@
+{
+  "query": "SELECT runId, jobId, step, level, message, createdAt FROM scheduler_run_logs WHERE createdAt >= '2026-06-07 03:00:00' ORDER BY createdAt ASC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT runId, jobId, step, level, message, createdAt FROM scheduler_run_logs WHERE createdAt >= '2026-06-07 03:00:00' ORDER BY createdAt ASC LIMIT 30;",
+  "rows": [
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "keyword_selection",
+      "level": "info",
+      "message": "Selected keyword: \"Medicare preventive services\"",
+      "createdAt": "2026-06-08 03:34:47"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "keyword_selection",
+      "level": "info",
+      "message": "Merged 8 secondary keywords from pipeline brief",
+      "createdAt": "2026-06-08 03:34:51"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "keyword_suggestion",
+      "level": "info",
+      "message": "Running AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...",
+      "createdAt": "2026-06-08 03:34:51"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "keyword_suggestion",
+      "level": "success",
+      "message": "AI picked 8 keywords (4 related, 2 LSI, 2 long-tail)",
+      "createdAt": "2026-06-08 03:35:15"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "research",
+      "level": "info",
+      "message": "Researching topic: \"Medicare preventive services\"...",
+      "createdAt": "2026-06-08 03:35:15"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "outline",
+      "level": "info",
+      "message": "Generating outline for \"Medicare preventive services\"...",
+      "createdAt": "2026-06-08 03:36:37"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "brief_enforcement",
+      "level": "info",
+      "message": "Pipeline brief attached: \"Maximize Your Health: A Complete Guide to Medicare Preventive Services Coverage\" — 1200 words, 10 links",
+      "createdAt": "2026-06-08 03:36:37"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "research",
+      "level": "success",
+      "message": "Research complete: 8 statistics, 6 authoritative sources",
+      "createdAt": "2026-06-08 03:36:37"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "outline",
+      "level": "success",
+      "message": "Outline created: \"Maximize Your Health: A Complete Guide to Medicare Preventive Services Coverage\" with 9 sections",
+      "createdAt": "2026-06-08 03:37:43"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "article",
+      "level": "info",
+      "message": "Generating article from outline...",
+      "createdAt": "2026-06-08 03:37:44"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "auto_grade",
+      "level": "info",
+      "message": "Iteration 1: graded B+ (target: B+)",
+      "createdAt": "2026-06-08 03:40:29"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "auto_grade",
+      "level": "success",
+      "message": "Target grade B+ reached after 1 iteration(s)",
+      "createdAt": "2026-06-08 03:40:29"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "brief_compliance",
+      "level": "info",
+      "message": "Scoring article against pipeline brief...",
+      "createdAt": "2026-06-08 03:40:31"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "article",
+      "level": "success",
+      "message": "Article generated: 2138 words",
+      "createdAt": "2026-06-08 03:40:31"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "brief_compliance",
+      "level": "success",
+      "message": "Brief compliance score: 72% — The article is highly aligned with the brief's title and content angle, delivering thorough, actionable guidance on Medicare preventive services with strong keyword integration, but it substantially overshoots the target word count and falls short on the required number of links.",
+      "createdAt": "2026-06-08 03:40:42"
+    },
+    {
+      "runId": "990001",
+      "jobId": "60001",
+      "step": "complete",
+      "level": "success",
+      "message": "Pipeline complete in 356s — article #2850001",
+      "createdAt": "2026-06-08 03:40:47"
+    }
+  ],
+  "messages": [],
+  "stdout": "runId\tjobId\tstep\tlevel\tmessage\tcreatedAt\n990001\t60001\tkeyword_selection\tinfo\tSelected keyword: \"Medicare preventive services\"\t2026-06-08 03:34:47\n990001\t60001\tkeyword_selection\tinfo\tMerged 8 secondary keywords from pipeline brief\t2026-06-08 03:34:51\n990001\t60001\tkeyword_suggestion\tinfo\tRunning AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...\t2026-06-08 03:34:51\n990001\t60001\tkeyword_suggestion\tsuccess\tAI picked 8 keywords (4 related, 2 LSI, 2 long-tail)\t2026-06-08 03:35:15\n990001\t60001\tresearch\tinfo\tResearching topic: \"Medicare preventive services\"...\t2026-06-08 03:35:15\n990001\t60001\toutline\tinfo\tGenerating outline for \"Medicare preventive services\"...\t2026-06-08 03:36:37\n990001\t60001\tbrief_enforcement\tinfo\tPipeline brief attached: \"Maximize Your Health: A Complete Guide to Medicare Preventive Services Coverage\" — 1200 words, 10 links\t2026-06-08 03:36:37\n990001\t60001\tresearch\tsuccess\tResearch complete: 8 statistics, 6 authoritative sources\t2026-06-08 03:36:37\n990001\t60001\toutline\tsuccess\tOutline created: \"Maximize Your Health: A Complete Guide to Medicare Preventive Services Coverage\" with 9 sections\t2026-06-08 03:37:43\n990001\t60001\tarticle\tinfo\tGenerating article from outline...\t2026-06-08 03:37:44\n990001\t60001\tauto_grade\tinfo\tIteration 1: graded B+ (target: B+)\t2026-06-08 03:40:29\n990001\t60001\tauto_grade\tsuccess\tTarget grade B+ reached after 1 iteration(s)\t2026-06-08 03:40:29\n990001\t60001\tbrief_compliance\tinfo\tScoring article against pipeline brief...\t2026-06-08 03:40:31\n990001\t60001\tarticle\tsuccess\tArticle generated: 2138 words\t2026-06-08 03:40:31\n990001\t60001\tbrief_compliance\tsuccess\tBrief compliance score: 72% — The article is highly aligned with the brief's title and content angle, delivering thorough, actionable guidance on Medicare preventive services with strong keyword integration, but it substantially overshoots the target word count and falls short on the required number of links.\t2026-06-08 03:40:42\n990001\t60001\tcomplete\tsuccess\tPipeline complete in 356s — article #2850001\t2026-06-08 03:40:47\n",
+  "stderr": "",
+  "execution_time_ms": 267
+}

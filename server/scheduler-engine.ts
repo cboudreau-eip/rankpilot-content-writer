@@ -15,6 +15,41 @@ export function setJobExecutor(fn: (jobId: number) => Promise<void>) {
 const CHECK_INTERVAL_MS = 60_000; // Check every 60 seconds
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
+/** Calculate the next future run time for a job (same logic as routers.ts calculateNextRunTime) */
+function nextFutureRunTime(
+  frequency: string,
+  hourUtc: number,
+  dayOfWeek?: number | null,
+  dayOfMonth?: number | null,
+): Date {
+  const now = new Date();
+  const nowWithBuffer = new Date(now.getTime() - 60_000);
+  const next = new Date();
+  next.setUTCHours(hourUtc, 0, 0, 0);
+
+  if (frequency === "daily") {
+    if (next <= nowWithBuffer) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+  } else if (frequency === "weekly") {
+    const targetDay = dayOfWeek ?? 1;
+    const currentDay = next.getUTCDay();
+    let daysUntil = targetDay - currentDay;
+    if (daysUntil < 0 || (daysUntil === 0 && next <= nowWithBuffer)) {
+      daysUntil += 7;
+    }
+    next.setUTCDate(next.getUTCDate() + daysUntil);
+  } else if (frequency === "monthly") {
+    const targetDate = dayOfMonth ?? 1;
+    next.setUTCDate(targetDate);
+    if (next <= nowWithBuffer) {
+      next.setUTCMonth(next.getUTCMonth() + 1);
+    }
+  }
+
+  return next;
+}
+
 async function checkAndRunDueJobs() {
   try {
     const dueJobs = await getDueScheduledJobs();
@@ -47,6 +82,29 @@ async function checkAndRunDueJobs() {
   }
 }
 
+/**
+ * On startup, reset any overdue jobs instead of firing them immediately.
+ * This prevents server restarts from triggering unexpected off-schedule runs.
+ * A job is considered "overdue" if its nextRunAt is more than 5 minutes in the past.
+ */
+async function resetOverdueJobsOnStartup() {
+  try {
+    const dueJobs = await getDueScheduledJobs();
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000);
+
+    for (const job of dueJobs) {
+      if (job.nextRunAt && new Date(job.nextRunAt) < fiveMinutesAgo) {
+        // Job is overdue — reset to next proper scheduled time instead of firing
+        const nextRunAt = nextFutureRunTime(job.frequency, job.hourUtc, job.dayOfWeek, job.dayOfMonth);
+        console.log(`[Scheduler] Startup: Job ${job.id} (${job.name}) was overdue (nextRunAt=${job.nextRunAt}). Resetting to ${nextRunAt.toISOString()} instead of firing.`);
+        await updateScheduledJob(job.id, { nextRunAt, isRunning: 0 });
+      }
+    }
+  } catch (err) {
+    console.error("[Scheduler] Error resetting overdue jobs on startup:", err);
+  }
+}
+
 export function startSchedulerEngine() {
   if (intervalId) {
     console.warn("[Scheduler] Engine already running");
@@ -56,8 +114,12 @@ export function startSchedulerEngine() {
   console.log("[Scheduler] Starting scheduler engine (checking every 60s)");
   intervalId = setInterval(checkAndRunDueJobs, CHECK_INTERVAL_MS);
 
-  // Also run immediately on startup
-  checkAndRunDueJobs();
+  // On startup: reset overdue jobs first, then begin normal polling.
+  // This prevents server restarts from triggering unexpected off-schedule runs.
+  resetOverdueJobsOnStartup().then(() => {
+    // Only run the first check after overdue jobs have been handled
+    checkAndRunDueJobs();
+  });
 }
 
 export function stopSchedulerEngine() {

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, jobId, step, message, createdAt FROM scheduler_logs WHERE createdAt >= '2026-06-07 03:00:00' ORDER BY createdAt ASC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, jobId, step, message, createdAt FROM scheduler_logs WHERE createdAt >= '2026-06-07 03:00:00' ORDER BY createdAt ASC LIMIT 50;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'k2cydhqhjerr9ssfojprmc.scheduler_logs' doesn't exist"
+  ]
+}

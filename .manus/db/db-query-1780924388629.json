@@ -1,0 +1,31 @@
+{
+  "query": "SHOW TABLES LIKE '%run%'; SHOW TABLES LIKE '%log%'; SHOW TABLES LIKE '%sched%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SHOW TABLES LIKE '%run%'; SHOW TABLES LIKE '%log%'; SHOW TABLES LIKE '%sched%';",
+  "rows": [
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "job_run_history"
+    },
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "scheduler_run_logs"
+    },
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%log%)"
+    },
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "scheduler_run_logs"
+    },
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%sched%)"
+    },
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "scheduled_jobs"
+    },
+    {
+      "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)": "scheduler_run_logs"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_K2cYDHqhjERR9SSFoJPrmC (%run%)\njob_run_history\nscheduler_run_logs\nTables_in_K2cYDHqhjERR9SSFoJPrmC (%log%)\nscheduler_run_logs\nTables_in_K2cYDHqhjERR9SSFoJPrmC (%sched%)\nscheduled_jobs\nscheduler_run_logs\n",
+  "stderr": "",
+  "execution_time_ms": 280
+}

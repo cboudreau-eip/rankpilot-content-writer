@@ -1,0 +1,115 @@
+{
+  "query": "SELECT id, keyword, runStatus, startedAt, completedAt FROM job_run_history WHERE jobId = 60001 ORDER BY startedAt DESC LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, keyword, runStatus, startedAt, completedAt FROM job_run_history WHERE jobId = 60001 ORDER BY startedAt DESC LIMIT 15;",
+  "rows": [
+    {
+      "id": "990001",
+      "keyword": "Medicare preventive services",
+      "runStatus": "completed",
+      "startedAt": "2026-06-08 03:34:47",
+      "completedAt": "2026-06-08 03:40:45"
+    },
+    {
+      "id": "960007",
+      "keyword": "Medicare for non-citizens",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 16:22:13",
+      "completedAt": "2026-06-05 16:27:24"
+    },
+    {
+      "id": "960006",
+      "keyword": "Medigap Plan F G N comparison",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 15:40:13",
+      "completedAt": "2026-06-05 15:45:55"
+    },
+    {
+      "id": "960005",
+      "keyword": "durable medical equipment",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 14:29:04",
+      "completedAt": "2026-06-05 14:33:53"
+    },
+    {
+      "id": "960004",
+      "keyword": "Medicare Part D plan changes",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 14:00:17",
+      "completedAt": "2026-06-05 14:06:25"
+    },
+    {
+      "id": "960003",
+      "keyword": "Medicare Supplement Plans 2026",
+      "runStatus": "failed",
+      "startedAt": "2026-06-05 14:00:04",
+      "completedAt": "2026-06-05 14:00:07"
+    },
+    {
+      "id": "960002",
+      "keyword": "Medicare HMO vs PPO",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 13:36:31",
+      "completedAt": "2026-06-05 13:42:06"
+    },
+    {
+      "id": "960001",
+      "keyword": "Medicare scams",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 12:42:46",
+      "completedAt": "2026-06-05 12:48:06"
+    },
+    {
+      "id": "930004",
+      "keyword": "switch Medicare Advantage plans",
+      "runStatus": "completed",
+      "startedAt": "2026-06-04 19:52:47",
+      "completedAt": "2026-06-04 19:57:35"
+    },
+    {
+      "id": "930003",
+      "keyword": "Medicare HMO vs PPO",
+      "runStatus": "completed",
+      "startedAt": "2026-06-04 19:26:14",
+      "completedAt": "2026-06-04 19:31:14"
+    },
+    {
+      "id": "930002",
+      "keyword": "best Medicare supplement companies",
+      "runStatus": "completed",
+      "startedAt": "2026-06-04 19:14:48",
+      "completedAt": "2026-06-04 19:20:50"
+    },
+    {
+      "id": "930001",
+      "keyword": "Medicare Part B for disabled individuals",
+      "runStatus": "completed",
+      "startedAt": "2026-06-04 14:00:21",
+      "completedAt": "2026-06-04 14:05:18"
+    },
+    {
+      "id": "900005",
+      "keyword": "changing medicare advantage plans",
+      "runStatus": "completed",
+      "startedAt": "2026-06-03 17:34:56",
+      "completedAt": "2026-06-03 17:39:44"
+    },
+    {
+      "id": "900004",
+      "keyword": "Medigap Guaranteed Issue Rights",
+      "runStatus": "completed",
+      "startedAt": "2026-06-03 15:05:55",
+      "completedAt": "2026-06-03 15:11:02"
+    },
+    {
+      "id": "900003",
+      "keyword": "Medicare for disabled individuals",
+      "runStatus": "completed",
+      "startedAt": "2026-06-03 14:13:04",
+      "completedAt": "2026-06-03 14:18:37"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tkeyword\trunStatus\tstartedAt\tcompletedAt\n990001\tMedicare preventive services\tcompleted\t2026-06-08 03:34:47\t2026-06-08 03:40:45\n960007\tMedicare for non-citizens\tcompleted\t2026-06-05 16:22:13\t2026-06-05 16:27:24\n960006\tMedigap Plan F G N comparison\tcompleted\t2026-06-05 15:40:13\t2026-06-05 15:45:55\n960005\tdurable medical equipment\tcompleted\t2026-06-05 14:29:04\t2026-06-05 14:33:53\n960004\tMedicare Part D plan changes\tcompleted\t2026-06-05 14:00:17\t2026-06-05 14:06:25\n960003\tMedicare Supplement Plans 2026\tfailed\t2026-06-05 14:00:04\t2026-06-05 14:00:07\n960002\tMedicare HMO vs PPO\tcompleted\t2026-06-05 13:36:31\t2026-06-05 13:42:06\n960001\tMedicare scams\tcompleted\t2026-06-05 12:42:46\t2026-06-05 12:48:06\n930004\tswitch Medicare Advantage plans\tcompleted\t2026-06-04 19:52:47\t2026-06-04 19:57:35\n930003\tMedicare HMO vs PPO\tcompleted\t2026-06-04 19:26:14\t2026-06-04 19:31:14\n930002\tbest Medicare supplement companies\tcompleted\t2026-06-04 19:14:48\t2026-06-04 19:20:50\n930001\tMedicare Part B for disabled individuals\tcompleted\t2026-06-04 14:00:21\t2026-06-04 14:05:18\n900005\tchanging medicare advantage plans\tcompleted\t2026-06-03 17:34:56\t2026-06-03 17:39:44\n900004\tMedigap Guaranteed Issue Rights\tcompleted\t2026-06-03 15:05:55\t2026-06-03 15:11:02\n900003\tMedicare for disabled individuals\tcompleted\t2026-06-03 14:13:04\t2026-06-03 14:18:37\n",
+  "stderr": "",
+  "execution_time_ms": 268
+}

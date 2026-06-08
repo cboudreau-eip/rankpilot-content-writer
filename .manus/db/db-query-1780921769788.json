@@ -1,0 +1,21 @@
+{
+  "query": "SELECT id, name, frequency, dayOfWeek, dayOfMonth, hourUtc, jobStatus, lastRunAt, nextRunAt FROM scheduled_jobs ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, frequency, dayOfWeek, dayOfMonth, hourUtc, jobStatus, lastRunAt, nextRunAt FROM scheduled_jobs ORDER BY id;",
+  "rows": [
+    {
+      "id": "60001",
+      "name": "Agentic handler",
+      "frequency": "daily",
+      "dayOfWeek": "NULL",
+      "dayOfMonth": "NULL",
+      "hourUtc": "14",
+      "jobStatus": "active",
+      "lastRunAt": "2026-06-08 03:40:43",
+      "nextRunAt": "2026-06-08 14:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tfrequency\tdayOfWeek\tdayOfMonth\thourUtc\tjobStatus\tlastRunAt\tnextRunAt\n60001\tAgentic handler\tdaily\tNULL\tNULL\t14\tactive\t2026-06-08 03:40:43\t2026-06-08 14:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 260
+}

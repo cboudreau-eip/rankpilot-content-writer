@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, keyword, runKeywordSource, runStatus, startedAt, completedAt, jobId FROM job_run_history ORDER BY startedAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, keyword, runKeywordSource, runStatus, startedAt, completedAt, jobId FROM job_run_history ORDER BY startedAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "990001",
+      "keyword": "Medicare preventive services",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-08 03:34:47",
+      "completedAt": "2026-06-08 03:40:45",
+      "jobId": "60001"
+    },
+    {
+      "id": "960007",
+      "keyword": "Medicare for non-citizens",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 16:22:13",
+      "completedAt": "2026-06-05 16:27:24",
+      "jobId": "60001"
+    },
+    {
+      "id": "960006",
+      "keyword": "Medigap Plan F G N comparison",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 15:40:13",
+      "completedAt": "2026-06-05 15:45:55",
+      "jobId": "60001"
+    },
+    {
+      "id": "960005",
+      "keyword": "durable medical equipment",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 14:29:04",
+      "completedAt": "2026-06-05 14:33:53",
+      "jobId": "60001"
+    },
+    {
+      "id": "960004",
+      "keyword": "Medicare Part D plan changes",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 14:00:17",
+      "completedAt": "2026-06-05 14:06:25",
+      "jobId": "60001"
+    },
+    {
+      "id": "960003",
+      "keyword": "Medicare Supplement Plans 2026",
+      "runKeywordSource": "queue",
+      "runStatus": "failed",
+      "startedAt": "2026-06-05 14:00:04",
+      "completedAt": "2026-06-05 14:00:07",
+      "jobId": "60001"
+    },
+    {
+      "id": "960002",
+      "keyword": "Medicare HMO vs PPO",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 13:36:31",
+      "completedAt": "2026-06-05 13:42:06",
+      "jobId": "60001"
+    },
+    {
+      "id": "960001",
+      "keyword": "Medicare scams",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-05 12:42:46",
+      "completedAt": "2026-06-05 12:48:06",
+      "jobId": "60001"
+    },
+    {
+      "id": "930004",
+      "keyword": "switch Medicare Advantage plans",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-04 19:52:47",
+      "completedAt": "2026-06-04 19:57:35",
+      "jobId": "60001"
+    },
+    {
+      "id": "930003",
+      "keyword": "Medicare HMO vs PPO",
+      "runKeywordSource": "queue",
+      "runStatus": "completed",
+      "startedAt": "2026-06-04 19:26:14",
+      "completedAt": "2026-06-04 19:31:14",
+      "jobId": "60001"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tkeyword\trunKeywordSource\trunStatus\tstartedAt\tcompletedAt\tjobId\n990001\tMedicare preventive services\tqueue\tcompleted\t2026-06-08 03:34:47\t2026-06-08 03:40:45\t60001\n960007\tMedicare for non-citizens\tqueue\tcompleted\t2026-06-05 16:22:13\t2026-06-05 16:27:24\t60001\n960006\tMedigap Plan F G N comparison\tqueue\tcompleted\t2026-06-05 15:40:13\t2026-06-05 15:45:55\t60001\n960005\tdurable medical equipment\tqueue\tcompleted\t2026-06-05 14:29:04\t2026-06-05 14:33:53\t60001\n960004\tMedicare Part D plan changes\tqueue\tcompleted\t2026-06-05 14:00:17\t2026-06-05 14:06:25\t60001\n960003\tMedicare Supplement Plans 2026\tqueue\tfailed\t2026-06-05 14:00:04\t2026-06-05 14:00:07\t60001\n960002\tMedicare HMO vs PPO\tqueue\tcompleted\t2026-06-05 13:36:31\t2026-06-05 13:42:06\t60001\n960001\tMedicare scams\tqueue\tcompleted\t2026-06-05 12:42:46\t2026-06-05 12:48:06\t60001\n930004\tswitch Medicare Advantage plans\tqueue\tcompleted\t2026-06-04 19:52:47\t2026-06-04 19:57:35\t60001\n930003\tMedicare HMO vs PPO\tqueue\tcompleted\t2026-06-04 19:26:14\t2026-06-04 19:31:14\t60001\n",
+  "stderr": "",
+  "execution_time_ms": 265
+}

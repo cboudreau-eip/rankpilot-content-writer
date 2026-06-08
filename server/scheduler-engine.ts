@@ -3,7 +3,7 @@
  * Runs as part of the server process, checking every 60 seconds.
  */
 
-import { getDueScheduledJobs, getStuckRunningJobs, getStuckRunHistoryEntries, updateScheduledJob, updateJobRunHistoryEntry } from "./db";
+import { getDueScheduledJobs, getStuckRunningJobs, getStuckRunHistoryEntries, getStuckProcessingKeywords, updateScheduledJob, updateJobRunHistoryEntry, updateKeywordQueueItem } from "./db";
 
 // Import the executeScheduledJob function dynamically to avoid circular deps
 let executeJob: ((jobId: number) => Promise<void>) | null = null;
@@ -131,6 +131,17 @@ async function resetStuckJobs() {
         status: "failed",
         completedAt: new Date(),
         errorMessage: "Job timed out — automatically reset by watchdog after 30 minutes",
+      });
+    }
+
+    // Reset any keyword queue items stuck in 'processing' back to 'pending'
+    const stuckKeywords = await getStuckProcessingKeywords(30);
+    for (const item of stuckKeywords) {
+      console.warn(`[Scheduler] Watchdog: resetting stuck keyword queue item ${item.id} (${item.keyword}) back to pending`);
+      await updateKeywordQueueItem(item.id, {
+        status: "pending",
+        processedAt: null,
+        errorMessage: null,
       });
     }
   } catch (err) {

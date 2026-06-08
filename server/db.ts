@@ -507,6 +507,18 @@ export async function getStuckRunningJobs(thresholdMinutes = 30) {
   );
 }
 
+/** Get keyword_queue items stuck in 'processing' state for longer than the given threshold */
+export async function getStuckProcessingKeywords(thresholdMinutes = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(keywordQueue).where(
+    and(
+      eq(keywordQueue.status, "processing"),
+      sql`${keywordQueue.updatedAt} <= DATE_SUB(NOW(), INTERVAL ${thresholdMinutes} MINUTE)`
+    )
+  );
+}
+
 /** Get job_run_history entries stuck in 'running' state for longer than the given threshold */
 export async function getStuckRunHistoryEntries(thresholdMinutes = 30) {
   const db = await getDb();

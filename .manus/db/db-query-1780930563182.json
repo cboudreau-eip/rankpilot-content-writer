@@ -1,0 +1,21 @@
+{
+  "query": "SELECT id, name, jobStatus, isRunning, lastRunAt, nextRunAt FROM scheduled_jobs WHERE id = 60001;\nSELECT id, keyword, runStatus, startedAt, completedAt FROM job_run_history WHERE id = 1020001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, name, jobStatus, isRunning, lastRunAt, nextRunAt FROM scheduled_jobs WHERE id = 60001;\nSELECT id, keyword, runStatus, startedAt, completedAt FROM job_run_history WHERE id = 1020001;",
+  "rows": [
+    {
+      "id": "60001",
+      "name": "Agentic handler",
+      "jobStatus": "active",
+      "isRunning": "1",
+      "lastRunAt": "2026-06-08 03:40:43",
+      "nextRunAt": "2026-06-09 14:00:00"
+    }
+  ],
+  "messages": [
+    "id\tkeyword\trunStatus\tstartedAt\tcompletedAt",
+    "1020001\tMedicare out-of-pocket costs\trunning\t2026-06-08 14:00:15\tNULL"
+  ],
+  "stdout": "id\tname\tjobStatus\tisRunning\tlastRunAt\tnextRunAt\n60001\tAgentic handler\tactive\t1\t2026-06-08 03:40:43\t2026-06-09 14:00:00\nid\tkeyword\trunStatus\tstartedAt\tcompletedAt\n1020001\tMedicare out-of-pocket costs\trunning\t2026-06-08 14:00:15\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 269
+}

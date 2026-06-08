@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE scheduled_jobs SET isRunning = 0 WHERE id = 60001;\nUPDATE job_run_history SET runStatus = 'failed', completedAt = NOW(), errorMessage = 'Job timed out — manually reset after exceeding 60 minutes without completion' WHERE id = 1020001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute UPDATE scheduled_jobs SET isRunning = 0 WHERE id = 60001;\nUPDATE job_run_history SET runStatus = 'failed', completedAt = NOW(), errorMessage = 'Job timed out — manually reset after exceeding 60 minutes without completion' WHERE id = 1020001;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 283
+}

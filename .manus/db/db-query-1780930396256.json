@@ -1,0 +1,80 @@
+{
+  "query": "SELECT runId, step, level, message, createdAt FROM scheduler_run_logs WHERE createdAt >= '2026-06-08 14:00:00' ORDER BY createdAt ASC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT runId, step, level, message, createdAt FROM scheduler_run_logs WHERE createdAt >= '2026-06-08 14:00:00' ORDER BY createdAt ASC LIMIT 50;",
+  "rows": [
+    {
+      "runId": "1020001",
+      "step": "keyword_selection",
+      "level": "info",
+      "message": "Selected keyword: \"Medicare out-of-pocket costs\"",
+      "createdAt": "2026-06-08 14:00:16"
+    },
+    {
+      "runId": "1020001",
+      "step": "keyword_suggestion",
+      "level": "info",
+      "message": "Running AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...",
+      "createdAt": "2026-06-08 14:00:20"
+    },
+    {
+      "runId": "1020001",
+      "step": "keyword_selection",
+      "level": "info",
+      "message": "Merged 8 secondary keywords from pipeline brief",
+      "createdAt": "2026-06-08 14:00:20"
+    },
+    {
+      "runId": "1020001",
+      "step": "research",
+      "level": "info",
+      "message": "Researching topic: \"Medicare out-of-pocket costs\"...",
+      "createdAt": "2026-06-08 14:00:30"
+    },
+    {
+      "runId": "1020001",
+      "step": "keyword_suggestion",
+      "level": "success",
+      "message": "AI picked 8 keywords (4 related, 2 LSI, 2 long-tail)",
+      "createdAt": "2026-06-08 14:00:30"
+    },
+    {
+      "runId": "1020001",
+      "step": "outline",
+      "level": "info",
+      "message": "Generating outline for \"Medicare out-of-pocket costs\"...",
+      "createdAt": "2026-06-08 14:01:28"
+    },
+    {
+      "runId": "1020001",
+      "step": "brief_enforcement",
+      "level": "info",
+      "message": "Pipeline brief attached: \"Medicare Out-of-Pocket Costs: Your Guide to Copays, Deductibles, and Maximizing Savings\" — 1500 words, 10 links",
+      "createdAt": "2026-06-08 14:01:28"
+    },
+    {
+      "runId": "1020001",
+      "step": "research",
+      "level": "success",
+      "message": "Research complete: 8 statistics, 6 authoritative sources",
+      "createdAt": "2026-06-08 14:01:28"
+    },
+    {
+      "runId": "1020001",
+      "step": "article",
+      "level": "info",
+      "message": "Generating article from outline...",
+      "createdAt": "2026-06-08 14:02:43"
+    },
+    {
+      "runId": "1020001",
+      "step": "outline",
+      "level": "success",
+      "message": "Outline created: \"Medicare Out-of-Pocket Costs: Your Guide to Copays, Deductibles, and Maximizing Savings\" with 9 sections",
+      "createdAt": "2026-06-08 14:02:43"
+    }
+  ],
+  "messages": [],
+  "stdout": "runId\tstep\tlevel\tmessage\tcreatedAt\n1020001\tkeyword_selection\tinfo\tSelected keyword: \"Medicare out-of-pocket costs\"\t2026-06-08 14:00:16\n1020001\tkeyword_suggestion\tinfo\tRunning AI keyword suggestion (4 related + 2 LSI + 2 long-tail)...\t2026-06-08 14:00:20\n1020001\tkeyword_selection\tinfo\tMerged 8 secondary keywords from pipeline brief\t2026-06-08 14:00:20\n1020001\tresearch\tinfo\tResearching topic: \"Medicare out-of-pocket costs\"...\t2026-06-08 14:00:30\n1020001\tkeyword_suggestion\tsuccess\tAI picked 8 keywords (4 related, 2 LSI, 2 long-tail)\t2026-06-08 14:00:30\n1020001\toutline\tinfo\tGenerating outline for \"Medicare out-of-pocket costs\"...\t2026-06-08 14:01:28\n1020001\tbrief_enforcement\tinfo\tPipeline brief attached: \"Medicare Out-of-Pocket Costs: Your Guide to Copays, Deductibles, and Maximizing Savings\" — 1500 words, 10 links\t2026-06-08 14:01:28\n1020001\tresearch\tsuccess\tResearch complete: 8 statistics, 6 authoritative sources\t2026-06-08 14:01:28\n1020001\tarticle\tinfo\tGenerating article from outline...\t2026-06-08 14:02:43\n1020001\toutline\tsuccess\tOutline created: \"Medicare Out-of-Pocket Costs: Your Guide to Copays, Deductibles, and Maximizing Savings\" with 9 sections\t2026-06-08 14:02:43\n",
+  "stderr": "",
+  "execution_time_ms": 281
+}

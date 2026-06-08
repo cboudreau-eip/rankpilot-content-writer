@@ -495,6 +495,30 @@ export async function getDueScheduledJobs() {
   );
 }
 
+/** Get jobs that have been stuck in isRunning=1 state for longer than the given threshold (default 30 min) */
+export async function getStuckRunningJobs(thresholdMinutes = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(scheduledJobs).where(
+    and(
+      eq(scheduledJobs.isRunning, 1),
+      sql`${scheduledJobs.updatedAt} <= DATE_SUB(NOW(), INTERVAL ${thresholdMinutes} MINUTE)`
+    )
+  );
+}
+
+/** Get job_run_history entries stuck in 'running' state for longer than the given threshold */
+export async function getStuckRunHistoryEntries(thresholdMinutes = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobRunHistory).where(
+    and(
+      eq(jobRunHistory.status, "running"),
+      sql`${jobRunHistory.startedAt} <= DATE_SUB(NOW(), INTERVAL ${thresholdMinutes} MINUTE)`
+    )
+  );
+}
+
 // ---- Keyword Queue Helpers ----
 
 export async function getKeywordQueueByJob(jobId: number) {

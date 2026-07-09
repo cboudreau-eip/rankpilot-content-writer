@@ -333,6 +333,11 @@ export default function FreeWriter() {
                 </div>
               ) : generatedContent ? (
                 <div className="prose prose-sm max-w-none prose-slate">
+                  {title && (
+                    <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+                      {title}
+                    </h2>
+                  )}
                   <div
                     className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 font-normal"
                     dangerouslySetInnerHTML={{ __html: generatedContent }}

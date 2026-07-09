@@ -8308,8 +8308,9 @@ CRITICAL RULES:
           userMessage += `\n\nTarget Keyword (weave naturally): ${input.keyword}`;
         }
 
-        // Call Claude
-        const response = await invokeClaudeLLM({
+        // Call LLM via Forge proxy (Claude Sonnet 4)
+        const response = await invokeLLM({
+          model: "claude-sonnet-4-6",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },

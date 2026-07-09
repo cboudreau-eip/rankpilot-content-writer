@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, email, name, role FROM app_users WHERE role = 'admin' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute SELECT id, email, name, role FROM app_users WHERE role = 'admin' LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "cboudreau@teameip.com",
+      "name": "cboudreau",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\n1\tcboudreau@teameip.com\tcboudreau\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 317
+}

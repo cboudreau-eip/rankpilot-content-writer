@@ -1497,3 +1497,10 @@
 - [x] Add nav item "Free Writer" under Content section
 - [x] Display generated content with copy button
 - [x] Write vitest test for freeWriter procedure
+
+## Free Writer: Switch to Claude via Forge Proxy
+- [x] Add optional `model` parameter to `invokeLLM` in `server/_core/llm.ts`
+- [x] Update Free Writer procedure to use `invokeLLM` with `model: "claude-sonnet-4-6"` instead of broken `invokeClaudeLLM`
+- [x] Fix `thinking.budget_tokens` minimum (Claude requires >= 1024)
+- [x] Fix `max_tokens` to respect caller-supplied `maxTokens` parameter
+- [x] Test Free Writer end-to-end in browser (confirmed working with Claude Sonnet 4)

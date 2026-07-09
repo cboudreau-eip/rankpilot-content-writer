@@ -57,6 +57,7 @@ export type ToolChoice =
 
 export type InvokeParams = {
   messages: Message[];
+  model?: string;
   tools?: Tool[];
   toolChoice?: ToolChoice;
   tool_choice?: ToolChoice;
@@ -270,6 +271,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   const {
     messages,
+    model,
     tools,
     toolChoice,
     tool_choice,
@@ -280,7 +282,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: model || "gemini-2.5-flash",
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,9 +298,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
+  const resolvedMaxTokens = params.maxTokens || params.max_tokens || 32768;
+  payload.max_tokens = resolvedMaxTokens;
+  // Claude requires budget_tokens >= 1024; use 1024 as minimum thinking budget
   payload.thinking = {
-    "budget_tokens": 128
+    "budget_tokens": Math.max(1024, Math.min(2048, resolvedMaxTokens - 1))
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({

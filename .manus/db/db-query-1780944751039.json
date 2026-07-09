@@ -1,0 +1,9 @@
+{
+  "query": "\nSELECT name, content, buttonText, url, placement FROM cta_templates WHERE projectId = '1' ORDER BY isDefault DESC, createdAt ASC LIMIT 3;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute \nSELECT name, content, buttonText, url, placement FROM cta_templates WHERE projectId = '1' ORDER BY isDefault DESC, createdAt ASC LIMIT 3;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 262
+}

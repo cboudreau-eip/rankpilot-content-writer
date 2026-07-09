@@ -37,6 +37,7 @@ import {
   Moon,
   Monitor,
   KeyRound,
+  PenLine,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation, Link } from "wouter";
@@ -87,6 +88,7 @@ const navSections = [
     title: "Content",
     items: [
       { icon: Sparkles, label: "Generate", path: "/generate" },
+      { icon: PenLine, label: "Free Writer", path: "/write" },
       { icon: FileText, label: "Articles", path: "/articles" },
       { icon: ListTree, label: "Outlines", path: "/outlines" },
       { icon: Network, label: "Topic Clusters", path: "/clusters" },

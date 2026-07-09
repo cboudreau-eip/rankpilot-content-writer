@@ -1,0 +1,13 @@
+{
+  "query": "\nSELECT name, toneTraits, perspective, sentenceStyle, avoidList, writingStyleSample, isDefault\nFROM brand_voices\nWHERE projectId = '1'\nORDER BY isDefault DESC, createdAt ASC;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute \nSELECT name, toneTraits, perspective, sentenceStyle, avoidList, writingStyleSample, isDefault\nFROM brand_voices\nWHERE projectId = '1'\nORDER BY isDefault DESC, createdAt ASC;\n",
+  "rows": [],
+  "messages": [
+    "Primary Voice\tPRIMARY:Educational,Trustworthy|SUPPORTING:Professional,Supportive,Calm\tsecond\tmixed\tPRESETS:jargon,fear,unverified,exaggerated,salesy,rhetorical\tMedicare can feel confusing at first, but you are not alone. If you are 65 and older or reviewing your current coverage, the process gets easier when you break it into clear steps.",
+    "Start by looking at what matters most to you, like your doctors, prescriptions, and monthly budget. Then compare your Medicare options based on coverage and costs, not just the monthly premium. A lower premium can look good at first, but your total cost may be higher when you use care.",
+    "The goal is to help you make a confident decision with clear information and licensed support. If you want help reviewing your options, you can speak with a licensed Medicare agent and compare plans available in your area.\t0"
+  ],
+  "stdout": "name\ttoneTraits\tperspective\tsentenceStyle\tavoidList\twritingStyleSample\tisDefault\nPrimary Voice\tPRIMARY:Educational,Trustworthy|SUPPORTING:Professional,Supportive,Calm\tsecond\tmixed\tPRESETS:jargon,fear,unverified,exaggerated,salesy,rhetorical\tMedicare can feel confusing at first, but you are not alone. If you are 65 and older or reviewing your current coverage, the process gets easier when you break it into clear steps.\n\nStart by looking at what matters most to you, like your doctors, prescriptions, and monthly budget. Then compare your Medicare options based on coverage and costs, not just the monthly premium. A lower premium can look good at first, but your total cost may be higher when you use care.\n\nThe goal is to help you make a confident decision with clear information and licensed support. If you want help reviewing your options, you can speak with a licensed Medicare agent and compare plans available in your area.\t0\n",
+  "stderr": "",
+  "execution_time_ms": 259
+}

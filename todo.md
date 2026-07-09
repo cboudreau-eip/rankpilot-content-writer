@@ -1487,3 +1487,13 @@
 - [x] Fixed transform URL to use correct API domain (medicarefaq-next-nine.vercel.app)
 - [x] Added detailed logging for transform call (URL, status, response body)
 - [x] Added 3 vitest tests confirming correct domain usage and transform success
+
+## Free Writer Feature
+- [x] Add freeWriter tRPC procedure (uses Claude/Anthropic, loads Brand Voice + ICP)
+- [x] Add /write route and Free Writer page with form (title, description, keyword, format, length)
+- [x] Support formats: LinkedIn Post, Short Article, Facebook Post, Email Newsletter, YouTube Script, Landing Page Copy, Custom
+- [x] Auto-load project Brand Voice and ICP into prompt
+- [x] Add banned phrases and em-dash avoidance to prompt
+- [x] Add nav item "Free Writer" under Content section
+- [x] Display generated content with copy button
+- [x] Write vitest test for freeWriter procedure

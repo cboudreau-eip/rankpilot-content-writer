@@ -1,0 +1,54 @@
+{
+  "query": "\nSELECT name, content, buttonText, url, placement FROM cta_templates WHERE projectId = '1' AND isDefault = 1 LIMIT 5;\nSELECT name, url FROM citation_sources WHERE projectId = '1' AND url NOT LIKE '%access-check%' AND url NOT LIKE '%example.com%' ORDER BY createdAt ASC LIMIT 20;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute \nSELECT name, content, buttonText, url, placement FROM cta_templates WHERE projectId = '1' AND isDefault = 1 LIMIT 5;\nSELECT name, url FROM citation_sources WHERE projectId = '1' AND url NOT LIKE '%access-check%' AND url NOT LIKE '%example.com%' ORDER BY createdAt ASC LIMIT 20;\n",
+  "rows": [
+    {
+      "name": "Medicare Resources",
+      "url": "https://www.medicareresources.org/"
+    },
+    {
+      "name": "AARP",
+      "url": "https://www.aarp.org/medicare/"
+    },
+    {
+      "name": "SHIP",
+      "url": "https://www.shiphelp.org/"
+    },
+    {
+      "name": "CMS",
+      "url": "https://www.cms.gov/"
+    },
+    {
+      "name": "Florida Shine",
+      "url": "https://www.floridashine.org/"
+    },
+    {
+      "name": "OIG",
+      "url": "https://oig.hhs.gov/"
+    },
+    {
+      "name": "ACL",
+      "url": "https://acl.gov/"
+    },
+    {
+      "name": "KFF",
+      "url": "https://www.kff.org/topic/medicare/"
+    },
+    {
+      "name": "MedPac",
+      "url": "https://www.medpac.gov/"
+    },
+    {
+      "name": "SSA",
+      "url": "https://www.ssa.gov/medicare"
+    },
+    {
+      "name": "Data CMS",
+      "url": "https://data.cms.gov/"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\turl\nMedicare Resources\thttps://www.medicareresources.org/\nAARP\thttps://www.aarp.org/medicare/\nSHIP\thttps://www.shiphelp.org/\nCMS\thttps://www.cms.gov/\nFlorida Shine\thttps://www.floridashine.org/\nOIG\thttps://oig.hhs.gov/\nACL\thttps://acl.gov/\nKFF\thttps://www.kff.org/topic/medicare/\nMedPac\thttps://www.medpac.gov/\nSSA\thttps://www.ssa.gov/medicare\nData CMS\thttps://data.cms.gov/\n",
+  "stderr": "",
+  "execution_time_ms": 308
+}

@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
   clearSessionCookie,
@@ -8083,6 +8083,263 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         // Regenerate
         await generateBriefForJob(input.jobId, input.projectId);
         return { success: true };
+      }),
+  }),
+
+  // ============================================================
+  // FREE WRITER
+  // ============================================================
+  freeWriter: router({
+    generate: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        title: z.string().min(1).max(500),
+        description: z.string().max(5000).optional(),
+        keyword: z.string().max(200).optional(),
+        format: z.enum(["linkedin", "short-article", "facebook", "email-newsletter", "youtube-script", "landing-page", "custom"]),
+        length: z.enum(["short", "medium", "long"]),
+        customFormatInstructions: z.string().max(2000).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const project = await getProjectById(input.projectId);
+        if (!project) throw new Error("Project not found");
+
+        // Fetch Brand Voice
+        const allVoices = await getBrandVoicesByProject(input.projectId);
+        const brandVoice = allVoices.find((v: any) => v.isDefault === 1) ?? allVoices[0] ?? null;
+
+        // Fetch ICP
+        const icps = await getICPsByProject(input.projectId);
+        const icp = icps[0] ?? null;
+
+        // Format-specific instructions
+        const FORMAT_RULES: Record<string, { label: string; wordRange: Record<string, string>; rules: string }> = {
+          "linkedin": {
+            label: "LinkedIn Post",
+            wordRange: { short: "150-250", medium: "300-500", long: "600-1000" },
+            rules: `LINKEDIN POST RULES:
+- Start with a strong hook line (1-2 sentences max) that stops the scroll
+- Use short paragraphs (1-3 sentences each)
+- Add line breaks between paragraphs for readability
+- Include a clear takeaway or insight
+- End with a call-to-action or thought-provoking question
+- Use "you" and "your" to address the reader directly
+- NO hashtags unless specifically requested
+- NO emoji unless specifically requested
+- Write conversationally but maintain authority
+- Structure: Hook → Story/Insight → Lesson → CTA`,
+          },
+          "short-article": {
+            label: "Short Article",
+            wordRange: { short: "300-500", medium: "600-900", long: "1000-1500" },
+            rules: `SHORT ARTICLE RULES:
+- Include a compelling headline (H1)
+- Write a hook introduction (2-3 sentences)
+- Use 2-4 subheadings (H2) to organize content
+- Each section should be 2-4 paragraphs
+- Include at least one concrete example or data point
+- End with a clear conclusion or next step
+- Output in clean HTML format`,
+          },
+          "facebook": {
+            label: "Facebook Post",
+            wordRange: { short: "50-150", medium: "150-300", long: "300-500" },
+            rules: `FACEBOOK POST RULES:
+- Write in a warm, conversational tone
+- Lead with something relatable or surprising
+- Keep paragraphs very short (1-2 sentences)
+- Ask a question to encourage engagement
+- Be personal and authentic
+- NO hashtags
+- NO emoji unless specifically requested
+- Structure: Hook → Value/Story → Question or CTA`,
+          },
+          "email-newsletter": {
+            label: "Email Newsletter",
+            wordRange: { short: "200-400", medium: "400-700", long: "700-1200" },
+            rules: `EMAIL NEWSLETTER RULES:
+- Start with a compelling subject line suggestion (prefix with "Subject: ")
+- Write a preview text suggestion (prefix with "Preview: ")
+- Then write the email body
+- Open with a personal, warm greeting
+- Get to the value quickly (within first 2-3 sentences)
+- Use short paragraphs and bullet points where appropriate
+- Include one clear primary CTA
+- Sign off naturally
+- Output in clean HTML format`,
+          },
+          "youtube-script": {
+            label: "YouTube Script",
+            wordRange: { short: "300-500", medium: "600-1000", long: "1200-2000" },
+            rules: `YOUTUBE SCRIPT RULES:
+- Start with a hook (first 5-10 seconds of the video)
+- Include a brief intro/context section
+- Break into clear segments with [SEGMENT] markers
+- Write in spoken language (contractions, natural phrasing)
+- Include [B-ROLL] suggestions where visual aids would help
+- Add [CTA] markers for subscribe/like reminders (max 2)
+- End with a strong closing and teaser for next content
+- Format timestamps as approximate speaking time`,
+          },
+          "landing-page": {
+            label: "Landing Page Copy",
+            wordRange: { short: "200-400", medium: "400-800", long: "800-1500" },
+            rules: `LANDING PAGE COPY RULES:
+- Write a powerful headline (H1) — benefit-driven, specific
+- Write a supporting subheadline
+- Include 3-5 benefit bullets or feature blocks
+- Add social proof placeholder suggestions
+- Write a clear, action-oriented CTA button text
+- Include a brief FAQ section (3-4 questions) if length allows
+- Structure: Hero → Benefits → Social Proof → CTA → FAQ
+- Output in clean HTML format with semantic headings`,
+          },
+          "custom": {
+            label: "Custom Format",
+            wordRange: { short: "200-400", medium: "400-800", long: "800-1500" },
+            rules: `CUSTOM FORMAT:
+Follow the user's specific instructions for format and structure.`,
+          },
+        };
+
+        const formatConfig = FORMAT_RULES[input.format];
+        const wordRange = formatConfig.wordRange[input.length];
+
+        // Build Brand Voice section
+        let brandVoiceSection = "";
+        if (brandVoice) {
+          const perspectiveMap: Record<string, string> = {
+            first: "First person (we/our/us)",
+            second: "Second person (you/your)",
+            third: "Third person (neutral/objective)",
+          };
+          const styleMap: Record<string, string> = {
+            short: "Short and punchy (1-2 sentences per paragraph)",
+            mixed: "Mixed/varied sentence lengths",
+            detailed: "Detailed and explanatory (3-5 sentences per paragraph)",
+          };
+          let avoidItems: string[] = [];
+          const avoidList = brandVoice.avoidList || "";
+          if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+            const parts = avoidList.split("|");
+            for (const part of parts) {
+              if (part.startsWith("PRESETS:")) {
+                avoidItems.push(...part.replace("PRESETS:", "").split(",").filter(Boolean));
+              } else if (part.startsWith("CUSTOM:")) {
+                avoidItems.push(...part.replace("CUSTOM:", "").split(",").filter(Boolean));
+              }
+            }
+          } else if (avoidList) {
+            avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+          }
+
+          brandVoiceSection = `
+=== BRAND VOICE GUIDELINES ===
+Voice: ${brandVoice.name}
+Tone: ${brandVoice.toneTraits || "Professional"}
+Perspective: ${perspectiveMap[brandVoice.perspective] || brandVoice.perspective}
+Sentence Style: ${styleMap[brandVoice.sentenceStyle] || brandVoice.sentenceStyle}
+${avoidItems.length > 0 ? `Avoid: ${avoidItems.join(", ")}` : ""}
+${brandVoice.writingStyleSample ? `\nStyle Reference (match tone, NOT content):\n"${brandVoice.writingStyleSample.slice(0, 500)}"` : ""}
+`;
+        }
+
+        // Build ICP section
+        let icpSection = "";
+        if (icp) {
+          const pains = icp.painPoints ? (Array.isArray(icp.painPoints) ? icp.painPoints : JSON.parse(icp.painPoints as string)) : [];
+          const goals = icp.goals ? (Array.isArray(icp.goals) ? icp.goals : JSON.parse(icp.goals as string)) : [];
+          icpSection = `
+=== TARGET AUDIENCE (ICP) ===
+Name: ${icp.name}
+Description: ${icp.description || ""}
+${pains.length > 0 ? `Pain Points: ${pains.join(", ")}` : ""}
+${goals.length > 0 ? `Goals: ${goals.join(", ")}` : ""}
+
+Write content that resonates with this audience. Address their pain points and goals naturally.
+`;
+        } else if (project.icpPrimaryName) {
+          // Fallback to project-level ICP
+          const pains = project.icpPains ? (Array.isArray(project.icpPains) ? project.icpPains : JSON.parse(project.icpPains as string)) : [];
+          const goals = project.icpGoals ? (Array.isArray(project.icpGoals) ? project.icpGoals : JSON.parse(project.icpGoals as string)) : [];
+          icpSection = `
+=== TARGET AUDIENCE (ICP) ===
+Name: ${project.icpPrimaryName}
+Description: ${(project as any).icpPrimaryDescription || project.description || ""}
+${pains.length > 0 ? `Pain Points: ${pains.join(", ")}` : ""}
+${goals.length > 0 ? `Goals: ${goals.join(", ")}` : ""}
+
+Write content that resonates with this audience.
+`;
+        }
+
+        // Banned phrases
+        let bannedPhrasesSection = "";
+        if (project.bannedPhrases?.length) {
+          bannedPhrasesSection = `\n=== BANNED PHRASES (NEVER USE) ===\n${(project.bannedPhrases as string[]).filter(p => p.trim()).map(p => `- "${p}"`).join("\n")}\n`;
+        }
+
+        // Build the system prompt
+        const systemPrompt = `You are an expert content writer. Your job is to write high-quality ${formatConfig.label} content.
+
+Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+
+${formatConfig.rules}
+${input.customFormatInstructions ? `\nADDITIONAL FORMAT INSTRUCTIONS:\n${input.customFormatInstructions}` : ""}
+
+WORD COUNT TARGET: ${wordRange} words
+${brandVoiceSection}
+${icpSection}
+${bannedPhrasesSection}
+
+CRITICAL RULES:
+- NEVER use em dashes (—). Use commas, periods, or semicolons instead.
+- Write original content. Do not copy from any source.
+- Be specific and concrete. Avoid vague generalities.
+- Every sentence must add value. No filler.
+`;
+
+        // Build the user message
+        let userMessage = `Write a ${formatConfig.label} about:\n\nTitle/Topic: ${input.title}`;
+        if (input.description) {
+          userMessage += `\n\nDescription/Context: ${input.description}`;
+        }
+        if (input.keyword) {
+          userMessage += `\n\nTarget Keyword (weave naturally): ${input.keyword}`;
+        }
+
+        // Call Claude
+        const response = await invokeClaudeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          maxTokens: 4096,
+        });
+
+        let content: string = (response.choices[0]?.message?.content || "") as string;
+
+        // Post-generation: strip banned phrases
+        if (project.bannedPhrases?.length) {
+          for (const phrase of project.bannedPhrases as string[]) {
+            if (phrase.trim()) {
+              const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const regex = new RegExp(escapedPhrase, "gi");
+              content = content.replace(regex, "");
+            }
+          }
+        }
+
+        // Strip em dashes that might have slipped through
+        content = content.replace(/—/g, " - ");
+
+        return {
+          content,
+          format: input.format,
+          formatLabel: formatConfig.label,
+          wordCount: content.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length,
+          model: response.model,
+        };
       }),
   }),
 });

@@ -24,6 +24,7 @@ import ProjectKeywords from "./pages/ProjectKeywords";
 import Ideas from "./pages/Ideas";
 import Outlines from "./pages/Outlines";
 import ContentEngine from "./pages/ContentEngine";
+import FreeWriter from "./pages/FreeWriter";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -81,6 +82,7 @@ function App() {
                       <Route path="/articles" component={Articles} />
                       <Route path="/articles/:id" component={ArticleEditor} />
                       <Route path="/generate" component={GenerateArticle} />
+                      <Route path="/write" component={FreeWriter} />
                       <Route path="/project-settings" component={ProjectSettings} />
                       <Route path="/project-scheduler">{() => <Redirect to="/engine" />}</Route>
                       <Route path="/settings" component={GeneralSettings} />

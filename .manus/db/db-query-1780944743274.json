@@ -1,0 +1,325 @@
+{
+  "query": "\nSELECT name, content, buttonText, url, placement, isDefault FROM cta_templates WHERE projectId = '1' ORDER BY isDefault DESC;\nSELECT name, url, description FROM citation_sources WHERE projectId = '1' ORDER BY createdAt ASC;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute \nSELECT name, content, buttonText, url, placement, isDefault FROM cta_templates WHERE projectId = '1' ORDER BY isDefault DESC;\nSELECT name, url, description FROM citation_sources WHERE projectId = '1' ORDER BY createdAt ASC;\n",
+  "rows": [
+    {
+      "name": "Medicare Resources",
+      "url": "https://www.medicareresources.org/",
+      "description": "NULL"
+    },
+    {
+      "name": "AARP",
+      "url": "https://www.aarp.org/medicare/",
+      "description": "NULL"
+    },
+    {
+      "name": "SHIP",
+      "url": "https://www.shiphelp.org/",
+      "description": "NULL"
+    },
+    {
+      "name": "CMS",
+      "url": "https://www.cms.gov/",
+      "description": "NULL"
+    },
+    {
+      "name": "Florida Shine",
+      "url": "https://www.floridashine.org/",
+      "description": "NULL"
+    },
+    {
+      "name": "OIG",
+      "url": "https://oig.hhs.gov/",
+      "description": "NULL"
+    },
+    {
+      "name": "ACL",
+      "url": "https://acl.gov/",
+      "description": "NULL"
+    },
+    {
+      "name": "KFF",
+      "url": "https://www.kff.org/topic/medicare/",
+      "description": "NULL"
+    },
+    {
+      "name": "MedPac",
+      "url": "https://www.medpac.gov/",
+      "description": "NULL"
+    },
+    {
+      "name": "SSA",
+      "url": "https://www.ssa.gov/medicare",
+      "description": "NULL"
+    },
+    {
+      "name": "Data CMS",
+      "url": "https://data.cms.gov/",
+      "description": "NULL"
+    },
+    {
+      "name": "Test Source",
+      "url": "https://example.com",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    },
+    {
+      "name": "Access Check Source",
+      "url": "https://access-check.test",
+      "description": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\turl\tdescription\nMedicare Resources\thttps://www.medicareresources.org/\tNULL\nAARP\thttps://www.aarp.org/medicare/\tNULL\nSHIP\thttps://www.shiphelp.org/\tNULL\nCMS\thttps://www.cms.gov/\tNULL\nFlorida Shine\thttps://www.floridashine.org/\tNULL\nOIG\thttps://oig.hhs.gov/\tNULL\nACL\thttps://acl.gov/\tNULL\nKFF\thttps://www.kff.org/topic/medicare/\tNULL\nMedPac\thttps://www.medpac.gov/\tNULL\nSSA\thttps://www.ssa.gov/medicare\tNULL\nData CMS\thttps://data.cms.gov/\tNULL\nTest Source\thttps://example.com\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\nAccess Check Source\thttps://access-check.test\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 292
+}

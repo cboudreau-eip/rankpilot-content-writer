@@ -1,0 +1,19 @@
+{
+  "query": "\nSELECT name, description, painPoints, goals, objections, searchBehavior, contentPreferences FROM icp_profiles WHERE projectId = '1' LIMIT 5;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4KkwA6YJf93WuoP.root --database K2cYDHqhjERR9SSFoJPrmC --execute \nSELECT name, description, painPoints, goals, objections, searchBehavior, contentPreferences FROM icp_profiles WHERE projectId = '1' LIMIT 5;\n",
+  "rows": [
+    {
+      "name": "Main ICP",
+      "description": "NULL",
+      "painPoints": "NULL",
+      "goals": "NULL",
+      "objections": "NULL",
+      "searchBehavior": "NULL",
+      "contentPreferences": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tdescription\tpainPoints\tgoals\tobjections\tsearchBehavior\tcontentPreferences\nMain ICP\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 267
+}

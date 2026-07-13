@@ -22,7 +22,7 @@ import {
   getBrandVoicesByProject, getBrandVoiceById, createBrandVoice, updateBrandVoice, deleteBrandVoice,
   getCTAsByProject, getCTAById, createCTA, updateCTA, deleteCTA,
   getSitemapsByProject, getSitemapById, createSitemap, updateSitemap, deleteSitemap,
-  getCitationsByProject, getCitationById, createCitation, updateCitation, deleteCitation,
+  getCitationsByProject, getCitationById, createCitation, updateCitation, deleteCitation, bulkDeleteCitations,
   updateProjectReferenceDocMeta,
   getScheduledJobsByProject, getScheduledJobsByUser, getScheduledJobById, createScheduledJob, updateScheduledJob, deleteScheduledJob, getDueScheduledJobs,
   getKeywordQueueByJob, getKeywordQueueItemById, addKeywordToQueue, addKeywordsToQueue, updateKeywordQueueItem, deleteKeywordQueueItem, getNextPendingKeyword, countPendingKeywords,
@@ -2544,6 +2544,12 @@ Existing pages (${allUrls.length} total):\n${urlList}`
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteCitation(input.id);
+      }),
+
+    bulkDelete: publicProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input }) => {
+        return bulkDeleteCitations(input.ids);
       }),
   }),
 

@@ -1504,3 +1504,13 @@
 - [x] Fix `thinking.budget_tokens` minimum (Claude requires >= 1024)
 - [x] Fix `max_tokens` to respect caller-supplied `maxTokens` parameter
 - [x] Test Free Writer end-to-end in browser (confirmed working with Claude Sonnet 4)
+
+## Citation Sources: Bulk Delete & PDF Download
+- [x] Add bulk select (checkboxes) to citation source cards
+- [x] Add "Select All" checkbox in header
+- [x] Add bulk delete button that appears when items are selected
+- [x] Add confirmation dialog before bulk delete
+- [x] Add backend route for bulk deleting citations
+- [x] Add "Download as PDF" button to export all citation sources
+- [x] Generate styled HTML export with citation name, URL, and description
+- [x] Write vitest tests for bulk delete route

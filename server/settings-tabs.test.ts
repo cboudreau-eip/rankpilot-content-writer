@@ -170,6 +170,22 @@ describe("citations router", () => {
 
     await expect(caller.citations.delete({ id: 1 })).resolves.not.toThrow();
   });
+
+  it("citations.bulkDelete works without authentication (public access)", async () => {
+    const { ctx } = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.citations.bulkDelete({ ids: [1, 2, 3] })).resolves.not.toThrow();
+  });
+
+  it("citations.bulkDelete validates non-empty ids array", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.citations.bulkDelete({ ids: [] })
+    ).rejects.toThrow();
+  });
 });
 
 // ---- Cross Check Router Tests ----

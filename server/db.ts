@@ -422,6 +422,14 @@ export async function deleteCitation(id: number) {
   return { success: true };
 }
 
+export async function bulkDeleteCitations(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return { success: true, deleted: 0 };
+  await db.delete(citationSources).where(inArray(citationSources.id, ids));
+  return { success: true, deleted: ids.length };
+}
+
 // ---- Cross Check (Reference Doc) Helpers ----
 
 export async function updateProjectReferenceDocMeta(projectId: number, s3Key: string | null, docName: string | null, docLength: number | null, docContent: string | null = null) {

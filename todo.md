@@ -1521,4 +1521,13 @@
 - [x] Integrate chat box into Article Editor page
 - [x] Wire chat box to backend route and update editor content on response
 - [x] Write vitest tests for the new route
+- [x] Save checkpoint
+
+## Article Editor: Selection-Aware AI Editing
+- [x] Update backend aiEdit route to accept optional selectedText parameter
+- [x] Update system prompt to only edit the selected portion when selectedText is provided
+- [x] Update frontend to detect TipTap editor selection and show indicator in chat panel
+- [x] Pass selected text to the mutation and replace only the selection in the editor on response
+- [ ] Add floating "AI Edit" mini-button near text selection (bonus UX)
+- [x] Write vitest tests for selection-based editing
 - [ ] Save checkpoint

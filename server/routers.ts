@@ -3886,12 +3886,26 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         articleId: z.number(),
         instruction: z.string().min(1),
         currentContent: z.string().min(1),
+        selectedText: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const article = await getArticleById(input.articleId);
         if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
 
-        const systemPrompt = `You are an expert content editor. The user will give you an article in HTML format and an editing instruction. Apply the instruction precisely to the article content and return the FULL updated HTML content.
+        const isSelectionMode = !!input.selectedText && input.selectedText.trim().length > 0;
+
+        const systemPrompt = isSelectionMode
+          ? `You are an expert content editor. The user has selected a specific portion of text from their article and wants you to edit ONLY that selection based on their instruction.
+
+Rules:
+- You will receive the SELECTED TEXT that needs editing
+- Apply the instruction ONLY to the selected text
+- Return ONLY the edited version of the selected text (not the full article)
+- Preserve HTML formatting within the selection unless the instruction asks to change it
+- Do NOT add explanations, markdown fences, or commentary
+- If the instruction is unclear, make your best interpretation and apply it
+- Keep any existing <a href> links intact unless told to remove them`
+          : `You are an expert content editor. The user will give you an article in HTML format and an editing instruction. Apply the instruction precisely to the article content and return the FULL updated HTML content.
 
 Rules:
 - Return ONLY the updated HTML content (no explanations, no markdown fences, no commentary)
@@ -3901,10 +3915,14 @@ Rules:
 - Keep all existing <a href> links intact unless told to remove them
 - Maintain the same overall length unless the instruction asks to shorten or expand`;
 
+        const userMessage = isSelectionMode
+          ? `Here is the selected text from the article:\n\n${input.selectedText}\n\n---\n\nInstruction: ${input.instruction}`
+          : `Here is the current article content:\n\n${input.currentContent}\n\n---\n\nInstruction: ${input.instruction}`;
+
         const response = await callLLM({
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Here is the current article content:\n\n${input.currentContent}\n\n---\n\nInstruction: ${input.instruction}` },
+            { role: "user", content: userMessage },
           ],
         }, article.projectId);
 
@@ -3912,13 +3930,22 @@ Rules:
         if (!rawResult) throw new Error("No response from AI");
         const editedContent = stripMarkdownFences(typeof rawResult === "string" ? rawResult : (rawResult as any)[0]?.text ?? "");
 
-        // Save the updated content to the article
-        await updateArticle(input.articleId, {
-          content: editedContent,
-          wordCount: editedContent.split(/\s+/).filter(Boolean).length,
-        });
-
-        return { content: editedContent };
+        if (isSelectionMode) {
+          // Replace only the selected portion in the full content
+          const fullContent = input.currentContent.replace(input.selectedText!, editedContent);
+          await updateArticle(input.articleId, {
+            content: fullContent,
+            wordCount: fullContent.split(/\s+/).filter(Boolean).length,
+          });
+          return { content: fullContent, editedSelection: editedContent, mode: "selection" as const };
+        } else {
+          // Full article edit
+          await updateArticle(input.articleId, {
+            content: editedContent,
+            wordCount: editedContent.split(/\s+/).filter(Boolean).length,
+          });
+          return { content: editedContent, mode: "full" as const };
+        }
       }),
   }),
 

@@ -632,6 +632,7 @@ export default function ArticleEditor() {
   // AI Edit Chat state
   const [showAiEdit, setShowAiEdit] = useState(false);
   const [aiEditMessages, setAiEditMessages] = useState<ChatMessage[]>([]);
+  const [aiEditSelection, setAiEditSelection] = useState<string | null>(null);
   const aiEditMutation = trpc.articles.aiEdit.useMutation({
     onSuccess: (data) => {
       // Update editor content with the AI-edited version
@@ -644,11 +645,16 @@ export default function ArticleEditor() {
       skipNextSyncRef.current = true;
       refetch();
       // Add assistant response to chat
+      const modeMsg = (data as any).mode === "selection"
+        ? "Done! I've edited the selected text. You can review the highlighted changes in the editor."
+        : "Done! I've applied the changes to your article. You can review the highlighted edits in the editor.";
       setAiEditMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Done! I've applied the changes to your article. You can review the highlighted edits in the editor." },
+        { role: "assistant", content: modeMsg },
       ]);
-      toast.success("AI edit applied");
+      // Clear selection after successful edit
+      setAiEditSelection(null);
+      toast.success((data as any).mode === "selection" ? "Selection edited" : "AI edit applied");
     },
     onError: (err) => {
       setAiEditMessages((prev) => [
@@ -658,6 +664,7 @@ export default function ArticleEditor() {
       toast.error(err.message || "Failed to apply AI edit");
     },
   });
+
 
   // Save to CMS as draft state
   const publishCmsMutation = trpc.articles.publishToCms.useMutation({
@@ -855,6 +862,28 @@ export default function ArticleEditor() {
       setKeyword(article.keyword || "");
     }
   }, [article, editor]);
+
+  // Track editor selection for AI Edit
+  useEffect(() => {
+    if (!editor || !showAiEdit) {
+      setAiEditSelection(null);
+      return;
+    }
+    const handleSelectionUpdate = () => {
+      const { from, to } = editor.state.selection;
+      if (from !== to) {
+        const text = editor.state.doc.textBetween(from, to, "\n");
+        setAiEditSelection(text || null);
+      } else {
+        setAiEditSelection(null);
+      }
+    };
+    editor.on("selectionUpdate", handleSelectionUpdate);
+    handleSelectionUpdate();
+    return () => {
+      editor.off("selectionUpdate", handleSelectionUpdate);
+    };
+  }, [editor, showAiEdit]);
 
   const handleSave = useCallback(() => {
     if (!editor || !articleId) return;
@@ -1665,24 +1694,54 @@ export default function ArticleEditor() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            {/* Selection indicator */}
+            {aiEditSelection && (
+              <div className="px-4 py-2.5 bg-violet-50 border-b border-violet-100">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+                  <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Editing Selection</span>
+                </div>
+                <p className="text-xs text-violet-600 line-clamp-2 italic">
+                  "{aiEditSelection.length > 120 ? aiEditSelection.slice(0, 120) + "..." : aiEditSelection}"
+                </p>
+                <button
+                  onClick={() => {
+                    if (editor) {
+                      editor.commands.setTextSelection(editor.state.selection.from);
+                    }
+                    setAiEditSelection(null);
+                  }}
+                  className="text-xs text-violet-500 hover:text-violet-700 mt-1 underline"
+                >
+                  Clear selection (edit full article)
+                </button>
+              </div>
+            )}
             <AIChatBox
               messages={aiEditMessages}
               isLoading={aiEditMutation.isPending}
               onSendMessage={(content) => {
-                // Add user message to chat
-                setAiEditMessages((prev) => [...prev, { role: "user", content }]);
+                // Add user message to chat with context
+                const msgPrefix = aiEditSelection ? `[Selection: "${aiEditSelection.slice(0, 50)}..."] ` : "";
+                setAiEditMessages((prev) => [...prev, { role: "user", content: msgPrefix + content }]);
                 // Call the AI edit mutation
                 const currentContent = editor?.getHTML() || "";
                 aiEditMutation.mutate({
                   articleId,
                   instruction: content,
                   currentContent,
+                  ...(aiEditSelection ? { selectedText: aiEditSelection } : {}),
                 });
               }}
-              placeholder="Tell me how to edit this article..."
-              height={500}
-              emptyStateMessage="Ask me to edit your article. I can add numbers to lists, change tone, fix formatting, add sections, and more."
-              suggestedPrompts={[
+              placeholder={aiEditSelection ? "What should I do with this selection?" : "Tell me how to edit this article..."}
+              height={aiEditSelection ? 420 : 500}
+              emptyStateMessage={aiEditSelection ? "You've selected text. Tell me what to do with it — rewrite, expand, shorten, change tone, etc." : "Ask me to edit your article. I can add numbers to lists, change tone, fix formatting, add sections, and more."}
+              suggestedPrompts={aiEditSelection ? [
+                "Rewrite this more concisely",
+                "Make this more engaging",
+                "Expand with more detail",
+                "Change to active voice",
+              ] : [
                 "Add numbers to each list item",
                 "Make the intro more engaging",
                 "Add transition sentences between sections",

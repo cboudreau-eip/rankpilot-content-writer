@@ -119,6 +119,33 @@ describe("articles router", () => {
       caller.articles.delete({} as any)
     ).rejects.toThrow();
   });
+
+  it("articles.aiEdit rejects empty instruction", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.articles.aiEdit({ articleId: 1, instruction: "", currentContent: "<p>Hello</p>" })
+    ).rejects.toThrow();
+  });
+
+  it("articles.aiEdit rejects empty currentContent", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.articles.aiEdit({ articleId: 1, instruction: "Fix it", currentContent: "" })
+    ).rejects.toThrow();
+  });
+
+  it("articles.aiEdit rejects missing articleId", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.articles.aiEdit({} as any)
+    ).rejects.toThrow();
+  });
 });
 
 describe("outlines router", () => {

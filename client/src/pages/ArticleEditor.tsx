@@ -24,8 +24,9 @@ import {
   Target, Bot, BookOpen, AlertTriangle, Lightbulb, ArrowRight,
   ChevronUp, Wand2, X, Copy, ClipboardCheck, MinusCircle,
   FileCheck, Info, ExternalLink, Repeat2, MoreVertical, Download, Scan, Image, ImagePlus, Trash2, RefreshCw, Palette,
-  ListTree, FolderKanban, Unlink, Link2, Globe,
+  ListTree, FolderKanban, Unlink, Link2, Globe, MessageSquare,
 } from "lucide-react";
+import { AIChatBox, type Message as ChatMessage } from "@/components/AIChatBox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -628,6 +629,36 @@ export default function ArticleEditor() {
   // Links Audit state
   const [showLinksAudit, setShowLinksAudit] = useState(false);
 
+  // AI Edit Chat state
+  const [showAiEdit, setShowAiEdit] = useState(false);
+  const [aiEditMessages, setAiEditMessages] = useState<ChatMessage[]>([]);
+  const aiEditMutation = trpc.articles.aiEdit.useMutation({
+    onSuccess: (data) => {
+      // Update editor content with the AI-edited version
+      if (editor && data.content) {
+        const oldContent = editor.getHTML();
+        const highlightedHtml = buildHighlightedHtml(oldContent, data.content);
+        editor.commands.setContent(highlightedHtml);
+        setHasHighlights(true);
+      }
+      skipNextSyncRef.current = true;
+      refetch();
+      // Add assistant response to chat
+      setAiEditMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Done! I've applied the changes to your article. You can review the highlighted edits in the editor." },
+      ]);
+      toast.success("AI edit applied");
+    },
+    onError: (err) => {
+      setAiEditMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Sorry, I couldn't apply that edit: ${err.message}` },
+      ]);
+      toast.error(err.message || "Failed to apply AI edit");
+    },
+  });
+
   // Save to CMS as draft state
   const publishCmsMutation = trpc.articles.publishToCms.useMutation({
     onSuccess: (data) => {
@@ -982,6 +1013,16 @@ export default function ArticleEditor() {
           >
             {copied ? <ClipboardCheck className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
             {copied ? "Copied" : "Copy"}
+          </Button>
+
+          {/* AI Edit Chat Toggle */}
+          <Button
+            variant="outline"
+            onClick={() => setShowAiEdit(!showAiEdit)}
+            className={showAiEdit ? "bg-violet-50 text-violet-700 border-violet-200" : ""}
+          >
+            <MessageSquare className="w-4 h-4 mr-1.5" />
+            AI Edit
           </Button>
 
           {/* Overflow Menu */}
@@ -1608,6 +1649,50 @@ export default function ArticleEditor() {
         )}
 
         {/* SEO Sidebar */}
+        {/* AI Edit Chat Panel */}
+        {showAiEdit && (
+          <div className="w-96 bg-card rounded-xl border border-border/60 flex-shrink-0 self-start sticky top-4 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 bg-gradient-to-r from-violet-50 to-purple-50">
+              <h3 className="font-semibold flex items-center gap-2 text-sm">
+                <MessageSquare className="w-4 h-4 text-violet-600" />
+                AI Content Editor
+              </h3>
+              <button
+                onClick={() => setShowAiEdit(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+                title="Close panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <AIChatBox
+              messages={aiEditMessages}
+              isLoading={aiEditMutation.isPending}
+              onSendMessage={(content) => {
+                // Add user message to chat
+                setAiEditMessages((prev) => [...prev, { role: "user", content }]);
+                // Call the AI edit mutation
+                const currentContent = editor?.getHTML() || "";
+                aiEditMutation.mutate({
+                  articleId,
+                  instruction: content,
+                  currentContent,
+                });
+              }}
+              placeholder="Tell me how to edit this article..."
+              height={500}
+              emptyStateMessage="Ask me to edit your article. I can add numbers to lists, change tone, fix formatting, add sections, and more."
+              suggestedPrompts={[
+                "Add numbers to each list item",
+                "Make the intro more engaging",
+                "Add transition sentences between sections",
+                "Make the tone more conversational",
+              ]}
+              className="border-0 rounded-none"
+            />
+          </div>
+        )}
+
         {showSeo && (
           <div className="w-80 bg-card rounded-xl border border-border/60 p-5 space-y-5 flex-shrink-0 self-start sticky top-4">
             <h3 className="font-semibold flex items-center gap-2">

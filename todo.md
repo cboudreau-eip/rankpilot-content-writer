@@ -1514,3 +1514,11 @@
 - [x] Add "Download as PDF" button to export all citation sources
 - [x] Generate styled HTML export with citation name, URL, and description
 - [x] Write vitest tests for bulk delete route
+
+## Article Editor: AI Chat Box for Content Edits
+- [x] Add backend tRPC route that accepts article content + user instruction and returns edited content
+- [x] Build chat box UI component (collapsible panel, message input, conversation history)
+- [x] Integrate chat box into Article Editor page
+- [x] Wire chat box to backend route and update editor content on response
+- [x] Write vitest tests for the new route
+- [ ] Save checkpoint

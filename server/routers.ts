@@ -3879,6 +3879,47 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
 
         return article;
       }),
+
+    /** AI chat-based article editing — accepts a natural language instruction and applies it to the article content */
+    aiEdit: publicProcedure
+      .input(z.object({
+        articleId: z.number(),
+        instruction: z.string().min(1),
+        currentContent: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const article = await getArticleById(input.articleId);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+        const systemPrompt = `You are an expert content editor. The user will give you an article in HTML format and an editing instruction. Apply the instruction precisely to the article content and return the FULL updated HTML content.
+
+Rules:
+- Return ONLY the updated HTML content (no explanations, no markdown fences, no commentary)
+- Preserve all existing HTML structure, links, formatting, and styles unless the instruction specifically asks to change them
+- Make ONLY the changes requested — do not rewrite or rephrase other parts of the article
+- If the instruction is unclear, make your best interpretation and apply it
+- Keep all existing <a href> links intact unless told to remove them
+- Maintain the same overall length unless the instruction asks to shorten or expand`;
+
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Here is the current article content:\n\n${input.currentContent}\n\n---\n\nInstruction: ${input.instruction}` },
+          ],
+        }, article.projectId);
+
+        const rawResult = response.choices[0]?.message?.content;
+        if (!rawResult) throw new Error("No response from AI");
+        const editedContent = stripMarkdownFences(typeof rawResult === "string" ? rawResult : (rawResult as any)[0]?.text ?? "");
+
+        // Save the updated content to the article
+        await updateArticle(input.articleId, {
+          content: editedContent,
+          wordCount: editedContent.split(/\s+/).filter(Boolean).length,
+        });
+
+        return { content: editedContent };
+      }),
   }),
 
   // ---- Broken Link Checker ----

@@ -25,6 +25,7 @@ import Ideas from "./pages/Ideas";
 import Outlines from "./pages/Outlines";
 import ContentEngine from "./pages/ContentEngine";
 import FreeWriter from "./pages/FreeWriter";
+import AIReadinessAudit from "./pages/AIReadinessAudit";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
@@ -99,6 +100,7 @@ function App() {
                       <Route path="/outlines" component={Outlines} />
                       <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
                       <Route path="/grade" component={GradeContent} />
+                      <Route path="/ai-readiness" component={AIReadinessAudit} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
                       <Route path="/ideas" component={Ideas} />
                       <Route path="/pipeline">{() => <Redirect to="/engine" />}</Route>

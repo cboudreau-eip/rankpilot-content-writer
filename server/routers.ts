@@ -37,6 +37,15 @@ import {
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { applyBackgroundColors } from "./applyBackgroundColors";
+import {
+  analyzeSchema,
+  analyzeContentStructureRaw,
+  analyzeInternalLinks,
+  prepareHtmlForLLM,
+  prepareContentForLLM,
+  stripMarkdownFences as stripFences,
+  extractPageTitle,
+} from "./aiReadiness";
 import { applyTemplateStyles } from "./applyTemplateStyles";
 import { invokeLLM } from "./_core/llm";
 import type { InvokeParams, InvokeResult } from "./_core/llm";
@@ -8417,7 +8426,546 @@ CRITICAL RULES:
         };
       }),
   }),
+
+  // ============================================================
+  // AI READINESS AUDIT
+  // ============================================================
+  aiReadiness: router({
+    analyze: publicProcedure
+      .input(z.object({ url: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        // Auth check
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+
+        // URL normalization
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(input.url.startsWith("http") ? input.url : `https://${input.url}`);
+        } catch {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid URL format" });
+        }
+
+        // Fetch page HTML
+        let html: string;
+        try {
+          const fetchResponse = await fetch(parsedUrl.toString(), {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.5",
+            },
+            signal: AbortSignal.timeout(20000),
+          });
+          if (!fetchResponse.ok) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Failed to fetch URL: HTTP ${fetchResponse.status}` });
+          }
+          html = await fetchResponse.text();
+        } catch (e: any) {
+          if (e.name === "TimeoutError" || e.name === "AbortError") {
+            throw new TRPCError({ code: "TIMEOUT", message: "Request timed out. The page took too long to respond." });
+          }
+          if (e instanceof TRPCError) throw e;
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Failed to fetch URL: ${e.message}` });
+        }
+
+        if (html.length < 200) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Page returned very little content. It may be JavaScript-rendered or require authentication." });
+        }
+
+        // Run three deterministic analyzers
+        const schemaResult = analyzeSchema(html);
+        const contentStructureRaw = analyzeContentStructureRaw(html);
+        const internalLinksResult = analyzeInternalLinks(html, parsedUrl.toString());
+        const pageTitle = extractPageTitle(html);
+
+        // LLM deep pass for content structure analysis
+        const contentForLLM = prepareHtmlForLLM(html, 15000);
+        const systemPrompt = `You are an AI Readiness Auditor. Your job is to evaluate whether a webpage's content is structured in a way that makes it easy for AI systems (ChatGPT, Perplexity, Google AI Overviews) to find, understand, extract, and cite specific pieces of information.
+
+You will receive:
+1. The page HTML (cleaned)
+2. Pre-computed structural metrics
+
+Analyze the page and return a JSON response with this exact structure:
+{
+  "contentStructureScore": <number 0-100>,
+  "overallReadinessScore": <number 0-100>,
+  "letterGrade": "<A+/A/B+/B/C+/C/D/F>",
+  "contentStructure": {
+    "summary": "<2-3 sentence assessment of how AI-parseable this content is>",
+    "headingHierarchy": {
+      "score": <0-100>,
+      "assessment": "<specific assessment>",
+      "issues": ["<issue 1>", "<issue 2>"]
+    },
+    "contentSegmentation": {
+      "score": <0-100>,
+      "assessment": "<is content in labeled blocks or a blob?>",
+      "issues": ["<issue 1>"]
+    },
+    "aiExtractability": {
+      "score": <0-100>,
+      "assessment": "<can AI pull discrete facts, definitions, steps from this page?>",
+      "issues": ["<issue 1>"]
+    },
+    "semanticClarity": {
+      "score": <0-100>,
+      "assessment": "<are semantic HTML elements used properly?>",
+      "issues": ["<issue 1>"]
+    }
+  },
+  "topFindings": [
+    { "severity": "critical|high|medium|low", "category": "schema|structure|links", "finding": "<specific finding>", "recommendation": "<actionable fix>" }
+  ],
+  "aiCitability": {
+    "score": <0-100>,
+    "summary": "<how likely is an AI to cite this page, and why?>"
+  },
+  "quickWins": ["<specific action 1>", "<action 2>", "<action 3>"]
+}
+
+Be specific and actionable. Reference actual content from the page in your findings. Don't be generic. The scores should reflect real structural issues, not just surface-level formatting.
+
+IMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code fences or any other formatting.`;
+
+        const userPrompt = `Analyze this page: ${parsedUrl.toString()}
+
+Pre-computed metrics:
+- Heading hierarchy: ${JSON.stringify(contentStructureRaw.headingHierarchy.slice(0, 20))}
+- H1 present: ${contentStructureRaw.hasProperH1}, H2 count: ${contentStructureRaw.h2Count}, H3 count: ${contentStructureRaw.h3Count}
+- Semantic elements: ${JSON.stringify(contentStructureRaw.semanticElements)}
+- Word count: ${contentStructureRaw.estimatedWordCount}, Paragraphs: ${contentStructureRaw.paragraphCount}, Avg paragraph length: ${contentStructureRaw.avgParagraphLength} words
+- Schema types found: ${schemaResult.typesFound.length > 0 ? schemaResult.typesFound.join(", ") : "NONE"}
+- Internal links in content: ${internalLinksResult.internalLinks}, Generic anchors: ${internalLinksResult.genericAnchors}
+- Schema score: ${schemaResult.score}/100, Internal link score: ${internalLinksResult.score}/100
+
+Page HTML (cleaned):
+${contentForLLM}`;
+
+        // Call LLM (Claude Sonnet via Forge proxy)
+        let llmResult: any;
+        try {
+          const response = await invokeLLM({
+            model: "claude-sonnet-4-6",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            maxTokens: 8000,
+            response_format: { type: "json_object" },
+          });
+
+          const rawContent = response.choices?.[0]?.message?.content;
+          const contentStr = typeof rawContent === "string" ? rawContent : (Array.isArray(rawContent) ? rawContent.map((c: any) => c.text || "").join("") : "");
+          const cleaned = stripFences(contentStr);
+          llmResult = JSON.parse(cleaned);
+        } catch (e) {
+          // Fallback on parse failure
+          console.error("[AI Readiness] LLM parse error:", e);
+          llmResult = {
+            contentStructureScore: 50,
+            overallReadinessScore: 50,
+            letterGrade: "C",
+            contentStructure: {
+              summary: "Analysis could not be completed. Using neutral scores.",
+              headingHierarchy: { score: 50, assessment: "Could not analyze", issues: [] },
+              contentSegmentation: { score: 50, assessment: "Could not analyze", issues: [] },
+              aiExtractability: { score: 50, assessment: "Could not analyze", issues: [] },
+              semanticClarity: { score: 50, assessment: "Could not analyze", issues: [] },
+            },
+            topFindings: [],
+            aiCitability: { score: 50, summary: "Analysis could not be completed." },
+            quickWins: [],
+          };
+        }
+
+        // Combine into final response
+        return {
+          url: parsedUrl.toString(),
+          pageTitle,
+          analyzedAt: new Date().toISOString(),
+          overallScore: llmResult.overallReadinessScore ?? 50,
+          letterGrade: llmResult.letterGrade ?? "C",
+          pillars: {
+            schema: schemaResult,
+            contentStructure: {
+              score: llmResult.contentStructureScore ?? 50,
+              raw: contentStructureRaw,
+              analysis: llmResult.contentStructure ?? null,
+            },
+            internalLinks: internalLinksResult,
+          },
+          topFindings: llmResult.topFindings ?? [],
+          aiCitability: llmResult.aiCitability ?? { score: 50, summary: "" },
+          quickWins: llmResult.quickWins ?? [],
+          meta: {
+            wordCount: contentStructureRaw.estimatedWordCount,
+            extractionMethod: contentStructureRaw.contentExtractionMethod,
+          },
+        };
+      }),
+
+    generateOutline: publicProcedure
+      .input(z.object({
+        auditResult: z.any(),
+        projectId: z.number().optional(),
+        targetWordCount: z.string().optional(),
+        numSections: z.string().optional(),
+        faqCount: z.string().optional(),
+        saveToDb: z.boolean().optional().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Auth check
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+
+        const { auditResult, projectId, targetWordCount, numSections, faqCount, saveToDb } = input;
+
+        if (!auditResult?.url) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "auditResult.url is required" });
+        }
+
+        // Re-fetch page content (best-effort)
+        let pageContent = "";
+        try {
+          const fetchResp = await fetch(auditResult.url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (compatible; RankPilotBot/1.0)",
+              Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (fetchResp.ok) {
+            const html = await fetchResp.text();
+            pageContent = prepareContentForLLM(html, 12000);
+          }
+        } catch {
+          // Continue without page content
+        }
+
+        // Build audit summary
+        let auditSummary = `OVERALL: Score ${auditResult.overallScore}/100, Grade: ${auditResult.letterGrade}\n\n`;
+
+        // Schema
+        auditSummary += `SCHEMA MARKUP (${auditResult.pillars?.schema?.score ?? 0}/100):\n`;
+        auditSummary += `- Types found: ${auditResult.pillars?.schema?.typesFound?.join(", ") || "None"}\n`;
+        auditSummary += `- Types missing: ${auditResult.pillars?.schema?.typesMissing?.join(", ") || "None"}\n`;
+        if (auditResult.pillars?.schema?.suggestions?.length) {
+          auditSummary += `- Suggestions: ${auditResult.pillars.schema.suggestions.join("; ")}\n`;
+        }
+        auditSummary += "\n";
+
+        // Content Structure
+        const cs = auditResult.pillars?.contentStructure;
+        auditSummary += `CONTENT STRUCTURE (${cs?.score ?? 0}/100):\n`;
+        if (cs?.analysis) {
+          const a = cs.analysis;
+          auditSummary += `- Summary: ${a.summary || ""}\n`;
+          if (a.headingHierarchy) auditSummary += `  - Heading Hierarchy (${a.headingHierarchy.score}/100): ${a.headingHierarchy.assessment}\n    Issues: ${a.headingHierarchy.issues?.join("; ") || "None"}\n`;
+          if (a.contentSegmentation) auditSummary += `  - Content Segmentation (${a.contentSegmentation.score}/100): ${a.contentSegmentation.assessment}\n    Issues: ${a.contentSegmentation.issues?.join("; ") || "None"}\n`;
+          if (a.aiExtractability) auditSummary += `  - AI Extractability (${a.aiExtractability.score}/100): ${a.aiExtractability.assessment}\n    Issues: ${a.aiExtractability.issues?.join("; ") || "None"}\n`;
+          if (a.semanticClarity) auditSummary += `  - Semantic Clarity (${a.semanticClarity.score}/100): ${a.semanticClarity.assessment}\n    Issues: ${a.semanticClarity.issues?.join("; ") || "None"}\n`;
+        }
+        // Heading hierarchy
+        if (cs?.raw?.headingHierarchy?.length) {
+          auditSummary += "\nCURRENT HEADING OUTLINE:\n";
+          cs.raw.headingHierarchy.slice(0, 30).forEach((h: any) => {
+            auditSummary += `${"  ".repeat(h.level - 1)}H${h.level}: ${h.text}\n`;
+          });
+        }
+        auditSummary += "\n";
+
+        // Internal Links
+        const il = auditResult.pillars?.internalLinks;
+        auditSummary += `INTERNAL LINKS (${il?.score ?? 0}/100):\n`;
+        auditSummary += `- Internal: ${il?.internalLinks ?? 0}, External: ${il?.externalLinks ?? 0}\n`;
+        auditSummary += `- Descriptive anchors: ${il?.descriptiveAnchors ?? 0}, Generic: ${il?.genericAnchors ?? 0}\n`;
+        if (il?.suggestions?.length) {
+          auditSummary += `- Suggestions: ${il.suggestions.join("; ")}\n`;
+        }
+        auditSummary += "\n";
+
+        // AI Citability
+        auditSummary += `AI CITABILITY (${auditResult.aiCitability?.score ?? 0}/100): ${auditResult.aiCitability?.summary || ""}\n\n`;
+
+        // Top Findings
+        if (auditResult.topFindings?.length) {
+          auditSummary += "TOP FINDINGS:\n";
+          auditResult.topFindings.forEach((f: any) => {
+            auditSummary += `- [${f.severity}] (${f.category}) ${f.finding} → Fix: ${f.recommendation}\n`;
+          });
+          auditSummary += "\n";
+        }
+
+        // Quick Wins
+        if (auditResult.quickWins?.length) {
+          auditSummary += "QUICK WINS:\n";
+          auditResult.quickWins.forEach((w: string) => {
+            auditSummary += `- ${w}\n`;
+          });
+        }
+
+        // Build LLM prompt
+        let optionalLines = "";
+        if (targetWordCount) optionalLines += `\nTarget Word Count: ${targetWordCount} words`;
+        if (numSections) optionalLines += `\nNumber of Main Sections: ${numSections}`;
+        if (faqCount) optionalLines += `\nNumber of FAQs: ${faqCount}`;
+
+        const systemPrompt = `You are an expert content strategist specializing in AEO (Answer Engine Optimization). Your task is to create an IMPROVED article outline based on an AI Readiness audit of an existing page.
+
+The current year is 2026.
+
+You have been given:
+1. The AI Readiness audit results (scoring, issues, recommendations)
+2. The original page content
+
+Your job is to create a restructured outline that FIXES all issues identified in the audit while preserving the original topic and intent.
+
+SPECIFIC INSTRUCTIONS BASED ON AUDIT:
+- If schema markup is missing FAQ types → include a well-structured FAQ section
+- If schema markup suggests How-To → include step-by-step How-To sections with clear numbered steps
+- If heading hierarchy has issues → create a clean H1 > H2 > H3 structure with no skipped levels
+- If content segmentation is poor → break content into focused, well-defined sections (200-400 words each)
+- If AI extractability is low → add a "Quick Answer" section (40-60 words) and clear definitions
+- If semantic clarity is weak → use specific, descriptive headings that clearly state what each section covers
+- If internal linking is poor → suggest internal linking opportunities in each section
+- If content is too thin → expand the outline to cover missing subtopics
+- If there are generic headings → replace them with specific, keyword-rich headings
+- If definitions are missing → add definition sections near the top
+- If Q&A format is missing → restructure relevant sections as Q&A${optionalLines}
+
+OUTPUT FORMAT — return ONLY this JSON structure:
+{
+  "title": "SEO-optimized title (improved from original)",
+  "metaDescription": "155-character meta description",
+  "estimatedWordCount": "estimated word count range",
+  "sections": [
+    { "type": "hook", "heading": null, "purpose": "...", "keyPoints": ["..."] },
+    { "type": "quickAnswer", "heading": null, "purpose": "...", "targetWords": "40-60", "keyPoints": ["..."] },
+    { "type": "h2", "heading": "...", "keyPoints": ["..."], "auditFix": "...",
+      "subSections": [ { "type": "h3", "heading": "...", "keyPoints": ["..."] } ] },
+    { "type": "faq", "heading": "Frequently Asked Questions",
+      "questions": [ { "question": "...?", "answerPoints": ["..."] } ] }
+  ],
+  "targetKeywords": { "primary": "...", "secondary": ["..."], "lsi": ["..."] },
+  "internalLinkOpportunities": ["..."],
+  "auditIssuesAddressed": ["..."]
+}
+
+Respond ONLY with the JSON object, no additional text.`;
+
+        let userMessage = `Here is the AI Readiness audit for the page:\n\n${auditSummary}`;
+        if (pageContent) {
+          userMessage += `\n\nHere is the original page content (truncated):\n\n${pageContent}`;
+        }
+
+        // Call LLM (GPT-4o equivalent via Forge)
+        let outlineData: any;
+        try {
+          const response = await invokeLLM({
+            model: "claude-sonnet-4-6",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userMessage },
+            ],
+            maxTokens: 5000,
+          });
+
+          const rawContent = response.choices?.[0]?.message?.content;
+          const contentStr = typeof rawContent === "string" ? rawContent : (Array.isArray(rawContent) ? rawContent.map((c: any) => c.text || "").join("") : "");
+          const cleaned = stripFences(contentStr);
+          outlineData = JSON.parse(cleaned);
+        } catch (e) {
+          console.error("[AI Readiness] Outline generation parse error:", e);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate outline. Please try again." });
+        }
+
+        // Save to DB if requested
+        let savedOutline = null;
+        if (saveToDb && projectId) {
+          try {
+            // Convert the LLM outline format to our OutlineSection format
+            const sections = (outlineData.sections || []).map((s: any, idx: number) => {
+              const section: any = {
+                id: `section-${idx}`,
+                heading: s.heading || s.type || "Section",
+                type: s.type === "h3" ? "h3" : "h2",
+                points: s.keyPoints || s.answerPoints || [],
+              };
+              if (s.subSections) {
+                section.subSections = s.subSections.map((sub: any, subIdx: number) => ({
+                  id: `section-${idx}-sub-${subIdx}`,
+                  heading: sub.heading || "Subsection",
+                  type: "h3" as const,
+                  points: sub.keyPoints || [],
+                }));
+              }
+              if (s.questions) {
+                section.points = s.questions.map((q: any) => `Q: ${q.question} | A: ${q.answerPoints?.join(", ") || ""}`);
+              }
+              return section;
+            });
+
+            savedOutline = await createOutline({
+              title: outlineData.title || auditResult.pageTitle || "Improved Outline",
+              keyword: outlineData.targetKeywords?.primary || null,
+              sections,
+              settings: {
+                targetWordCount: targetWordCount ? parseInt(targetWordCount) : undefined,
+                numSections: numSections ? parseInt(numSections) : undefined,
+                numFaqs: faqCount ? parseInt(faqCount) : undefined,
+              },
+              status: "draft",
+              projectId,
+              userId: session.userId,
+            });
+          } catch (e) {
+            console.error("[AI Readiness] Failed to save outline:", e);
+            // Non-fatal — still return the outline data
+          }
+        }
+
+        return {
+          success: true,
+          outline: outlineData,
+          savedOutline,
+        };
+      }),
+
+    exportPdf: publicProcedure
+      .input(z.object({ auditResult: z.any() }))
+      .mutation(async ({ ctx, input }) => {
+        // Auth check
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+        const { auditResult } = input;
+        const htmlContent = buildReportHtml(auditResult);
+
+        // Return HTML content as base64 for client-side PDF generation
+        // (The client will use the browser's print functionality or a library)
+        return {
+          html: htmlContent,
+          filename: `ai-readiness-audit-${new URL(auditResult.url).hostname}.pdf`,
+        };
+      }),
+  }),
 });
+
+// ============================================================
+// AI READINESS PDF REPORT BUILDER
+// ============================================================
+
+function buildReportHtml(data: any): string {
+  const scoreColor = (score: number) => score >= 70 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
+  const gradeColor = (grade: string) => {
+    if (grade.startsWith("A")) return "#10b981";
+    if (grade.startsWith("B")) return "#3b82f6";
+    if (grade.startsWith("C")) return "#f59e0b";
+    if (grade.startsWith("D")) return "#f97316";
+    return "#ef4444";
+  };
+  const escHtml = (s: string) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const pillars = data.pillars || {};
+  const schema = pillars.schema || {};
+  const cs = pillars.contentStructure || {};
+  const il = pillars.internalLinks || {};
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>AI Readiness Audit - ${escHtml(data.pageTitle)}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; color: #1f2937; line-height: 1.6; }
+  .header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; padding: 30px; border-radius: 12px; margin-bottom: 30px; }
+  .header h1 { margin: 0 0 8px 0; font-size: 24px; }
+  .header .url { opacity: 0.8; font-size: 14px; }
+  .grade-box { display: inline-block; background: ${gradeColor(data.letterGrade || "C")}; color: white; padding: 12px 20px; border-radius: 8px; font-size: 28px; font-weight: bold; margin-top: 15px; }
+  .grade-score { font-size: 14px; opacity: 0.9; }
+  .pillars-row { display: flex; gap: 16px; margin-bottom: 30px; }
+  .pillar-card { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; text-align: center; }
+  .pillar-score { font-size: 28px; font-weight: bold; }
+  .pillar-label { font-size: 13px; color: #6b7280; margin-top: 4px; }
+  .section { margin-bottom: 24px; }
+  .section h2 { font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
+  .finding { background: #f9fafb; border-left: 4px solid #e5e7eb; padding: 12px 16px; margin-bottom: 12px; border-radius: 0 8px 8px 0; }
+  .finding.critical { border-left-color: #ef4444; }
+  .finding.high { border-left-color: #f97316; }
+  .finding.medium { border-left-color: #f59e0b; }
+  .finding.low { border-left-color: #3b82f6; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .badge-critical { background: #fef2f2; color: #dc2626; }
+  .badge-high { background: #fff7ed; color: #ea580c; }
+  .badge-medium { background: #fffbeb; color: #d97706; }
+  .badge-low { background: #eff6ff; color: #2563eb; }
+  .fix { color: #059669; font-size: 13px; margin-top: 6px; }
+  .quick-win { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+  .stat-grid { display: flex; gap: 12px; margin: 16px 0; }
+  .stat-box { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; text-align: center; }
+  .stat-value { font-size: 22px; font-weight: bold; }
+  .stat-label { font-size: 12px; color: #6b7280; }
+  .heading-tree { font-family: monospace; font-size: 13px; background: #f9fafb; padding: 16px; border-radius: 8px; }
+  .schema-item { padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+  .schema-check { color: #10b981; }
+  .schema-miss { color: #ef4444; }
+  .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; text-align: center; }
+</style></head><body>
+
+<div class="header">
+  <h1>AI Readiness Audit Report</h1>
+  <div class="url">${escHtml(data.url)}</div>
+  <div class="grade-box">${escHtml(data.letterGrade)}<br><span class="grade-score">${data.overallScore}/100</span></div>
+</div>
+
+<div class="pillars-row">
+  <div class="pillar-card"><div class="pillar-score" style="color:${scoreColor(schema.score || 0)}">${schema.score || 0}</div><div class="pillar-label">Schema Markup</div></div>
+  <div class="pillar-card"><div class="pillar-score" style="color:${scoreColor(cs.score || 0)}">${cs.score || 0}</div><div class="pillar-label">Content Structure</div></div>
+  <div class="pillar-card"><div class="pillar-score" style="color:${scoreColor(il.score || 0)}">${il.score || 0}</div><div class="pillar-label">Internal Links</div></div>
+</div>
+
+${data.aiCitability ? `<div class="section"><h2>AI Citability Score: ${data.aiCitability.score}/100</h2><p>${escHtml(data.aiCitability.summary)}</p></div>` : ""}
+
+${data.quickWins?.length ? `<div class="section"><h2>Quick Wins</h2>${data.quickWins.map((w: string) => `<div class="quick-win">→ ${escHtml(w)}</div>`).join("")}</div>` : ""}
+
+${data.topFindings?.length ? `<div class="section"><h2>Key Findings</h2>${data.topFindings.map((f: any) => `<div class="finding ${f.severity}"><span class="badge badge-${f.severity}">${f.severity}</span> <span class="badge" style="background:#f3f4f6;color:#374151">${f.category}</span><p style="margin:8px 0 4px">${escHtml(f.finding)}</p><div class="fix">Fix: ${escHtml(f.recommendation)}</div></div>`).join("")}</div>` : ""}
+
+<div class="section">
+  <h2>Schema Markup (${schema.score || 0}/100)</h2>
+  ${(schema.details || []).map((d: any) => `<div class="schema-item"><span class="${d.present ? "schema-check" : "schema-miss"}">${d.present ? "✓" : "✗"}</span> <strong>${escHtml(d.type)}</strong> — ${escHtml(d.note)}</div>`).join("")}
+  ${schema.suggestions?.length ? `<h3>Recommendations</h3>${schema.suggestions.map((s: string) => `<p>• ${escHtml(s)}</p>`).join("")}` : ""}
+</div>
+
+<div class="section">
+  <h2>Content Structure (${cs.score || 0}/100)</h2>
+  ${cs.analysis?.summary ? `<p>${escHtml(cs.analysis.summary)}</p>` : ""}
+  <div class="stat-grid">
+    <div class="stat-box"><div class="stat-value">${cs.raw?.estimatedWordCount || 0}</div><div class="stat-label">Words</div></div>
+    <div class="stat-box"><div class="stat-value">${cs.raw?.totalHeadings || 0}</div><div class="stat-label">Headings</div></div>
+    <div class="stat-box"><div class="stat-value">${cs.raw?.paragraphCount || 0}</div><div class="stat-label">Paragraphs</div></div>
+    <div class="stat-box"><div class="stat-value">${cs.raw?.avgParagraphLength || 0}w</div><div class="stat-label">Avg ¶ Length</div></div>
+  </div>
+  ${cs.raw?.headingHierarchy?.length ? `<h3>Heading Outline</h3><div class="heading-tree">${cs.raw.headingHierarchy.slice(0, 30).map((h: any) => `${'&nbsp;&nbsp;'.repeat(h.level - 1)}<strong>H${h.level}</strong> ${escHtml(h.text)}`).join('<br>')}</div>` : ""}
+</div>
+
+<div class="section">
+  <h2>Internal Links (${il.score || 0}/100)</h2>
+  <div class="stat-grid">
+    <div class="stat-box"><div class="stat-value">${il.internalLinks || 0}</div><div class="stat-label">Internal</div></div>
+    <div class="stat-box"><div class="stat-value">${il.externalLinks || 0}</div><div class="stat-label">External</div></div>
+    <div class="stat-box"><div class="stat-value">${il.descriptiveAnchors || 0}</div><div class="stat-label">Descriptive</div></div>
+    <div class="stat-box"><div class="stat-value">${il.genericAnchors || 0}</div><div class="stat-label">Generic</div></div>
+  </div>
+  ${il.suggestions?.length ? `<h3>Recommendations</h3>${il.suggestions.map((s: string) => `<p>• ${escHtml(s)}</p>`).join("")}` : ""}
+</div>
+
+<div class="footer">
+  <p>Generated by RankPilot AI Readiness Audit • ${new Date().toLocaleDateString()}</p>
+</div>
+
+</body></html>`;
+}
 
 // ============================================================
 // PIPELINE GENERATION HELPER

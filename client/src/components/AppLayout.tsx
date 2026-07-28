@@ -38,6 +38,7 @@ import {
   Monitor,
   KeyRound,
   PenLine,
+  Shield,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation, Link } from "wouter";
@@ -93,6 +94,7 @@ const navSections = [
       { icon: ListTree, label: "Outlines", path: "/outlines" },
       { icon: Network, label: "Topic Clusters", path: "/clusters" },
       { icon: Award, label: "Grade Content", path: "/grade" },
+      { icon: Shield, label: "AI Readiness Audit", path: "/ai-readiness" },
       { icon: Search, label: "Entity Analyzer", path: "/entity-analyzer" },
     ],
   },

@@ -1530,4 +1530,26 @@
 - [x] Pass selected text to the mutation and replace only the selection in the editor on response
 - [ ] Add floating "AI Edit" mini-button near text selection (bonus UX)
 - [x] Write vitest tests for selection-based editing
-- [ ] Save checkpoint
+- [x] Save checkpoint
+
+## AI Readiness Audit Feature
+- [x] Build analyzeSchema() deterministic function (JSON-LD, microdata, RDFa detection + scoring)
+- [x] Build analyzeContentStructureRaw() deterministic function (heading hierarchy, semantic elements, word counts)
+- [x] Build analyzeInternalLinks() deterministic function (anchor extraction, classification, scoring)
+- [x] Build tRPC route: aiReadiness.analyze (fetch HTML + 3 analyzers + LLM deep pass)
+- [x] Build tRPC route: aiReadiness.generateOutline (re-fetch + audit summary + LLM → save to DB)
+- [x] Build tRPC route: aiReadiness.exportPdf (buildReportHtml → PDF)
+- [x] Build frontend page /ai-readiness with URL input and Run Audit button
+- [x] Build results UI: overall score card with letter grade + 3 pillar chips
+- [x] Build results UI: AI Citability section
+- [x] Build results UI: Quick Wins section
+- [x] Build results UI: Key Findings with severity badges and fix recommendations
+- [x] Build results UI: Schema Markup pillar detail card (collapsible)
+- [x] Build results UI: Content Structure pillar detail card (stats, semantic elements, sub-scores, heading outline)
+- [x] Build results UI: Internal Links pillar detail card (stats, sample links, recommendations)
+- [x] Build Generate Improved Outline modal
+- [x] Build Export PDF button
+- [x] Add route to App.tsx navigation
+- [x] Test end-to-end with real URL
+- [x] Write vitest tests for deterministic analyzers
+- [x] Save checkpoint

@@ -1553,3 +1553,12 @@
 - [x] Test end-to-end with real URL
 - [x] Write vitest tests for deterministic analyzers
 - [x] Save checkpoint
+
+## AI Idea Generator (from Audit Findings)
+- [x] Build tRPC route: aiReadiness.generateIdeas (takes audit results, returns content ideas via Claude)
+- [x] LLM prompt: analyze weaknesses → suggest articles, expansions, page improvements with titles, keywords, descriptions
+- [x] Frontend: Add "Generate Content Ideas" button to AI Readiness Audit results page
+- [x] Frontend: Ideas display section with cards (title, type, target keyword, description, rationale)
+- [x] Frontend: "Generate Article" action button on each idea card (navigates to /generate with pre-filled data)
+- [x] Write vitest tests for generateIdeas route
+- [x] Save checkpoint

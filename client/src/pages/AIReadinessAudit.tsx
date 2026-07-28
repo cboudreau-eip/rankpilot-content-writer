@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Download, FileText, ChevronDown, ChevronUp, ExternalLink, Shield, AlertTriangle, Info, XCircle, Zap, ArrowRight, Code2, Layers, Link2 } from "lucide-react";
+import { Loader2, Search, Download, FileText, ChevronDown, ChevronUp, ExternalLink, Shield, AlertTriangle, Info, XCircle, Zap, ArrowRight, Code2, Layers, Link2, Lightbulb, PenTool, BookOpen, Globe, List, HelpCircle, FileCode } from "lucide-react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 // Score color helpers
@@ -77,9 +78,48 @@ function ScoreBar({ score, height = "h-2" }: { score: number; height?: string })
   );
 }
 
+// Idea type icon helper
+function ideaTypeIcon(type: string) {
+  switch (type) {
+    case "new-article": return <PenTool className="w-4 h-4" />;
+    case "page-expansion": return <BookOpen className="w-4 h-4" />;
+    case "restructure": return <Layers className="w-4 h-4" />;
+    case "faq-page": return <HelpCircle className="w-4 h-4" />;
+    case "hub-page": return <Globe className="w-4 h-4" />;
+    case "glossary": return <List className="w-4 h-4" />;
+    case "how-to-guide": return <FileCode className="w-4 h-4" />;
+    default: return <FileText className="w-4 h-4" />;
+  }
+}
+
+function ideaTypeLabel(type: string): string {
+  switch (type) {
+    case "new-article": return "New Article";
+    case "page-expansion": return "Page Expansion";
+    case "restructure": return "Restructure";
+    case "faq-page": return "FAQ Page";
+    case "hub-page": return "Hub Page";
+    case "glossary": return "Glossary";
+    case "how-to-guide": return "How-to Guide";
+    default: return type;
+  }
+}
+
+function priorityBadgeClass(priority: string): string {
+  switch (priority) {
+    case "high": return "bg-red-100 text-red-700 border-red-200";
+    case "medium": return "bg-amber-100 text-amber-700 border-amber-200";
+    case "low": return "bg-blue-100 text-blue-700 border-blue-200";
+    default: return "bg-gray-100 text-gray-700 border-gray-200";
+  }
+}
+
 export default function AIReadinessAudit() {
   const [url, setUrl] = useState("");
   const [result, setResult] = useState<any>(null);
+  const [ideas, setIdeas] = useState<any[] | null>(null);
+  const [ideaSummary, setIdeaSummary] = useState("");
+  const [, navigate] = useLocation();
   const [expandedPillars, setExpandedPillars] = useState<Record<string, boolean>>({
     schema: false,
     contentStructure: true,
@@ -100,6 +140,17 @@ export default function AIReadinessAudit() {
     },
     onError: (error) => {
       toast.error("Outline Generation Failed", { description: error.message });
+    },
+  });
+
+  const ideasMutation = trpc.aiReadiness.generateIdeas.useMutation({
+    onSuccess: (data) => {
+      setIdeas(data.ideas);
+      setIdeaSummary(data.summary);
+      toast.success("Content Ideas Generated", { description: `${data.ideas.length} ideas to improve your page.` });
+    },
+    onError: (error) => {
+      toast.error("Idea Generation Failed", { description: error.message });
     },
   });
 
@@ -124,7 +175,25 @@ export default function AIReadinessAudit() {
       return;
     }
     setResult(null);
+    setIdeas(null);
+    setIdeaSummary("");
     analyzeMutation.mutate({ url: url.trim() });
+  };
+
+  const handleGenerateIdeas = () => {
+    if (!result) return;
+    ideasMutation.mutate({ auditResult: result });
+  };
+
+  const handleUseIdea = (idea: any) => {
+    // Store idea data and navigate to article generation
+    localStorage.setItem("selectedIdea", JSON.stringify({
+      keyword: idea.keyword,
+      title: idea.title,
+      targetAudience: "",
+      contentAngles: idea.suggestedLinks || [],
+    }));
+    navigate("/generate");
   };
 
   const handleGenerateOutline = () => {
@@ -210,7 +279,19 @@ export default function AIReadinessAudit() {
         {result && (
           <div className="space-y-6">
             {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 flex-wrap">
+              <Button
+                onClick={handleGenerateIdeas}
+                disabled={ideasMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {ideasMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Lightbulb className="w-4 h-4 mr-2" />
+                )}
+                Generate Content Ideas
+              </Button>
               <Button
                 onClick={handleGenerateOutline}
                 disabled={outlineMutation.isPending}
@@ -647,6 +728,73 @@ export default function AIReadinessAudit() {
                 </CardContent>
               )}
             </Card>
+
+            {/* Content Ideas Section */}
+            {ideas && ideas.length > 0 && (
+              <Card className="shadow-sm border-l-4 border-l-amber-500">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Lightbulb className="w-5 h-5 text-amber-500" />
+                    Content Ideas to Improve This Page
+                  </CardTitle>
+                  {ideaSummary && (
+                    <p className="text-sm text-gray-600 mt-1">{ideaSummary}</p>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {ideas.map((idea: any, i: number) => (
+                      <div key={i} className="border rounded-lg p-4 hover:border-amber-300 hover:bg-amber-50/30 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-amber-600">{ideaTypeIcon(idea.type)}</span>
+                              <h4 className="font-semibold text-gray-900 text-sm">{idea.title}</h4>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">
+                                {ideaTypeLabel(idea.type)}
+                              </Badge>
+                              <Badge variant="outline" className={`text-xs ${priorityBadgeClass(idea.priority)}`}>
+                                {idea.priority} priority
+                              </Badge>
+                              {idea.keyword && (
+                                <Badge variant="secondary" className="text-xs">
+                                  🎯 {idea.keyword}
+                                </Badge>
+                              )}
+                              {idea.wordCountRange && (
+                                <span className="text-xs text-gray-500">{idea.wordCountRange} words</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{idea.description}</p>
+                            <div className="flex items-start gap-1 text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1">
+                              <Zap className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              <span><strong>Addresses:</strong> {idea.rationale}</span>
+                            </div>
+                            {idea.suggestedLinks?.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                <span className="font-medium">Link opportunities:</span>{" "}
+                                {idea.suggestedLinks.join("; ")}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-shrink-0 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                            onClick={() => handleUseIdea(idea)}
+                          >
+                            <ArrowRight className="w-3 h-3 mr-1" />
+                            Generate
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Outline Result */}
             {outlineMutation.data && (

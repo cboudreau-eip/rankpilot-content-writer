@@ -8852,6 +8852,163 @@ Respond ONLY with the JSON object, no additional text.`;
           filename: `ai-readiness-audit-${new URL(auditResult.url).hostname}.pdf`,
         };
       }),
+
+    generateIdeas: publicProcedure
+      .input(z.object({
+        auditResult: z.any(),
+        projectId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Auth check
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+
+        const { auditResult, projectId } = input;
+
+        if (!auditResult?.url) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "auditResult.url is required" });
+        }
+
+        // Build a comprehensive summary of audit weaknesses
+        let weaknessSummary = `PAGE: ${auditResult.url}\nTITLE: ${auditResult.pageTitle || "Unknown"}\nOVERALL SCORE: ${auditResult.overallScore}/100 (Grade: ${auditResult.letterGrade})\n\n`;
+
+        // Schema weaknesses
+        const schema = auditResult.pillars?.schema;
+        if (schema) {
+          weaknessSummary += `SCHEMA MARKUP (${schema.score}/100):\n`;
+          weaknessSummary += `- Types found: ${schema.typesFound?.join(", ") || "None"}\n`;
+          weaknessSummary += `- Types missing: ${schema.typesMissing?.join(", ") || "None"}\n`;
+          if (schema.suggestions?.length) {
+            weaknessSummary += `- Suggestions: ${schema.suggestions.join("; ")}\n`;
+          }
+          weaknessSummary += "\n";
+        }
+
+        // Content Structure weaknesses
+        const cs = auditResult.pillars?.contentStructure;
+        if (cs) {
+          weaknessSummary += `CONTENT STRUCTURE (${cs.score}/100):\n`;
+          if (cs.analysis?.summary) weaknessSummary += `- Summary: ${cs.analysis.summary}\n`;
+          if (cs.analysis?.headingHierarchy) weaknessSummary += `  - Heading Hierarchy (${cs.analysis.headingHierarchy.score}/100): ${cs.analysis.headingHierarchy.assessment}\n`;
+          if (cs.analysis?.contentSegmentation) weaknessSummary += `  - Content Segmentation (${cs.analysis.contentSegmentation.score}/100): ${cs.analysis.contentSegmentation.assessment}\n`;
+          if (cs.analysis?.aiExtractability) weaknessSummary += `  - AI Extractability (${cs.analysis.aiExtractability.score}/100): ${cs.analysis.aiExtractability.assessment}\n`;
+          if (cs.analysis?.semanticClarity) weaknessSummary += `  - Semantic Clarity (${cs.analysis.semanticClarity.score}/100): ${cs.analysis.semanticClarity.assessment}\n`;
+          if (cs.raw) {
+            weaknessSummary += `  - Word count: ${cs.raw.estimatedWordCount}, Paragraphs: ${cs.raw.paragraphCount}, Headings: ${cs.raw.totalHeadings}\n`;
+          }
+          weaknessSummary += "\n";
+        }
+
+        // Internal Links weaknesses
+        const il = auditResult.pillars?.internalLinks;
+        if (il) {
+          weaknessSummary += `INTERNAL LINKS (${il.score}/100):\n`;
+          weaknessSummary += `- Internal: ${il.internalLinks}, External: ${il.externalLinks}\n`;
+          weaknessSummary += `- Descriptive anchors: ${il.descriptiveAnchors}, Generic: ${il.genericAnchors}\n`;
+          if (il.suggestions?.length) {
+            weaknessSummary += `- Suggestions: ${il.suggestions.join("; ")}\n`;
+          }
+          weaknessSummary += "\n";
+        }
+
+        // AI Citability
+        if (auditResult.aiCitability) {
+          weaknessSummary += `AI CITABILITY (${auditResult.aiCitability.score}/100): ${auditResult.aiCitability.summary}\n\n`;
+        }
+
+        // Top Findings (weaknesses)
+        if (auditResult.topFindings?.length) {
+          weaknessSummary += "KEY FINDINGS (WEAKNESSES):\n";
+          auditResult.topFindings.forEach((f: any) => {
+            weaknessSummary += `- [${f.severity}] (${f.category}) ${f.finding} → Fix: ${f.recommendation}\n`;
+          });
+          weaknessSummary += "\n";
+        }
+
+        // Quick Wins
+        if (auditResult.quickWins?.length) {
+          weaknessSummary += "QUICK WINS:\n";
+          auditResult.quickWins.forEach((w: string) => {
+            weaknessSummary += `- ${w}\n`;
+          });
+        }
+
+        // Build LLM prompt
+        const systemPrompt = `You are an expert SEO content strategist specializing in AEO (Answer Engine Optimization) and content gap analysis. Your job is to analyze the weaknesses found in an AI Readiness audit and suggest specific, actionable content ideas that would address those weaknesses.
+
+For each weakness category, suggest content that would directly fix the issue:
+- If schema markup is missing FAQ types → suggest a structured FAQ page or FAQ section expansion
+- If internal linking is weak to Topic X → suggest a new hub/pillar article on Topic X that creates internal link opportunities
+- If content is thin on subtopic Y → suggest a deep-dive article on Y
+- If AI citability is low → suggest authoritative, data-driven content that AI systems would want to cite
+- If heading hierarchy is poor → suggest restructured content with clear topical segmentation
+- If content segmentation is weak → suggest breaking monolithic pages into focused topic pages
+- If there are no definitions/quick answers → suggest a glossary or "What is X?" explainer page
+
+For EACH idea, provide:
+1. A specific, SEO-optimized title
+2. The type of content (new-article, page-expansion, restructure, faq-page, hub-page, glossary, how-to-guide)
+3. A primary target keyword
+4. A brief description of what the content should cover
+5. The specific audit weakness(es) it addresses (rationale)
+6. Estimated word count range
+7. Priority level (high/medium/low) based on impact
+8. Suggested internal links to/from the audited page
+
+Generate 5-8 content ideas, prioritized by impact on the audit score.
+
+OUTPUT FORMAT — return ONLY this JSON:
+{
+  "ideas": [
+    {
+      "title": "SEO-optimized article title",
+      "type": "new-article|page-expansion|restructure|faq-page|hub-page|glossary|how-to-guide",
+      "keyword": "primary target keyword",
+      "description": "2-3 sentence description of what this content should cover and why",
+      "rationale": "Which specific audit weakness(es) this addresses",
+      "wordCountRange": "1200-1800",
+      "priority": "high|medium|low",
+      "suggestedLinks": ["description of internal link opportunity"]
+    }
+  ],
+  "summary": "Brief 2-sentence summary of the overall content strategy these ideas represent"
+}
+
+Respond ONLY with the JSON object, no additional text.`;
+
+        const userPrompt = `Here are the AI Readiness audit findings for the page. Generate content ideas that would address the weaknesses:\n\n${weaknessSummary}`;
+
+        // Call LLM
+        let ideasResult: any;
+        try {
+          const response = await invokeLLM({
+            model: "claude-sonnet-4-6",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            maxTokens: 6000,
+            response_format: { type: "json_object" },
+          });
+
+          const rawContent = response.choices?.[0]?.message?.content;
+          const contentStr = typeof rawContent === "string" ? rawContent : (Array.isArray(rawContent) ? rawContent.map((c: any) => c.text || "").join("") : "");
+          const cleaned = stripFences(contentStr);
+          ideasResult = JSON.parse(cleaned);
+        } catch (e) {
+          console.error("[AI Readiness] Idea generation parse error:", e);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate content ideas. Please try again." });
+        }
+
+        return {
+          success: true,
+          ideas: ideasResult.ideas || [],
+          summary: ideasResult.summary || "",
+          auditUrl: auditResult.url,
+          auditScore: auditResult.overallScore,
+        };
+      }),
   }),
 });
 

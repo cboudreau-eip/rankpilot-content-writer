@@ -466,6 +466,27 @@ export default function GenerateArticle() {
     }
   }, []);
 
+  // Check for selected idea from Ideas page or AI Readiness Audit
+  useEffect(() => {
+    const raw = localStorage.getItem("selectedIdea");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      localStorage.removeItem("selectedIdea");
+      if (data.keyword) setKeyword(data.keyword);
+      if (data.targetAudience) {
+        setTargetAudience(data.targetAudience);
+        setTargetAudienceSource("custom");
+      }
+      if (data.title) {
+        setAdditionalInstructions((prev) => prev ? `${prev}\nTitle suggestion: ${data.title}` : `Title suggestion: ${data.title}`);
+      }
+      toast.success("Idea loaded", { description: `Keyword: ${data.keyword}` });
+    } catch {
+      localStorage.removeItem("selectedIdea");
+    }
+  }, []);
+
   // Fetch ICP profiles for the active project
   const { data: icpProfiles = [] } = trpc.icpProfiles.list.useQuery(
     { projectId: activeProjectId! },

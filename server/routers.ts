@@ -3627,6 +3627,21 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           }
         }
 
+        // Fetch citation sources for external linking
+        let citationSourcesSection = "";
+        if (project) {
+          const projectCitations = await getCitationsByProject(project.id);
+          if (projectCitations.length > 0) {
+            const sourcesList = projectCitations.map((c: any, i: number) => {
+              let entry = `  ${i + 1}. ${c.name} — ${c.url}`;
+              if (c.description) entry += ` (${c.description})`;
+              return entry;
+            }).join("\n");
+            citationSourcesSection = `\nEXTERNAL CITATION SOURCES (MANDATORY — you MUST use these):\nThe following are verified, approved external sources. You MUST insert at least ${Math.min(3, projectCitations.length)} external citation links from this list into the article. These are in ADDITION to any internal links.\n\n${sourcesList}\n\nCITATION INSERTION RULES (MANDATORY):\n1. URL USAGE: You MUST use ONLY the exact URLs listed above for external citations. Do NOT invent, fabricate, or construct URLs. Do NOT append path segments or guess at page paths. Use the URL exactly as listed.\n2. ANCHOR TEXT: Must be 2-7 words maximum. NEVER wrap an entire sentence or clause as anchor text. The anchor text should be ONLY the specific factual claim or key phrase being cited.\n   - BAD: "<a href=\"...\">54% of all Medicare beneficiaries are now enrolled in a Medicare Advantage Plan</a>" (too long)\n   - BAD: "Learn more at <a href=\"...\">Medicare.gov</a>" (generic)\n   - GOOD: "<a href=\"...\">54% of beneficiaries</a> are now enrolled"\n   - GOOD: "the deductible is <a href=\"...\">$257 in 2026</a>"\n3. Place the <a> tag inline within the sentence, wrapping ONLY the key factual phrase (2-7 words).\n4. Distribute citations across different sections of the article — do NOT cluster them all in one section.\n5. Each citation should support a specific factual claim that the source verifies.`;
+            console.log(`[ArticleGen] Injecting ${projectCitations.length} citation sources into prompt`);
+          }
+        }
+
         // Build reference document section if enabled
         let referenceDocSection = "";
         if (input.useReferenceDoc && project) {
@@ -3714,7 +3729,7 @@ ${formatInstructions}
   * BAD (too long): <a href="...">Breaking the comparison into steps makes it manageable</a>
   * GOOD (concise): Breaking the comparison into <a href="...">manageable steps</a> helps simplify the process
   * The linked phrase should be a natural keyword or key concept, NOT a full sentence
-- TOTAL LINK LIMIT: The entire article must contain NO MORE THAN ${effectiveAutoLinkCount + (effectiveManualLinks.length > 0 ? effectiveManualLinks.length : 0)} links in total (internal + external combined). Count every <a href> tag. Do NOT exceed this limit.
+- TOTAL LINK LIMIT: The entire article must contain NO MORE THAN ${effectiveAutoLinkCount + (effectiveManualLinks.length > 0 ? effectiveManualLinks.length : 0) + (citationSourcesSection ? Math.min(3, 5) : 0)} links in total (internal + external combined). Count every <a href> tag. Do NOT exceed this limit.
 - CITATION LINK RULES: When inserting any external links or citations:
   * NEVER use generic anchor text like "Learn more at", "Find out more", "Click here", "Visit", or just the source name
   * The anchor text MUST be the actual claim or fact being cited, kept to 2-7 words (e.g., <a href="...">covers outpatient services</a>)
@@ -3736,6 +3751,7 @@ ${icpSection}
 ${ctaContext}
 ${secondaryKeywordsInstructions}
 ${linkingInstructions}
+${citationSourcesSection}
 ${referenceDocSection}
 
 Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} content of the article body${effectiveFormat === "html" ? " (no <html>, <head>, or <body> tags)" : ""}. Start with the first ${effectiveFormat === "plaintext" ? "## heading" : "<h2> section"}.`;
@@ -3780,7 +3796,9 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
 
 
         // Post-processing: enforce link count cap — strip excess <a> tags if LLM over-inserted
-        const maxAllowedLinks = effectiveAutoLinkCount + (effectiveManualLinks.length > 0 ? effectiveManualLinks.length : 0);
+        // Account for citation sources (external links) in the cap
+        const citationLinkBudget = citationSourcesSection ? Math.min(3, (await getCitationsByProject(project!.id)).length) : 0;
+        const maxAllowedLinks = effectiveAutoLinkCount + (effectiveManualLinks.length > 0 ? effectiveManualLinks.length : 0) + citationLinkBudget;
         const linkMatches = articleContent.match(/<a\s[^>]*>/gi);
         const actualLinkCount = linkMatches ? linkMatches.length : 0;
         if (actualLinkCount > maxAllowedLinks) {
@@ -10284,6 +10302,21 @@ CRITICAL: Do NOT reuse any specific phrases, sentences, statistics, or openings 
   const outputFormat = settings.outputFormat ?? "html";
   const targetWordCount = settings.targetWordCount ?? 2000;
 
+  // Fetch citation sources for external linking
+  let citationSourcesSection = "";
+  if (project) {
+    const projectCitations = await getCitationsByProject(project.id);
+    if (projectCitations.length > 0) {
+      const sourcesList = projectCitations.map((c: any, i: number) => {
+        let entry = `  ${i + 1}. ${c.name} \u2014 ${c.url}`;
+        if (c.description) entry += ` (${c.description})`;
+        return entry;
+      }).join("\n");
+      citationSourcesSection = `\nEXTERNAL CITATION SOURCES (MANDATORY \u2014 you MUST use these):\nThe following are verified, approved external sources. You MUST insert at least ${Math.min(3, projectCitations.length)} external citation links from this list into the article. These are in ADDITION to any internal links.\n\n${sourcesList}\n\nCITATION INSERTION RULES (MANDATORY):\n1. URL USAGE: You MUST use ONLY the exact URLs listed above for external citations. Do NOT invent, fabricate, or construct URLs.\n2. ANCHOR TEXT: Must be 2-7 words maximum. NEVER wrap an entire sentence or clause as anchor text.\n3. Place the <a> tag inline within the sentence, wrapping ONLY the key factual phrase (2-7 words).\n4. Distribute citations across different sections of the article.\n5. Each citation should support a specific factual claim that the source verifies.`;
+      logFn?.("citations", `Injecting ${projectCitations.length} citation sources into prompt`, "info");
+    }
+  }
+
   // Build reference document section (always enabled for scheduler if project has one)
   let referenceDocSection = "";
   if (project) {
@@ -10311,7 +10344,8 @@ CRITICAL: Do NOT reuse any specific phrases, sentences, statistics, or openings 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.toLocaleString('en-US', { month: 'long' });
 
-  const maxAllowedLinks = effectiveAutoLinkCount + effectiveManualLinks.length;
+  const citationLinkBudgetSched = citationSourcesSection ? Math.min(3, 5) : 0;
+  const maxAllowedLinks = effectiveAutoLinkCount + effectiveManualLinks.length + citationLinkBudgetSched;
 
   const systemPrompt = `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
 
@@ -10356,6 +10390,7 @@ ${icpSection}
 ${ctaContext}
 ${secondaryKeywordsInstructions}
 ${linkingInstructions}
+${citationSourcesSection}
 ${referenceDocSection}
 ${researchContext}
 ${briefData ? `

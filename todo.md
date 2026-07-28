@@ -1562,3 +1562,12 @@
 - [x] Frontend: "Generate Article" action button on each idea card (navigates to /generate with pre-filled data)
 - [x] Write vitest tests for generateIdeas route
 - [x] Save checkpoint
+
+## Bug Fix: External Citation Links Not Inserted
+- [x] Investigate why external links from citation sources are rarely inserted into generated articles
+- [x] Root cause: main articles.generate route never fetched or injected citation sources into the LLM prompt
+- [x] Fix: Add citation source fetching + EXTERNAL CITATION SOURCES (MANDATORY) section to main article generation prompt
+- [x] Fix: Add same injection to generateArticleForScheduler function
+- [x] Fix: Increase TOTAL LINK LIMIT cap to account for citation link budget (3 extra)
+- [x] Verify TypeScript compiles with 0 errors
+- [x] Save checkpoint

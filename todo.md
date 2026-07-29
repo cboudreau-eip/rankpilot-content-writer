@@ -1571,3 +1571,13 @@
 - [x] Fix: Increase TOTAL LINK LIMIT cap to account for citation link budget (3 extra)
 - [x] Verify TypeScript compiles with 0 errors
 - [x] Save checkpoint
+
+## Export ICP & Brand Voice Data
+- [x] Build backend tRPC route: icpProfiles.export (returns formatted Markdown string for an ICP profile)
+- [x] Build backend tRPC route: brandVoices.export (returns formatted Markdown string for a Brand Voice)
+- [x] Build backend tRPC route: icpProfiles.exportPdf (generates PDF from ICP profile data)
+- [x] Build backend tRPC route: brandVoices.exportPdf (generates PDF from Brand Voice data)
+- [x] Add Export dropdown button (Markdown / PDF) to ICP Profile cards in Project Settings
+- [x] Add Export dropdown button (Markdown / PDF) to Brand Voice cards in Project Settings
+- [x] Write vitest tests for export routes
+- [x] Save checkpoint

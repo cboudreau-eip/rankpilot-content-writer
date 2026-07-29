@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import CrossCheckTab from "@/components/CrossCheckTab";
 
@@ -299,8 +300,57 @@ function ICPTab({ projectId }: { projectId: number }) {
         onRemove={(i) => removeBullet(icpTrustSignals, setIcpTrustSignals, i)}
       />
 
-      {/* Save Button */}
-      <div className="flex justify-end pt-2">
+      {/* Save & Export Buttons */}
+      <div className="flex justify-end gap-2 pt-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" disabled={!isConfigured} className="gap-2">
+              <Download className="w-4 h-4" /> Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => {
+              // Build markdown from current form state
+              let md = `# ICP Profile: ${icpPrimaryName}\n\n`;
+              if (icpWhoTheyAre) md += `## Description\n${icpWhoTheyAre}\n\n`;
+              if (icpPains.filter(Boolean).length) md += `## Pain Points\n${icpPains.filter(Boolean).map(p => `- ${p}`).join('\n')}\n\n`;
+              if (icpGoals.filter(Boolean).length) md += `## Goals\n${icpGoals.filter(Boolean).map(g => `- ${g}`).join('\n')}\n\n`;
+              if (icpObjections.filter(Boolean).length) md += `## Objections\n${icpObjections.filter(Boolean).map(o => `- ${o}`).join('\n')}\n\n`;
+              if (icpDecisionTriggers.filter(Boolean).length) md += `## Decision Triggers\n${icpDecisionTriggers.filter(Boolean).map(d => `- ${d}`).join('\n')}\n\n`;
+              if (icpTrustSignals.filter(Boolean).length) md += `## Trust Signals\n${icpTrustSignals.filter(Boolean).map(t => `- ${t}`).join('\n')}\n\n`;
+              md += `---\n*Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}*\n`;
+              const blob = new Blob([md], { type: 'text/markdown' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = `icp-${icpPrimaryName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`;
+              a.click(); URL.revokeObjectURL(url);
+              toast.success('ICP exported as Markdown');
+            }}>
+              <FileText className="w-4 h-4 mr-2" /> Export as Markdown
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              // Build HTML for PDF
+              let html = `<html><head><style>body{font-family:'Segoe UI',system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a2e;line-height:1.6}h1{color:#4f46e5;border-bottom:2px solid #4f46e5;padding-bottom:8px}h2{color:#312e81;margin-top:24px}ul{padding-left:20px}li{margin-bottom:6px}.meta{color:#6b7280;font-size:0.85em;margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px}</style></head><body>`;
+              html += `<h1>ICP Profile: ${icpPrimaryName}</h1>`;
+              if (icpWhoTheyAre) html += `<h2>Description</h2><p>${icpWhoTheyAre}</p>`;
+              if (icpPains.filter(Boolean).length) html += `<h2>Pain Points</h2><ul>${icpPains.filter(Boolean).map(p => `<li>${p}</li>`).join('')}</ul>`;
+              if (icpGoals.filter(Boolean).length) html += `<h2>Goals</h2><ul>${icpGoals.filter(Boolean).map(g => `<li>${g}</li>`).join('')}</ul>`;
+              if (icpObjections.filter(Boolean).length) html += `<h2>Objections</h2><ul>${icpObjections.filter(Boolean).map(o => `<li>${o}</li>`).join('')}</ul>`;
+              if (icpDecisionTriggers.filter(Boolean).length) html += `<h2>Decision Triggers</h2><ul>${icpDecisionTriggers.filter(Boolean).map(d => `<li>${d}</li>`).join('')}</ul>`;
+              if (icpTrustSignals.filter(Boolean).length) html += `<h2>Trust Signals</h2><ul>${icpTrustSignals.filter(Boolean).map(t => `<li>${t}</li>`).join('')}</ul>`;
+              html += `<p class="meta">Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p></body></html>`;
+              const printWindow = window.open('', '_blank');
+              if (printWindow) {
+                printWindow.document.write(html);
+                printWindow.document.close();
+                setTimeout(() => { printWindow.print(); }, 300);
+              }
+              toast.success('PDF print dialog opened');
+            }}>
+              <Download className="w-4 h-4 mr-2" /> Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button onClick={handleSave} disabled={updateMut.isPending || !hasChanges} className="bg-violet-600 hover:bg-violet-700 text-white">
           {updateMut.isPending ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
@@ -1655,6 +1705,59 @@ export default function ProjectSettings() {
                             <Star className="w-4 h-4" />
                           </Button>
                         )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" title="Export"><Download className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => {
+                              const tones = parseToneTraits(voice.toneTraits || "");
+                              const avoidItems = getAvoidListDisplay(voice.avoidList || "");
+                              const perspectiveMap: Record<string, string> = { first: "First Person (we/our/us)", second: "Second Person (you/your)", third: "Third Person (they/the company)" };
+                              const styleMap: Record<string, string> = { short: "Short and Direct", mixed: "Mixed (Varied Rhythm)", detailed: "Detailed and Explanatory" };
+                              let md = `# Brand Voice: ${voice.name}\n\n`;
+                              md += `## Tone\n`;
+                              if (tones.primary.length) md += `- **Primary Tones:** ${tones.primary.join(", ")}\n`;
+                              if (tones.supporting.length) md += `- **Supporting Tones:** ${tones.supporting.join(", ")}\n`;
+                              md += `\n## Writing Style\n`;
+                              md += `- **Perspective:** ${perspectiveMap[voice.perspective] || voice.perspective}\n`;
+                              md += `- **Sentence Style:** ${styleMap[voice.sentenceStyle] || voice.sentenceStyle}\n\n`;
+                              if (avoidItems.length) md += `## Avoid List\n${avoidItems.map(a => `- ${a}`).join('\n')}\n\n`;
+                              if (voice.writingStyleSample) md += `## Writing Style Sample\n> ${voice.writingStyleSample.replace(/\n/g, '\n> ')}\n\n`;
+                              md += `---\n*Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}*\n`;
+                              const blob = new Blob([md], { type: 'text/markdown' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a'); a.href = url;
+                              a.download = `brand-voice-${voice.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`;
+                              a.click(); URL.revokeObjectURL(url);
+                              toast.success('Brand Voice exported as Markdown');
+                            }}>
+                              <FileText className="w-4 h-4 mr-2" /> Export as Markdown
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              const tones = parseToneTraits(voice.toneTraits || "");
+                              const avoidItems = getAvoidListDisplay(voice.avoidList || "");
+                              const perspectiveMap: Record<string, string> = { first: "First Person (we/our/us)", second: "Second Person (you/your)", third: "Third Person (they/the company)" };
+                              const styleMap: Record<string, string> = { short: "Short and Direct", mixed: "Mixed (Varied Rhythm)", detailed: "Detailed and Explanatory" };
+                              let html = `<html><head><style>body{font-family:'Segoe UI',system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a2e;line-height:1.6}h1{color:#4f46e5;border-bottom:2px solid #4f46e5;padding-bottom:8px}h2{color:#312e81;margin-top:24px}ul{padding-left:20px}li{margin-bottom:6px}blockquote{border-left:3px solid #4f46e5;padding-left:16px;color:#4b5563;font-style:italic;margin:12px 0}.meta{color:#6b7280;font-size:0.85em;margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px}.tag{display:inline-block;background:#eef2ff;color:#4338ca;padding:2px 10px;border-radius:12px;font-size:0.85em;margin-right:6px}</style></head><body>`;
+                              html += `<h1>Brand Voice: ${voice.name}</h1>`;
+                              html += `<h2>Tone</h2>`;
+                              if (tones.primary.length) html += `<p><strong>Primary:</strong> ${tones.primary.map(t => `<span class="tag">${t}</span>`).join(' ')}</p>`;
+                              if (tones.supporting.length) html += `<p><strong>Supporting:</strong> ${tones.supporting.map(t => `<span class="tag">${t}</span>`).join(' ')}</p>`;
+                              html += `<h2>Writing Style</h2><ul>`;
+                              html += `<li><strong>Perspective:</strong> ${perspectiveMap[voice.perspective] || voice.perspective}</li>`;
+                              html += `<li><strong>Sentence Style:</strong> ${styleMap[voice.sentenceStyle] || voice.sentenceStyle}</li></ul>`;
+                              if (avoidItems.length) html += `<h2>Avoid List</h2><ul>${avoidItems.map(a => `<li>${a}</li>`).join('')}</ul>`;
+                              if (voice.writingStyleSample) html += `<h2>Writing Style Sample</h2><blockquote>${voice.writingStyleSample.replace(/\n/g, '<br>')}</blockquote>`;
+                              html += `<p class="meta">Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p></body></html>`;
+                              const printWindow = window.open('', '_blank');
+                              if (printWindow) { printWindow.document.write(html); printWindow.document.close(); setTimeout(() => { printWindow.print(); }, 300); }
+                              toast.success('PDF print dialog opened');
+                            }}>
+                              <Download className="w-4 h-4 mr-2" /> Export as PDF
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(voice)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteVoice.mutate({ id: voice.id })}><Trash2 className="w-4 h-4" /></Button>
                       </div>

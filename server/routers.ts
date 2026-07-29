@@ -2193,6 +2193,82 @@ Return ONLY valid JSON.`;
       .mutation(async ({ input }) => {
         return deleteICP(input.id);
       }),
+
+    export: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const icp = await getICPById(input.id);
+        if (!icp) throw new Error("ICP Profile not found");
+        const demo = icp.demographics;
+        let md = `# ICP Profile: ${icp.name}\n\n`;
+        if (icp.description) md += `## Description\n${icp.description}\n\n`;
+        if (demo) {
+          md += `## Demographics\n`;
+          if (demo.ageRange) md += `- **Age Range:** ${demo.ageRange}\n`;
+          if (demo.location) md += `- **Location:** ${demo.location}\n`;
+          if (demo.income) md += `- **Income:** ${demo.income}\n`;
+          if (demo.education) md += `- **Education:** ${demo.education}\n`;
+          if (demo.occupation) md += `- **Occupation:** ${demo.occupation}\n`;
+          if (demo.other) md += `- **Other:** ${demo.other}\n`;
+          md += `\n`;
+        }
+        if (icp.painPoints?.length) {
+          md += `## Pain Points\n${icp.painPoints.map(p => `- ${p}`).join('\n')}\n\n`;
+        }
+        if (icp.goals?.length) {
+          md += `## Goals\n${icp.goals.map(g => `- ${g}`).join('\n')}\n\n`;
+        }
+        if (icp.objections?.length) {
+          md += `## Objections\n${icp.objections.map(o => `- ${o}`).join('\n')}\n\n`;
+        }
+        if (icp.contentPreferences?.length) {
+          md += `## Content Preferences\n${icp.contentPreferences.map(c => `- ${c}`).join('\n')}\n\n`;
+        }
+        if (icp.searchBehavior) {
+          md += `## Search Behavior\n${icp.searchBehavior}\n\n`;
+        }
+        md += `---\n*Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}*\n`;
+        return { markdown: md, filename: `icp-${icp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` };
+      }),
+
+    exportPdf: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const icp = await getICPById(input.id);
+        if (!icp) throw new Error("ICP Profile not found");
+        const demo = icp.demographics;
+        let html = `<html><head><style>body{font-family:'Segoe UI',system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a2e;line-height:1.6}h1{color:#4f46e5;border-bottom:2px solid #4f46e5;padding-bottom:8px}h2{color:#312e81;margin-top:24px}ul{padding-left:20px}li{margin-bottom:6px}.meta{color:#6b7280;font-size:0.85em;margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px}</style></head><body>`;
+        html += `<h1>ICP Profile: ${icp.name}</h1>`;
+        if (icp.description) html += `<h2>Description</h2><p>${icp.description}</p>`;
+        if (demo) {
+          html += `<h2>Demographics</h2><ul>`;
+          if (demo.ageRange) html += `<li><strong>Age Range:</strong> ${demo.ageRange}</li>`;
+          if (demo.location) html += `<li><strong>Location:</strong> ${demo.location}</li>`;
+          if (demo.income) html += `<li><strong>Income:</strong> ${demo.income}</li>`;
+          if (demo.education) html += `<li><strong>Education:</strong> ${demo.education}</li>`;
+          if (demo.occupation) html += `<li><strong>Occupation:</strong> ${demo.occupation}</li>`;
+          if (demo.other) html += `<li><strong>Other:</strong> ${demo.other}</li>`;
+          html += `</ul>`;
+        }
+        if (icp.painPoints?.length) {
+          html += `<h2>Pain Points</h2><ul>${icp.painPoints.map(p => `<li>${p}</li>`).join('')}</ul>`;
+        }
+        if (icp.goals?.length) {
+          html += `<h2>Goals</h2><ul>${icp.goals.map(g => `<li>${g}</li>`).join('')}</ul>`;
+        }
+        if (icp.objections?.length) {
+          html += `<h2>Objections</h2><ul>${icp.objections.map(o => `<li>${o}</li>`).join('')}</ul>`;
+        }
+        if (icp.contentPreferences?.length) {
+          html += `<h2>Content Preferences</h2><ul>${icp.contentPreferences.map(c => `<li>${c}</li>`).join('')}</ul>`;
+        }
+        if (icp.searchBehavior) {
+          html += `<h2>Search Behavior</h2><p>${icp.searchBehavior}</p>`;
+        }
+        html += `<p class="meta">Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>`;
+        html += `</body></html>`;
+        return { html, filename: `icp-${icp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` };
+      }),
   }),
 
   brandVoices: router({
@@ -2253,6 +2329,132 @@ Return ONLY valid JSON.`;
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return deleteBrandVoice(input.id);
+      }),
+
+    export: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const bv = await getBrandVoiceById(input.id);
+        if (!bv) throw new Error("Brand Voice not found");
+        // Parse tone traits
+        let primaryTones: string[] = [];
+        let supportingTones: string[] = [];
+        const toneTraits = bv.toneTraits || "";
+        if (toneTraits.includes("PRIMARY:") || toneTraits.includes("SUPPORTING:")) {
+          const parts = toneTraits.split("|");
+          for (const part of parts) {
+            if (part.startsWith("PRIMARY:")) primaryTones = part.replace("PRIMARY:", "").split(",").filter(Boolean);
+            else if (part.startsWith("SUPPORTING:")) supportingTones = part.replace("SUPPORTING:", "").split(",").filter(Boolean);
+          }
+        } else {
+          primaryTones = toneTraits.split(",").map(s => s.trim()).filter(Boolean);
+        }
+        // Parse avoid list
+        const AVOID_LABELS: Record<string, string> = {
+          jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+          fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+          cliches: "Industry clich\u00e9s", passive: "Passive voice",
+          buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+          unverified: "Unverified statistics", competitor: "Competitor comparisons",
+        };
+        let avoidItems: string[] = [];
+        const avoidList = bv.avoidList || "";
+        if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+          const parts = avoidList.split("|");
+          for (const part of parts) {
+            if (part.startsWith("PRESETS:")) {
+              const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+              avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+            } else if (part.startsWith("CUSTOM:")) {
+              const custom = part.replace("CUSTOM:", "").trim();
+              if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+            }
+          }
+        } else if (avoidList) {
+          avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+        }
+        const perspectiveMap: Record<string, string> = { first: "First Person (we/our/us)", second: "Second Person (you/your)", third: "Third Person (they/the company)" };
+        const styleMap: Record<string, string> = { short: "Short and Direct", mixed: "Mixed (Varied Rhythm)", detailed: "Detailed and Explanatory" };
+        let md = `# Brand Voice: ${bv.name}\n\n`;
+        md += `## Tone\n`;
+        if (primaryTones.length) md += `- **Primary Tones:** ${primaryTones.join(", ")}\n`;
+        if (supportingTones.length) md += `- **Supporting Tones:** ${supportingTones.join(", ")}\n`;
+        md += `\n`;
+        md += `## Writing Style\n`;
+        md += `- **Perspective:** ${perspectiveMap[bv.perspective] || bv.perspective}\n`;
+        md += `- **Sentence Style:** ${styleMap[bv.sentenceStyle] || bv.sentenceStyle}\n\n`;
+        if (avoidItems.length) {
+          md += `## Avoid List\n${avoidItems.map(a => `- ${a}`).join('\n')}\n\n`;
+        }
+        if (bv.writingStyleSample) {
+          md += `## Writing Style Sample\n> ${bv.writingStyleSample.replace(/\n/g, '\n> ')}\n\n`;
+        }
+        md += `---\n*Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}*\n`;
+        return { markdown: md, filename: `brand-voice-${bv.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` };
+      }),
+
+    exportPdf: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const bv = await getBrandVoiceById(input.id);
+        if (!bv) throw new Error("Brand Voice not found");
+        // Parse tone traits
+        let primaryTones: string[] = [];
+        let supportingTones: string[] = [];
+        const toneTraits = bv.toneTraits || "";
+        if (toneTraits.includes("PRIMARY:") || toneTraits.includes("SUPPORTING:")) {
+          const parts = toneTraits.split("|");
+          for (const part of parts) {
+            if (part.startsWith("PRIMARY:")) primaryTones = part.replace("PRIMARY:", "").split(",").filter(Boolean);
+            else if (part.startsWith("SUPPORTING:")) supportingTones = part.replace("SUPPORTING:", "").split(",").filter(Boolean);
+          }
+        } else {
+          primaryTones = toneTraits.split(",").map(s => s.trim()).filter(Boolean);
+        }
+        // Parse avoid list
+        const AVOID_LABELS: Record<string, string> = {
+          jargon: "Overly technical jargon", salesy: "Sales-heavy language",
+          fear: "Fear-based messaging", exaggerated: "Exaggerated claims",
+          cliches: "Industry clich\u00e9s", passive: "Passive voice",
+          buzzwords: "Buzzwords", rhetorical: "Rhetorical questions",
+          unverified: "Unverified statistics", competitor: "Competitor comparisons",
+        };
+        let avoidItems: string[] = [];
+        const avoidList = bv.avoidList || "";
+        if (avoidList.includes("PRESETS:") || avoidList.includes("CUSTOM:")) {
+          const parts = avoidList.split("|");
+          for (const part of parts) {
+            if (part.startsWith("PRESETS:")) {
+              const presetIds = part.replace("PRESETS:", "").split(",").filter(Boolean);
+              avoidItems.push(...presetIds.map(id => AVOID_LABELS[id] || id));
+            } else if (part.startsWith("CUSTOM:")) {
+              const custom = part.replace("CUSTOM:", "").trim();
+              if (custom) avoidItems.push(...custom.split(",").map(s => s.trim()).filter(Boolean));
+            }
+          }
+        } else if (avoidList) {
+          avoidItems = avoidList.split(",").map(s => s.trim()).filter(Boolean);
+        }
+        const perspectiveMap: Record<string, string> = { first: "First Person (we/our/us)", second: "Second Person (you/your)", third: "Third Person (they/the company)" };
+        const styleMap: Record<string, string> = { short: "Short and Direct", mixed: "Mixed (Varied Rhythm)", detailed: "Detailed and Explanatory" };
+        let html = `<html><head><style>body{font-family:'Segoe UI',system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a2e;line-height:1.6}h1{color:#4f46e5;border-bottom:2px solid #4f46e5;padding-bottom:8px}h2{color:#312e81;margin-top:24px}ul{padding-left:20px}li{margin-bottom:6px}blockquote{border-left:3px solid #4f46e5;padding-left:16px;color:#4b5563;font-style:italic;margin:12px 0}.meta{color:#6b7280;font-size:0.85em;margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px}.tag{display:inline-block;background:#eef2ff;color:#4338ca;padding:2px 10px;border-radius:12px;font-size:0.85em;margin-right:6px}</style></head><body>`;
+        html += `<h1>Brand Voice: ${bv.name}</h1>`;
+        html += `<h2>Tone</h2>`;
+        if (primaryTones.length) html += `<p><strong>Primary:</strong> ${primaryTones.map(t => `<span class="tag">${t}</span>`).join(' ')}</p>`;
+        if (supportingTones.length) html += `<p><strong>Supporting:</strong> ${supportingTones.map(t => `<span class="tag">${t}</span>`).join(' ')}</p>`;
+        html += `<h2>Writing Style</h2><ul>`;
+        html += `<li><strong>Perspective:</strong> ${perspectiveMap[bv.perspective] || bv.perspective}</li>`;
+        html += `<li><strong>Sentence Style:</strong> ${styleMap[bv.sentenceStyle] || bv.sentenceStyle}</li>`;
+        html += `</ul>`;
+        if (avoidItems.length) {
+          html += `<h2>Avoid List</h2><ul>${avoidItems.map(a => `<li>${a}</li>`).join('')}</ul>`;
+        }
+        if (bv.writingStyleSample) {
+          html += `<h2>Writing Style Sample</h2><blockquote>${bv.writingStyleSample.replace(/\n/g, '<br>')}</blockquote>`;
+        }
+        html += `<p class="meta">Exported on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>`;
+        html += `</body></html>`;
+        return { html, filename: `brand-voice-${bv.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` };
       }),
   }),
 

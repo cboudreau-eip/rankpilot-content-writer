@@ -1589,3 +1589,9 @@
 - [x] Pass aiDirections in the mutation call
 - [x] Write vitest test for aiDirections inclusion in prompt
 - [x] Save checkpoint
+
+## Free Writer: Medium Article Format
+- [x] Add "medium" to the format enum in the tRPC input schema
+- [x] Add Medium Article format rules and word range in the backend FORMAT_RULES
+- [x] Add "Medium Article" option to FORMAT_OPTIONS in FreeWriter.tsx frontend
+- [x] Save checkpoint

@@ -8399,7 +8399,7 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         title: z.string().min(1).max(500),
         description: z.string().max(5000).optional(),
         keyword: z.string().max(200).optional(),
-        format: z.enum(["linkedin", "short-article", "facebook", "email-newsletter", "youtube-script", "landing-page", "custom"]),
+        format: z.enum(["linkedin", "short-article", "facebook", "email-newsletter", "youtube-script", "landing-page", "medium", "custom"]),
         length: z.enum(["short", "medium", "long"]),
         customFormatInstructions: z.string().max(2000).optional(),
         aiDirections: z.string().max(3000).optional(),
@@ -8497,6 +8497,23 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
 - Include a brief FAQ section (3-4 questions) if length allows
 - Structure: Hero → Benefits → Social Proof → CTA → FAQ
 - Output in clean HTML format with semantic headings`,
+          },
+          "medium": {
+            label: "Medium Article",
+            wordRange: { short: "800-1200", medium: "1200-2000", long: "2000-3000" },
+            rules: `MEDIUM ARTICLE RULES:
+- Start with a compelling hook (first 1-2 sentences must grab attention — a bold claim, surprising stat, or relatable scenario)
+- Write a clear subtitle/kicker line that previews the value of the article
+- Use subheadings (H2) to break the article into scannable sections
+- Write in a conversational, first-person tone — like talking to a smart friend
+- Include at least one "pull-quote worthy" line per section (a standalone insight that's memorable)
+- Mix short punchy paragraphs (1-2 sentences) with longer explanatory ones for rhythm
+- Use concrete examples, anecdotes, or mini case studies to illustrate points
+- Include a clear takeaway or actionable conclusion
+- End with a thought-provoking final line or call-to-action (follow, clap, comment)
+- NO bullet-point-heavy listicles — prefer flowing narrative with occasional lists
+- Aim for 5-8 minute read time (1,200-2,000 words for medium length)
+- Output in clean Markdown format with ## headings`,
           },
           "custom": {
             label: "Custom Format",

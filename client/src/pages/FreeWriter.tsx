@@ -23,6 +23,7 @@ const FORMAT_OPTIONS = [
   { value: "email-newsletter", label: "Email Newsletter", description: "Subject line + preview + email body" },
   { value: "youtube-script", label: "YouTube Script", description: "Hook + segments + B-roll suggestions" },
   { value: "landing-page", label: "Landing Page Copy", description: "Hero + benefits + CTA + FAQ" },
+  { value: "medium", label: "Medium Article", description: "Conversational long-form with hooks + subheadings + pull quotes" },
   { value: "custom", label: "Custom", description: "Provide your own format instructions" },
 ] as const;
 

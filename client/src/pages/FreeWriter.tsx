@@ -45,6 +45,7 @@ export default function FreeWriter() {
   const [format, setFormat] = useState<FormatValue>("linkedin");
   const [length, setLength] = useState<LengthValue>("medium");
   const [customInstructions, setCustomInstructions] = useState("");
+  const [aiDirections, setAiDirections] = useState("");
 
   // Output state
   const [generatedContent, setGeneratedContent] = useState("");
@@ -83,6 +84,7 @@ export default function FreeWriter() {
       format,
       length,
       customFormatInstructions: format === "custom" ? customInstructions.trim() || undefined : undefined,
+      aiDirections: aiDirections.trim() || undefined,
     });
   };
 
@@ -104,6 +106,7 @@ export default function FreeWriter() {
     setDescription("");
     setKeyword("");
     setCustomInstructions("");
+    setAiDirections("");
   };
 
   const selectedFormatInfo = useMemo(
@@ -174,6 +177,21 @@ export default function FreeWriter() {
                   onChange={(e) => setKeyword(e.target.value)}
                   className="text-sm"
                 />
+              </div>
+
+              {/* AI Directions */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                  AI Directions <span className="text-slate-400">(optional)</span>
+                </label>
+                <Textarea
+                  placeholder="Additional instructions for the AI, e.g.:\n• Include a personal anecdote about...\n• Mention our new product launch\n• Keep the tone more casual than usual\n• Reference this stat: 73% of..."
+                  value={aiDirections}
+                  onChange={(e) => setAiDirections(e.target.value)}
+                  rows={4}
+                  className="text-sm resize-none"
+                />
+                <p className="text-xs text-slate-400 mt-1">Extra context, data points, or specific instructions the AI should follow</p>
               </div>
             </CardContent>
           </Card>

@@ -8402,6 +8402,7 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         format: z.enum(["linkedin", "short-article", "facebook", "email-newsletter", "youtube-script", "landing-page", "custom"]),
         length: z.enum(["short", "medium", "long"]),
         customFormatInstructions: z.string().max(2000).optional(),
+        aiDirections: z.string().max(3000).optional(),
       }))
       .mutation(async ({ input }) => {
         const project = await getProjectById(input.projectId);
@@ -8609,6 +8610,9 @@ CRITICAL RULES:
         }
         if (input.keyword) {
           userMessage += `\n\nTarget Keyword (weave naturally): ${input.keyword}`;
+        }
+        if (input.aiDirections) {
+          userMessage += `\n\n=== AI DIRECTIONS (FOLLOW THESE CLOSELY) ===\n${input.aiDirections}`;
         }
 
         // Call LLM via Forge proxy (Claude Sonnet 4)

@@ -1581,3 +1581,11 @@
 - [x] Add Export dropdown button (Markdown / PDF) to Brand Voice cards in Project Settings
 - [x] Write vitest tests for export routes
 - [x] Save checkpoint
+
+## Free Writer: AI Directions Field
+- [x] Add aiDirections field to freeWriter.generate tRPC input schema
+- [x] Inject aiDirections into the LLM prompt (system or user message)
+- [x] Add AI Directions textarea to FreeWriter.tsx frontend form
+- [x] Pass aiDirections in the mutation call
+- [x] Write vitest test for aiDirections inclusion in prompt
+- [x] Save checkpoint

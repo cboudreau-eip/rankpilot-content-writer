@@ -171,5 +171,43 @@ describe("Free Writer", () => {
       expect(content).not.toContain("—");
       expect(content).toContain(" - ");
     });
+
+    it("should include AI Directions in user message when provided", () => {
+      const input = {
+        title: "IRMAA Explained",
+        description: "Overview of IRMAA surcharges",
+        keyword: "IRMAA Medicare",
+        aiDirections: "Include a personal anecdote about receiving the IRMAA letter. Mention that 2025 brackets changed.",
+      };
+
+      let userMessage = `Write a LinkedIn Post about:\n\nTitle/Topic: ${input.title}`;
+      if (input.description) {
+        userMessage += `\n\nDescription/Context: ${input.description}`;
+      }
+      if (input.keyword) {
+        userMessage += `\n\nTarget Keyword (weave naturally): ${input.keyword}`;
+      }
+      if (input.aiDirections) {
+        userMessage += `\n\n=== AI DIRECTIONS (FOLLOW THESE CLOSELY) ===\n${input.aiDirections}`;
+      }
+
+      expect(userMessage).toContain("=== AI DIRECTIONS (FOLLOW THESE CLOSELY) ===");
+      expect(userMessage).toContain("Include a personal anecdote");
+      expect(userMessage).toContain("2025 brackets changed");
+    });
+
+    it("should NOT include AI Directions section when field is empty", () => {
+      const input = {
+        title: "IRMAA Explained",
+        aiDirections: "",
+      };
+
+      let userMessage = `Write a LinkedIn Post about:\n\nTitle/Topic: ${input.title}`;
+      if (input.aiDirections) {
+        userMessage += `\n\n=== AI DIRECTIONS (FOLLOW THESE CLOSELY) ===\n${input.aiDirections}`;
+      }
+
+      expect(userMessage).not.toContain("AI DIRECTIONS");
+    });
   });
 });

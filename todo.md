@@ -1582,6 +1582,20 @@
 - [x] Write vitest tests for export routes
 - [x] Save checkpoint
 
+## Free Writer: AI Directions Field
+- [x] Add aiDirections field to freeWriter.generate tRPC input schema
+- [x] Inject aiDirections into the LLM prompt (system or user message)
+- [x] Add AI Directions textarea to FreeWriter.tsx frontend form
+- [x] Pass aiDirections in the mutation call
+- [x] Write vitest test for aiDirections inclusion in prompt
+- [x] Save checkpoint
+
+## Free Writer: Medium Article Format
+- [x] Add "medium" to the format enum in the tRPC input schema
+- [x] Add Medium Article format rules and word range in the backend FORMAT_RULES
+- [x] Add "Medium Article" option to FORMAT_OPTIONS in FreeWriter.tsx frontend
+- [x] Save checkpoint
+
 ## Free Writer: Medium Featured Image Prompt
 - [ ] Add backend tRPC route: freeWriter.generateImagePrompt (takes article content + title, returns a tailored image generation prompt)
 - [ ] Add "Generate Featured Image Prompt" button in the output section (visible only when format is Medium)

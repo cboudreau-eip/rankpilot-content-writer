@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Copy, Check, PenLine, RotateCcw } from "lucide-react";
+import { Loader2, Copy, Check, PenLine, RotateCcw, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 const FORMAT_OPTIONS = [
@@ -23,6 +23,7 @@ const FORMAT_OPTIONS = [
   { value: "email-newsletter", label: "Email Newsletter", description: "Subject line + preview + email body" },
   { value: "youtube-script", label: "YouTube Script", description: "Hook + segments + B-roll suggestions" },
   { value: "landing-page", label: "Landing Page Copy", description: "Hero + benefits + CTA + FAQ" },
+  { value: "medium", label: "Medium Article", description: "Conversational long-form with hooks + subheadings + pull quotes" },
   { value: "custom", label: "Custom", description: "Provide your own format instructions" },
 ] as const;
 
@@ -45,11 +46,14 @@ export default function FreeWriter() {
   const [format, setFormat] = useState<FormatValue>("linkedin");
   const [length, setLength] = useState<LengthValue>("medium");
   const [customInstructions, setCustomInstructions] = useState("");
+  const [aiDirections, setAiDirections] = useState("");
 
   // Output state
   const [generatedContent, setGeneratedContent] = useState("");
   const [generationMeta, setGenerationMeta] = useState<{ formatLabel: string; wordCount: number; model: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imagePromptCopied, setImagePromptCopied] = useState(false);
 
   const generateMutation = trpc.freeWriter.generate.useMutation({
     onSuccess: (data) => {
@@ -59,9 +63,20 @@ export default function FreeWriter() {
         wordCount: data.wordCount,
         model: data.model,
       });
+      setImagePrompt("");
     },
     onError: (error) => {
       toast.error("Generation failed", { description: error.message });
+    },
+  });
+
+  const imagePromptMutation = trpc.freeWriter.generateImagePrompt.useMutation({
+    onSuccess: (data) => {
+      setImagePrompt(data.imagePrompt);
+      toast.success("Featured image prompt generated");
+    },
+    onError: (error) => {
+      toast.error("Image prompt generation failed", { description: error.message });
     },
   });
 
@@ -83,6 +98,7 @@ export default function FreeWriter() {
       format,
       length,
       customFormatInstructions: format === "custom" ? customInstructions.trim() || undefined : undefined,
+      aiDirections: aiDirections.trim() || undefined,
     });
   };
 
@@ -104,6 +120,27 @@ export default function FreeWriter() {
     setDescription("");
     setKeyword("");
     setCustomInstructions("");
+    setAiDirections("");
+    setImagePrompt("");
+  };
+
+  const handleGenerateImagePrompt = () => {
+    if (!generatedContent || !title.trim()) return;
+    imagePromptMutation.mutate({
+      title: title.trim(),
+      content: generatedContent,
+    });
+  };
+
+  const handleCopyImagePrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(imagePrompt);
+      setImagePromptCopied(true);
+      toast.success("Image prompt copied");
+      setTimeout(() => setImagePromptCopied(false), 2000);
+    } catch {
+      toast.error("Copy failed");
+    }
   };
 
   const selectedFormatInfo = useMemo(
@@ -174,6 +211,21 @@ export default function FreeWriter() {
                   onChange={(e) => setKeyword(e.target.value)}
                   className="text-sm"
                 />
+              </div>
+
+              {/* AI Directions */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                  AI Directions <span className="text-slate-400">(optional)</span>
+                </label>
+                <Textarea
+                  placeholder="Additional instructions for the AI, e.g.:\n• Include a personal anecdote about...\n• Mention our new product launch\n• Keep the tone more casual than usual\n• Reference this stat: 73% of..."
+                  value={aiDirections}
+                  onChange={(e) => setAiDirections(e.target.value)}
+                  rows={4}
+                  className="text-sm resize-none"
+                />
+                <p className="text-xs text-slate-400 mt-1">Extra context, data points, or specific instructions the AI should follow</p>
               </div>
             </CardContent>
           </Card>
@@ -332,16 +384,65 @@ export default function FreeWriter() {
                   <p className="text-xs mt-1">This usually takes 10-30 seconds</p>
                 </div>
               ) : generatedContent ? (
-                <div className="prose prose-sm max-w-none prose-slate">
-                  {title && (
-                    <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-                      {title}
-                    </h2>
+                <div className="space-y-4">
+                  <div className="prose prose-sm max-w-none prose-slate">
+                    {title && (
+                      <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+                        {title}
+                      </h2>
+                    )}
+                    <div
+                      className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 font-normal"
+                      dangerouslySetInnerHTML={{ __html: generatedContent }}
+                    />
+                  </div>
+
+                  {/* Medium Featured Image Prompt Section */}
+                  {format === "medium" && (
+                    <div className="border-t border-slate-100 pt-4">
+                      {!imagePrompt ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateImagePrompt}
+                          disabled={imagePromptMutation.isPending}
+                          className="w-full border-dashed border-violet-300 text-violet-600 hover:bg-violet-50"
+                        >
+                          {imagePromptMutation.isPending ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating image prompt...
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="w-4 h-4 mr-2" />
+                              Generate Featured Image Prompt
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Featured Image Prompt</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleCopyImagePrompt}
+                              className="text-xs h-7 text-violet-600 hover:text-violet-800"
+                            >
+                              {imagePromptCopied ? (
+                                <><Check className="w-3 h-3 mr-1" /> Copied</>
+                              ) : (
+                                <><Copy className="w-3 h-3 mr-1" /> Copy</>
+                              )}
+                            </Button>
+                          </div>
+                          <p className="text-sm text-slate-700 leading-relaxed">{imagePrompt}</p>
+                          <p className="text-xs text-slate-400 mt-2">Use this prompt with any AI image generator (Midjourney, DALL-E, etc.) to create your featured image.</p>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  <div
-                    className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 font-normal"
-                    dangerouslySetInnerHTML={{ __html: generatedContent }}
-                  />
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">

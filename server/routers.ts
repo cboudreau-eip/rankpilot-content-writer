@@ -8645,6 +8645,42 @@ CRITICAL RULES:
           model: response.model,
         };
       }),
+
+    generateImagePrompt: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1).max(500),
+        content: z.string().min(1).max(10000),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await invokeLLM({
+          model: "claude-sonnet-4-6",
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert at crafting image generation prompts for Medium article featured images.
+
+Your job is to create a detailed, evocative image prompt that would produce a compelling featured image for the given article. The image should:
+- Be visually striking and attention-grabbing in a Medium feed
+- Relate conceptually to the article's theme (not literal/obvious)
+- Work well as a horizontal banner (16:9 aspect ratio)
+- Avoid text, logos, or watermarks
+- Use modern, editorial-quality aesthetics (think: abstract, metaphorical, atmospheric)
+- Be specific about style (photography, illustration, 3D render, etc.), lighting, color palette, and composition
+
+Return ONLY the image prompt text. No explanations, no preamble.`,
+            },
+            {
+              role: "user",
+              content: `Generate a featured image prompt for this Medium article:\n\nTitle: ${input.title}\n\nArticle excerpt (first 2000 chars):\n${input.content.slice(0, 2000)}`,
+            },
+          ],
+        });
+
+        const imagePrompt = response.choices?.[0]?.message?.content?.trim() || "";
+        if (!imagePrompt) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate image prompt" });
+
+        return { imagePrompt };
+      }),
   }),
 
   // ============================================================

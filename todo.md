@@ -1597,7 +1597,7 @@
 - [x] Save checkpoint
 
 ## Free Writer: Medium Featured Image Prompt
-- [ ] Add backend tRPC route: freeWriter.generateImagePrompt (takes article content + title, returns a tailored image generation prompt)
-- [ ] Add "Generate Featured Image Prompt" button in the output section (visible only when format is Medium)
-- [ ] Display the generated image prompt in a copyable card below the article output
-- [ ] Save checkpoint
+- [x] Add backend tRPC route: freeWriter.generateImagePrompt (takes article content + title, returns a tailored image generation prompt)
+- [x] Add "Generate Featured Image Prompt" button in the output section (visible only when format is Medium)
+- [x] Display the generated image prompt in a copyable card below the article output
+- [x] Save checkpoint

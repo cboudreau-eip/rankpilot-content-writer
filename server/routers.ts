@@ -8671,8 +8671,21 @@ CRITICAL RULES:
       .input(z.object({
         title: z.string().min(1).max(500),
         content: z.string().min(1).max(10000),
+        imageStyle: z.enum(["photorealistic", "illustration", "3d-render", "flat-design", "cinematic", "abstract", "watercolor", "minimalist"]).default("photorealistic"),
       }))
       .mutation(async ({ input }) => {
+        const styleDescriptions: Record<string, string> = {
+          "photorealistic": "high-quality photorealistic photography — sharp, detailed, real-world lighting, DSLR quality",
+          "illustration": "digital illustration — hand-crafted look, expressive linework, rich colors, editorial illustration style",
+          "3d-render": "3D CGI render — polished, volumetric lighting, depth of field, studio-quality 3D art",
+          "flat-design": "flat design vector illustration — clean geometric shapes, bold colors, no shadows, modern icon-style",
+          "cinematic": "cinematic photography — dramatic lighting, wide-angle lens, film grain, movie-poster quality",
+          "abstract": "abstract art — non-representational, flowing shapes, bold color gradients, expressive and conceptual",
+          "watercolor": "watercolor painting — soft washes, organic textures, delicate brushstrokes, painterly and warm",
+          "minimalist": "minimalist design — extreme simplicity, lots of negative space, single focal element, clean and elegant",
+        };
+        const styleGuide = styleDescriptions[input.imageStyle] ?? styleDescriptions["photorealistic"];
+
         const response = await invokeLLM({
           model: "claude-sonnet-4-6",
           messages: [
@@ -8685,8 +8698,10 @@ Your job is to create a detailed, evocative image prompt that would produce a co
 - Relate conceptually to the article's theme (not literal/obvious)
 - Work well as a horizontal banner (16:9 aspect ratio)
 - Avoid text, logos, or watermarks
-- Use modern, editorial-quality aesthetics (think: abstract, metaphorical, atmospheric)
-- Be specific about style (photography, illustration, 3D render, etc.), lighting, color palette, and composition
+- Be specific about lighting, color palette, and composition
+
+IMPORTANT: The image MUST be in this style: ${styleGuide}
+Tailor every aspect of the prompt — subject matter, composition, color palette, and technical descriptors — to match this style perfectly.
 
 Return ONLY the image prompt text. No explanations, no preamble.`,
             },

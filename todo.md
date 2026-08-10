@@ -1601,3 +1601,10 @@
 - [x] Add "Generate Featured Image Prompt" button in the output section (visible only when format is Medium)
 - [x] Display the generated image prompt in a copyable card below the article output
 - [x] Save checkpoint
+
+## Free Writer: Image Style Selector for Featured Image Prompt
+- [x] Add imageStyle state and style options (Photorealistic, Illustration, 3D Render, Flat Design, Cinematic, Abstract, Watercolor, Minimalist)
+- [x] Add imageStyle to the generateImagePrompt tRPC input schema
+- [x] Inject imageStyle into the LLM system prompt so it tailors the output accordingly
+- [x] Add a Select dropdown next to the Generate Featured Image Prompt button
+- [ ] Save checkpoint

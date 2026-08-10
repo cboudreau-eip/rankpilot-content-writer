@@ -54,6 +54,7 @@ export default function FreeWriter() {
   const [copied, setCopied] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
   const [imagePromptCopied, setImagePromptCopied] = useState(false);
+  const [imageStyle, setImageStyle] = useState("photorealistic");
 
   const generateMutation = trpc.freeWriter.generate.useMutation({
     onSuccess: (data) => {
@@ -129,6 +130,7 @@ export default function FreeWriter() {
     imagePromptMutation.mutate({
       title: title.trim(),
       content: generatedContent,
+      imageStyle: imageStyle as any,
     });
   };
 
@@ -401,41 +403,74 @@ export default function FreeWriter() {
                   {format === "medium" && (
                     <div className="border-t border-slate-100 pt-4">
                       {!imagePrompt ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleGenerateImagePrompt}
-                          disabled={imagePromptMutation.isPending}
-                          className="w-full border-dashed border-violet-300 text-violet-600 hover:bg-violet-50"
-                        >
-                          {imagePromptMutation.isPending ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Generating image prompt...
-                            </>
-                          ) : (
-                            <>
-                              <ImageIcon className="w-4 h-4 mr-2" />
-                              Generate Featured Image Prompt
-                            </>
-                          )}
-                        </Button>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-slate-600">Image Style</label>
+                          <div className="flex gap-2">
+                            <Select value={imageStyle} onValueChange={setImageStyle}>
+                              <SelectTrigger className="text-sm h-9 flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="photorealistic">Photorealistic</SelectItem>
+                                <SelectItem value="illustration">Illustration</SelectItem>
+                                <SelectItem value="3d-render">3D Render</SelectItem>
+                                <SelectItem value="flat-design">Flat Design</SelectItem>
+                                <SelectItem value="cinematic">Cinematic</SelectItem>
+                                <SelectItem value="abstract">Abstract</SelectItem>
+                                <SelectItem value="watercolor">Watercolor</SelectItem>
+                                <SelectItem value="minimalist">Minimalist</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleGenerateImagePrompt}
+                              disabled={imagePromptMutation.isPending}
+                              className="border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 whitespace-nowrap"
+                            >
+                              {imagePromptMutation.isPending ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <ImageIcon className="w-4 h-4 mr-2" />
+                                  Generate Image Prompt
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Featured Image Prompt</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCopyImagePrompt}
-                              className="text-xs h-7 text-violet-600 hover:text-violet-800"
-                            >
-                              {imagePromptCopied ? (
-                                <><Check className="w-3 h-3 mr-1" /> Copied</>
-                              ) : (
-                                <><Copy className="w-3 h-3 mr-1" /> Copy</>
-                              )}
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Featured Image Prompt</span>
+                              <span className="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded capitalize">{imageStyle.replace("-", " ")}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setImagePrompt("")}
+                                className="text-xs h-7 text-slate-400 hover:text-slate-600"
+                              >
+                                Regenerate
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCopyImagePrompt}
+                                className="text-xs h-7 text-violet-600 hover:text-violet-800"
+                              >
+                                {imagePromptCopied ? (
+                                  <><Check className="w-3 h-3 mr-1" /> Copied</>
+                                ) : (
+                                  <><Copy className="w-3 h-3 mr-1" /> Copy</>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                           <p className="text-sm text-slate-700 leading-relaxed">{imagePrompt}</p>
                           <p className="text-xs text-slate-400 mt-2">Use this prompt with any AI image generator (Midjourney, DALL-E, etc.) to create your featured image.</p>

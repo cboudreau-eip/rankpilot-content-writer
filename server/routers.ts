@@ -160,8 +160,10 @@ function buildResearchSection(research: any): string {
 }
 
 /**
- * Unified LLM caller — routes to built-in (Forge/Gemini) or Claude based on project settings.
- * Falls back to built-in if no project context or provider is "builtin".
+ * Unified LLM caller — both branches call Claude directly via the Anthropic SDK.
+ * The "claude" provider branch forwards the project's configured llmModel;
+ * the fallback branch (no project context, or provider is "builtin") uses
+ * invokeLLM()'s default model.
  */
 async function callLLM(
   params: InvokeParams,

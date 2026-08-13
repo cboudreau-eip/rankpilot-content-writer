@@ -15,13 +15,13 @@ describe("Claude LLM Integration", () => {
       expect(mod.AVAILABLE_CLAUDE_MODELS.length).toBeGreaterThan(0);
     });
 
-    it("should include Claude Sonnet 4 as a model option", async () => {
+    it("should include Claude Sonnet 5 as a model option", async () => {
       const mod = await import("./claude");
-      const sonnet4 = mod.AVAILABLE_CLAUDE_MODELS.find(
-        (m) => m.id === "claude-sonnet-4-20250514"
+      const sonnet5 = mod.AVAILABLE_CLAUDE_MODELS.find(
+        (m) => m.id === "claude-sonnet-5"
       );
-      expect(sonnet4).toBeDefined();
-      expect(sonnet4!.label).toContain("Sonnet 4");
+      expect(sonnet5).toBeDefined();
+      expect(sonnet5!.label).toContain("Sonnet 5");
     });
 
     it("should include Claude Sonnet 4.6 as a model option", async () => {

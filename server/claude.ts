@@ -106,21 +106,21 @@ function convertMessages(messages: Message[]): {
 // ---------------------------------------------------------------------------
 
 const CLAUDE_MODELS = [
-  "claude-sonnet-4-20250514",
-  "claude-3-5-sonnet-20241022",
-  "claude-3-haiku-20240307",
+  "claude-sonnet-4-6",
+  "claude-sonnet-5",
+  "claude-haiku-4-5",
 ] as const;
 
 export type ClaudeModel = (typeof CLAUDE_MODELS)[number];
 
 export const AVAILABLE_CLAUDE_MODELS = CLAUDE_MODELS.map((m) => ({
   id: m,
-  label: m === "claude-sonnet-4-20250514"
-    ? "Claude Sonnet 4 (Latest)"
-    : m === "claude-3-5-sonnet-20241022"
-    ? "Claude 3.5 Sonnet"
-    : m === "claude-3-haiku-20240307"
-    ? "Claude 3 Haiku (Fast)"
+  label: m === "claude-sonnet-4-6"
+    ? "Claude Sonnet 4.6 (Default)"
+    : m === "claude-sonnet-5"
+    ? "Claude Sonnet 5 (Latest)"
+    : m === "claude-haiku-4-5"
+    ? "Claude Haiku 4.5 (Fast)"
     : m,
 }));
 
@@ -138,7 +138,7 @@ export async function invokeClaudeLLM(
   const maxTokens =
     params.maxTokens ?? params.max_tokens ?? 8192;
 
-  const selectedModel = model || "claude-3-5-sonnet-20241022";
+  const selectedModel = model || "claude-sonnet-4-6";
 
   // Claude doesn't support response_format / json_schema natively.
   // Instead, we inject a JSON instruction into the system prompt so Claude

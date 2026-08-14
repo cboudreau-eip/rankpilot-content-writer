@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
   clearSessionCookie,
@@ -8395,7 +8395,7 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
   // FREE WRITER
   // ============================================================
   freeWriter: router({
-    generate: protectedProcedure
+    generate: publicProcedure
       .input(z.object({
         projectId: z.number(),
         title: z.string().min(1).max(500),
@@ -8406,7 +8406,11 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         customFormatInstructions: z.string().max(2000).optional(),
         aiDirections: z.string().max(3000).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+
         const project = await getProjectById(input.projectId);
         if (!project) throw new Error("Project not found");
 
@@ -8669,13 +8673,17 @@ CRITICAL RULES:
         };
       }),
 
-    generateImagePrompt: protectedProcedure
+    generateImagePrompt: publicProcedure
       .input(z.object({
         title: z.string().min(1).max(500),
         content: z.string().min(1).max(10000),
         imageStyle: z.enum(["photorealistic", "illustration", "3d-render", "flat-design", "cinematic", "abstract", "watercolor", "minimalist"]).default("photorealistic"),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+
         const styleDescriptions: Record<string, string> = {
           "photorealistic": "high-quality photorealistic photography — sharp, detailed, real-world lighting, DSLR quality",
           "illustration": "digital illustration — hand-crafted look, expressive linework, rich colors, editorial illustration style",

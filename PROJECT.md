@@ -6,7 +6,7 @@
 
 ## Overview
 
-RankPilot is an AI-powered SEO content platform built for content teams managing large-scale article production. It provides end-to-end tooling for keyword research, content generation, quality grading, internal linking, entity analysis, and scheduled publishing — all organized under a multi-project workspace.
+RankPilot is an AI-powered SEO content platform built for content teams managing large-scale article production. It provides end-to-end tooling for keyword research, content generation, quality grading, internal linking, and entity analysis — all organized under a multi-project workspace.
 
 The primary production deployment is at **contentwriter.teameip.com** (custom domain) and **rankdash-k2cydhqh.manus.space** (Manus default domain).
 
@@ -76,15 +76,11 @@ shared/
 | `sitemaps` | Parsed XML sitemaps | parsedUrls (JSON array), urlCount |
 | `citation_sources` | Trusted reference URLs | name, url, description, category |
 | `gsc_exports` | Google Search Console data | queries, pages, chartData, pre-computed categories |
-| `scheduled_jobs` | Automated content generation | frequency, keywordSource, articleSettings, nextRunAt |
-| `keyword_queue` | Ordered keyword list for jobs | keyword, sortOrder, status, generatedArticleId |
-| `job_run_history` | Execution log per job run | keyword, status, articleId, durationMs |
-| `scheduler_run_logs` | Step-level pipeline logs | step, level, message, metadata |
 | `project_keywords` | Saved keywords with metrics | volume, cpc, competition, trendData, priority |
 
 ---
 
-## API Router Sections (19 routers)
+## API Router Sections (18 routers)
 
 | Router | Purpose | Auth |
 |---|---|---|
@@ -106,7 +102,6 @@ shared/
 | `entity` | Entity/NLP analysis of content | Protected |
 | `grading` | GEO content grading (4-category, 120-point system) | Mixed (standalone is public) |
 | `gsc` | Google Search Console data upload + analysis | Protected |
-| `scheduler` | Scheduled job management + execution | Protected |
 
 ---
 
@@ -122,7 +117,7 @@ The sidebar is organized into four sections:
 
 **Planning:** Ideas (coming soon)
 
-**Admin:** User Management (admin-only, in settings dropdown), Project Settings, General Settings, Project Scheduler
+**Admin:** User Management (admin-only, in settings dropdown), Project Settings, General Settings
 
 ---
 
@@ -219,6 +214,5 @@ Custom secrets:
 
 - Hosted on Manus (CloudRun-based)
 - **No persistent processes** — `setInterval` / `node-cron` do not work in production
-- Scheduled content generation uses Manus scheduled tasks that POST to `/api/scheduled/*` endpoints
 - Static assets must be uploaded via `manus-upload-file --webdev` and referenced by CDN URL
 - Publish via the Management UI "Publish" button after saving a checkpoint

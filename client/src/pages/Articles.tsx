@@ -229,15 +229,6 @@ export default function Articles() {
                       {article.contentType && (
                         <span className="capitalize">{article.contentType}</span>
                       )}
-                      {article.briefComplianceScore != null && (
-                        <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${
-                          article.briefComplianceScore >= 80 ? 'bg-green-50 text-green-700' :
-                          article.briefComplianceScore >= 60 ? 'bg-yellow-50 text-yellow-700' :
-                          'bg-red-50 text-red-700'
-                        }`}>
-                          Brief: {article.briefComplianceScore}%
-                        </span>
-                      )}
                     </div>
                   </div>
 

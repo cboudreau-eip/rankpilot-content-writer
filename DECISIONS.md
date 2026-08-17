@@ -50,7 +50,7 @@
 
 **Rationale:** The owner's brand voice explicitly prohibits em dashes. Claude in particular uses them heavily. Rather than relying on prompt instructions (which the LLM often ignores), we enforce this as a deterministic post-processing step that runs on every generated article.
 
-**Impact:** `stripEmDashes()` runs in the post-processing pipeline for both manual generation and scheduled jobs. This is a hard requirement — do not remove or make optional.
+**Impact:** `stripEmDashes()` runs in the post-processing pipeline for manual generation. This is a hard requirement — do not remove or make optional.
 
 ---
 
@@ -88,16 +88,6 @@
 **Rationale:** Not all projects have brand voice or ICP profiles set up. Making these bonus categories (rather than required) means the grading system works out of the box for any content, while rewarding projects that have invested in configuration. The 4 base categories (E-E-A-T, Structure, Semantics, AI Extractability) cover the universal GEO/AIO optimization factors.
 
 **Impact:** Total possible score is 100 (no bonuses), 110 (one bonus), or 120 (both bonuses). Grade bands (A+, A, B+, etc.) are calculated relative to the project's total possible points.
-
----
-
-## Scheduled Jobs: Manus Scheduled Tasks, Not In-App Cron
-
-**Decision:** Automated content generation uses Manus scheduled tasks that POST to `/api/scheduled/*` endpoints, not in-app `setInterval` or `node-cron`.
-
-**Rationale:** The app runs on CloudRun, which shuts down instances when there's no traffic. Any in-process scheduler would die between requests. Manus scheduled tasks spawn a full agent that can perform research, generate content, and POST results to the app's API.
-
-**Impact:** The scheduler engine in `routers.ts` manages job state (nextRunAt, isRunning) but actual execution is triggered by external POST requests. The `/api/scheduled/*` endpoints accept `user` role authentication (not admin) because the Manus scheduled task agent authenticates as a regular user.
 
 ---
 
@@ -158,16 +148,6 @@
 **Rationale:** Keywords Everywhere provides affordable, accurate keyword metrics with a simple API. It supports bulk lookups (up to 100 keywords per call), trend data, and related keyword suggestions — all needed for the keyword research and project keywords features.
 
 **Impact:** Requires `KEYWORDS_EVERYWHERE_API_KEY` env var. The API has rate limits and credit-based pricing — the UI batches requests appropriately.
-
----
-
-## Scheduler Time Display: EST, Not UTC
-
-**Decision:** The scheduler UI displays and accepts times in U.S. Eastern Standard Time (EST/EDT).
-
-**Rationale:** Owner preference — the primary user base operates in EST. Displaying UTC would cause confusion and scheduling errors.
-
-**Impact:** The `hourUtc` field in the database stores UTC values. The frontend converts to/from EST for display. Any new scheduler UI must maintain this convention.
 
 ---
 

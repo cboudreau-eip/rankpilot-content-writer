@@ -23,7 +23,6 @@ import KeywordResearch from "./pages/KeywordResearch";
 import ProjectKeywords from "./pages/ProjectKeywords";
 import Ideas from "./pages/Ideas";
 import Outlines from "./pages/Outlines";
-import ContentEngine from "./pages/ContentEngine";
 import FreeWriter from "./pages/FreeWriter";
 import AIReadinessAudit from "./pages/AIReadinessAudit";
 import ChangePassword from "./pages/ChangePassword";
@@ -85,7 +84,6 @@ function App() {
                       <Route path="/generate" component={GenerateArticle} />
                       <Route path="/write" component={FreeWriter} />
                       <Route path="/project-settings" component={ProjectSettings} />
-                      <Route path="/project-scheduler">{() => <Redirect to="/engine" />}</Route>
                       <Route path="/settings" component={GeneralSettings} />
                       <Route path="/admin/users" component={AdminUsers} />
                       <Route path="/calendar">{() => <ComingSoon title="Calendar" description="Plan and schedule your content pipeline with a visual calendar." />}</Route>
@@ -103,8 +101,6 @@ function App() {
                       <Route path="/ai-readiness" component={AIReadinessAudit} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
                       <Route path="/ideas" component={Ideas} />
-                      <Route path="/pipeline">{() => <Redirect to="/engine" />}</Route>
-                      <Route path="/engine" component={ContentEngine} />
                       <Route component={NotFound} />
                     </Switch>
                   </AppLayout>

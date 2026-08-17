@@ -26,7 +26,6 @@ import {
   Award,
   LampDesk,
   Rocket,
-  Zap,
   Bell,
   Settings,
   MoreHorizontal,
@@ -102,12 +101,6 @@ const navSections = [
     title: "Planning",
     items: [
       { icon: LampDesk, label: "Ideas", path: "/ideas" },
-    ],
-  },
-  {
-    title: "Automation",
-    items: [
-      { icon: Zap, label: "Content Engine", path: "/engine" },
     ],
   },
 ];

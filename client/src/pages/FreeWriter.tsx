@@ -14,8 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Copy, Check, PenLine, RotateCcw, ImageIcon, Save } from "lucide-react";
+import { Loader2, Copy, Check, PenLine, RotateCcw, ImageIcon, Save, Search } from "lucide-react";
 import { toast } from "sonner";
+import { ResearchFindingsPanel } from "@/components/ResearchFindingsPanel";
+import type { ResearchFindings } from "@shared/research-types";
 
 const FORMAT_OPTIONS = [
   { value: "linkedin", label: "LinkedIn Post", description: "Professional social post with hook + insight + CTA" },
@@ -49,9 +51,11 @@ export default function FreeWriter() {
   const [length, setLength] = useState<LengthValue>("medium");
   const [customInstructions, setCustomInstructions] = useState("");
   const [aiDirections, setAiDirections] = useState("");
+  const [researchEnabled, setResearchEnabled] = useState(true);
 
   // Output state
   const [generatedContent, setGeneratedContent] = useState("");
+  const [researchFindings, setResearchFindings] = useState<ResearchFindings | null>(null);
   const [generationMeta, setGenerationMeta] = useState<{ formatLabel: string; wordCount: number; model: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
@@ -70,6 +74,18 @@ export default function FreeWriter() {
     },
     onError: (error) => {
       toast.error("Generation failed", { description: error.message });
+    },
+  });
+
+  const researchTopicMutation = trpc.outlines.researchTopic.useMutation({
+    onSuccess: (data) => {
+      setResearchFindings(data ?? null);
+      toast.success("Research completed! Writing with findings...");
+      runGenerate(data ?? undefined);
+    },
+    onError: (error) => {
+      toast.error("Research failed, writing without it", { description: error.message });
+      runGenerate(undefined);
     },
   });
 
@@ -93,6 +109,21 @@ export default function FreeWriter() {
     },
   });
 
+  const runGenerate = (research?: ResearchFindings) => {
+    if (!activeProject) return;
+    generateMutation.mutate({
+      projectId: activeProject.id,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      keyword: keyword.trim() || undefined,
+      format,
+      length,
+      customFormatInstructions: format === "custom" ? customInstructions.trim() || undefined : undefined,
+      aiDirections: aiDirections.trim() || undefined,
+      research,
+    });
+  };
+
   const handleGenerate = () => {
     if (!activeProject) {
       toast.error("No project selected", { description: "Please select an active project first." });
@@ -103,16 +134,16 @@ export default function FreeWriter() {
       return;
     }
 
-    generateMutation.mutate({
-      projectId: activeProject.id,
-      title: title.trim(),
-      description: description.trim() || undefined,
-      keyword: keyword.trim() || undefined,
-      format,
-      length,
-      customFormatInstructions: format === "custom" ? customInstructions.trim() || undefined : undefined,
-      aiDirections: aiDirections.trim() || undefined,
-    });
+    setResearchFindings(null);
+    if (researchEnabled) {
+      researchTopicMutation.mutate({
+        topic: title.trim(),
+        keyword: keyword.trim() || undefined,
+        projectId: activeProject.id,
+      });
+    } else {
+      runGenerate();
+    }
   };
 
   const handleCopy = async () => {
@@ -129,6 +160,7 @@ export default function FreeWriter() {
   const handleReset = () => {
     setGeneratedContent("");
     setGenerationMeta(null);
+    setResearchFindings(null);
     setTitle("");
     setDescription("");
     setKeyword("");
@@ -172,6 +204,9 @@ export default function FreeWriter() {
     () => FORMAT_OPTIONS.find((f) => f.value === format),
     [format]
   );
+
+  const isResearching = researchTopicMutation.isPending;
+  const isGenerating = isResearching || generateMutation.isPending;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -321,13 +356,31 @@ export default function FreeWriter() {
                 </div>
               </div>
 
+              {/* Research toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={researchEnabled}
+                  onChange={(e) => setResearchEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                />
+                <Search className="w-3.5 h-3.5 text-violet-500" />
+                <span className="text-sm font-medium text-slate-700">Research topic first</span>
+                <span className="text-xs text-slate-400">(recommended)</span>
+              </label>
+
               {/* Generate Button */}
               <Button
                 onClick={handleGenerate}
-                disabled={generateMutation.isPending || !title.trim() || !activeProject}
+                disabled={isGenerating || !title.trim() || !activeProject}
                 className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium py-2.5"
               >
-                {generateMutation.isPending ? (
+                {isResearching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Researching Topic...
+                  </>
+                ) : generateMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Writing with Claude...
@@ -416,14 +469,15 @@ export default function FreeWriter() {
               )}
             </CardHeader>
             <CardContent>
-              {generateMutation.isPending ? (
+              {isGenerating ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                   <Loader2 className="w-8 h-8 animate-spin mb-3" />
-                  <p className="text-sm font-medium">Writing your content...</p>
+                  <p className="text-sm font-medium">{isResearching ? "Researching your topic..." : "Writing your content..."}</p>
                   <p className="text-xs mt-1">This usually takes 10-30 seconds</p>
                 </div>
               ) : generatedContent ? (
                 <div className="space-y-4">
+                  {researchFindings && <ResearchFindingsPanel findings={researchFindings} />}
                   <div className="prose prose-sm max-w-none prose-slate">
                     {title && (
                       <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">

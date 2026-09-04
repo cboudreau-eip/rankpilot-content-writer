@@ -559,6 +559,22 @@ function splitLongParagraphs(content: string, maxSentences: number, format: stri
 // (medium), where the HTML-structure repair functions below would be no-ops at best.
 const FREE_WRITER_HTML_FORMATS = new Set(["short-article", "email-newsletter", "landing-page"]);
 
+/** Parses a JSON array field that may already be an array (Drizzle's JSON column
+ * type) or a raw string (e.g. from a CSV import) — falls back to [] on malformed input
+ * rather than throwing. */
+function safeParseArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -7631,6 +7647,7 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         length: z.enum(["short", "medium", "long"]),
         customFormatInstructions: z.string().max(2000).optional(),
         aiDirections: z.string().max(3000).optional(),
+        research: z.any().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const token = getSessionToken(ctx.req);
@@ -7800,8 +7817,8 @@ ${brandVoice.writingStyleSample ? `\nStyle Reference (match tone, NOT content):\
         // Build ICP section
         let icpSection = "";
         if (icp) {
-          const pains = icp.painPoints ? (Array.isArray(icp.painPoints) ? icp.painPoints : JSON.parse(icp.painPoints as string)) : [];
-          const goals = icp.goals ? (Array.isArray(icp.goals) ? icp.goals : JSON.parse(icp.goals as string)) : [];
+          const pains = safeParseArray(icp.painPoints);
+          const goals = safeParseArray(icp.goals);
           icpSection = `
 === TARGET AUDIENCE (ICP) ===
 Name: ${icp.name}
@@ -7813,8 +7830,8 @@ Write content that resonates with this audience. Address their pain points and g
 `;
         } else if (project.icpPrimaryName) {
           // Fallback to project-level ICP
-          const pains = project.icpPains ? (Array.isArray(project.icpPains) ? project.icpPains : JSON.parse(project.icpPains as string)) : [];
-          const goals = project.icpGoals ? (Array.isArray(project.icpGoals) ? project.icpGoals : JSON.parse(project.icpGoals as string)) : [];
+          const pains = safeParseArray(project.icpPains);
+          const goals = safeParseArray(project.icpGoals);
           icpSection = `
 === TARGET AUDIENCE (ICP) ===
 Name: ${project.icpPrimaryName}
@@ -7844,6 +7861,7 @@ WORD COUNT TARGET: ${wordRange} words
 ${brandVoiceSection}
 ${icpSection}
 ${bannedPhrasesSection}
+${input.research ? buildResearchSection(input.research) : ''}
 
 CRITICAL RULES:
 - NEVER use em dashes (—). Use commas, periods, or semicolons instead.
@@ -7864,15 +7882,26 @@ CRITICAL RULES:
           userMessage += `\n\n=== AI DIRECTIONS (FOLLOW THESE CLOSELY) ===\n${input.aiDirections}`;
         }
 
-        // Call LLM via Forge proxy (Claude Sonnet 4)
-        const response = await invokeLLM({
-          model: "claude-sonnet-4-6",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          maxTokens: 4096,
-        });
+        // Respects the project's configured LLM provider/model, same as every other
+        // generation flow — this previously always hardcoded claude-sonnet-4-6.
+        let response;
+        try {
+          response = await callLLM(
+            {
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userMessage },
+              ],
+              maxTokens: 4096,
+            },
+            input.projectId
+          );
+        } catch (error) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error instanceof Error ? `Generation failed: ${error.message}` : "Generation failed",
+          });
+        }
 
         let content: string = (response.choices[0]?.message?.content || "") as string;
 
@@ -7936,6 +7965,54 @@ CRITICAL RULES:
         // script text, both of which it safely converts to <p>-per-line for the article editor.
         const content = input.format === "medium" ? input.content : wrapBareTextInPTags(input.content);
 
+        // SEO metadata is a nice-to-have, not a save-blocker — if generation fails for
+        // any reason, save the article anyway with null metadata rather than losing the
+        // user's content over it.
+        let metaTitle: string | null = null;
+        let metaDescription: string | null = null;
+        try {
+          const plainContent = content.replace(/<[^>]*>/g, " ").slice(0, 2000);
+          const metaResponse = await callLLM(
+            {
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an SEO metadata specialist. Given an article's title and content, write a meta title (50-60 characters) and meta description (150-160 characters) optimized for search click-through. Return ONLY valid JSON, no markdown fences or explanation.",
+                },
+                {
+                  role: "user",
+                  content: `Title: ${input.title}\n\nContent:\n${plainContent}`,
+                },
+              ],
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "seo_metadata",
+                  strict: true,
+                  schema: {
+                    type: "object",
+                    properties: {
+                      metaTitle: { type: "string" },
+                      metaDescription: { type: "string" },
+                    },
+                    required: ["metaTitle", "metaDescription"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            },
+            input.projectId
+          );
+          const raw = metaResponse.choices[0]?.message?.content;
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw);
+            metaTitle = parsed.metaTitle ?? null;
+            metaDescription = parsed.metaDescription ?? null;
+          }
+        } catch (error) {
+          console.warn("[FreeWriter] SEO metadata generation failed, saving without it:", error);
+        }
+
         const { generateSlug } = await import("./cmsPublish");
         const article = await createArticle({
           title: input.title,
@@ -7943,8 +8020,8 @@ CRITICAL RULES:
           excerpt: content.replace(/<[^>]*>/g, "").slice(0, 200),
           keyword: null,
           keywords: null,
-          metaTitle: null,
-          metaDescription: null,
+          metaTitle,
+          metaDescription,
           slug: generateSlug(input.title),
           wordCount: input.wordCount ?? content.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length,
           status: "draft",

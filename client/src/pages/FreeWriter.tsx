@@ -40,7 +40,7 @@ type FormatValue = (typeof FORMAT_OPTIONS)[number]["value"];
 type LengthValue = (typeof LENGTH_OPTIONS)[number]["value"];
 
 export default function FreeWriter() {
-  const { activeProject } = useActiveProject();
+  const { activeProject, projects, setActiveProjectId } = useActiveProject();
   const [, navigate] = useLocation();
 
   // Form state
@@ -233,6 +233,32 @@ export default function FreeWriter() {
               <CardTitle className="text-base font-semibold">What do you want to write?</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Project */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                  Project <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={activeProject ? String(activeProject.id) : undefined}
+                  onValueChange={(v) => setActiveProjectId(Number(v))}
+                >
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        <span className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+                          {p.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400 mt-1">Determines which Brand Voice and ICP inform this content</p>
+              </div>
+
               {/* Title / Topic */}
               <div>
                 <label className="text-sm font-medium text-slate-700 mb-1.5 block">

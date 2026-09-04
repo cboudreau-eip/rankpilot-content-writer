@@ -485,6 +485,30 @@ function wrapBareTextInPTags(content: string): string {
   return result.join("\n");
 }
 
+/** Strips a leading/trailing ``` or ```html markdown code fence some LLM responses
+ * include even when asked for raw output. */
+function stripMarkdownCodeFence(content: string): string {
+  return content.trim().replace(/^```[a-z]*\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
+}
+
+/**
+ * When asked for "HTML format," the LLM sometimes returns a full HTML document
+ * (<!DOCTYPE>, <html>, <head>, <body>) instead of just the content fragment expected
+ * in an article's content field. Unwrapping this here means downstream steps like
+ * wrapBareTextInPTags see only real content lines, not document-structure tags.
+ */
+function extractHtmlBodyIfWrapped(content: string): string {
+  const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (bodyMatch) return bodyMatch[1].trim();
+  if (!/<!DOCTYPE|<html[\s>]/i.test(content)) return content;
+  return content
+    .replace(/<!DOCTYPE[^>]*>/gi, "")
+    .replace(/<\/?html[^>]*>/gi, "")
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, "")
+    .replace(/<\/?body[^>]*>/gi, "")
+    .trim();
+}
+
 function splitLongParagraphs(content: string, maxSentences: number, format: string): string {
   if (format === "plaintext") {
     // Plain text: paragraphs are separated by double newlines
@@ -529,6 +553,11 @@ function splitLongParagraphs(content: string, maxSentences: number, format: stri
     return chunks.join("\n");
   });
 }
+
+// Free Writer formats explicitly instructed to output HTML (see FORMAT_RULES in
+// freeWriter.generate). Every other format is plain prose, a script, or Markdown
+// (medium), where the HTML-structure repair functions below would be no-ops at best.
+const FREE_WRITER_HTML_FORMATS = new Set(["short-article", "email-newsletter", "landing-page"]);
 
 export const appRouter = router({
   system: systemRouter,
@@ -7858,8 +7887,26 @@ CRITICAL RULES:
           }
         }
 
-        // Strip em dashes that might have slipped through
-        content = content.replace(/—/g, " - ");
+        // Shared post-processing pipeline (same functions the main Generate flow uses).
+        // HTML-structure repairs only apply to formats actually instructed to output HTML —
+        // running them on plain prose/script/Markdown content would just be no-ops, so we
+        // skip them there rather than pretend they do something.
+        content = stripMarkdownCodeFence(content);
+        const isHtmlFormat = FREE_WRITER_HTML_FORMATS.has(input.format);
+        if (isHtmlFormat) {
+          content = extractHtmlBodyIfWrapped(content);
+          content = fixBrokenAnchors(content);
+          const citations = await getCitationsByProject(input.projectId);
+          const allowedDomains = citations.map(c => {
+            try { return new URL(c.url).hostname; } catch { return c.url; }
+          });
+          content = sanitizeInsertedLinks(content, allowedDomains);
+          content = stripWrappingStrongTags(content);
+          content = stripTargetBlank(content);
+        }
+        content = stripEmDashes(content);
+        const maxSentences = brandVoice?.sentenceStyle === "short" ? 3 : brandVoice?.sentenceStyle === "detailed" ? 6 : 5;
+        content = splitLongParagraphs(content, maxSentences, isHtmlFormat ? "html" : "plaintext");
 
         return {
           content,
@@ -7868,6 +7915,47 @@ CRITICAL RULES:
           wordCount: content.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length,
           model: response.model,
         };
+      }),
+
+    saveAsArticle: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        title: z.string().min(1).max(500),
+        content: z.string().min(1),
+        format: z.enum(["linkedin", "short-article", "facebook", "email-newsletter", "youtube-script", "landing-page", "medium", "custom"]),
+        wordCount: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+
+        // Medium is Markdown ("## heading" syntax) — wrapBareTextInPTags would wrap that
+        // literal syntax in <p> tags, corrupting it. Every other format is either already
+        // proper HTML (untouched by wrapBareTextInPTags's own tag detection) or plain prose/
+        // script text, both of which it safely converts to <p>-per-line for the article editor.
+        const content = input.format === "medium" ? input.content : wrapBareTextInPTags(input.content);
+
+        const { generateSlug } = await import("./cmsPublish");
+        const article = await createArticle({
+          title: input.title,
+          content,
+          excerpt: content.replace(/<[^>]*>/g, "").slice(0, 200),
+          keyword: null,
+          keywords: null,
+          metaTitle: null,
+          metaDescription: null,
+          slug: generateSlug(input.title),
+          wordCount: input.wordCount ?? content.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length,
+          status: "draft",
+          contentType: `free-writer-${input.format}`,
+          outlineId: null,
+          projectId: input.projectId,
+          userId: 1,
+        });
+
+        if (!article) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save article" });
+        return { articleId: article.id };
       }),
 
     generateImagePrompt: publicProcedure

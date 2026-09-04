@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveProject } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Copy, Check, PenLine, RotateCcw, ImageIcon } from "lucide-react";
+import { Loader2, Copy, Check, PenLine, RotateCcw, ImageIcon, Save } from "lucide-react";
 import { toast } from "sonner";
 
 const FORMAT_OPTIONS = [
@@ -38,6 +39,7 @@ type LengthValue = (typeof LENGTH_OPTIONS)[number]["value"];
 
 export default function FreeWriter() {
   const { activeProject } = useActiveProject();
+  const [, navigate] = useLocation();
 
   // Form state
   const [title, setTitle] = useState("");
@@ -68,6 +70,16 @@ export default function FreeWriter() {
     },
     onError: (error) => {
       toast.error("Generation failed", { description: error.message });
+    },
+  });
+
+  const saveArticleMutation = trpc.freeWriter.saveAsArticle.useMutation({
+    onSuccess: (data) => {
+      toast.success("Saved as article", { description: "Opening in the article editor..." });
+      navigate(`/articles/${data.articleId}`);
+    },
+    onError: (error) => {
+      toast.error("Save failed", { description: error.message });
     },
   });
 
@@ -123,6 +135,17 @@ export default function FreeWriter() {
     setCustomInstructions("");
     setAiDirections("");
     setImagePrompt("");
+  };
+
+  const handleSaveAsArticle = () => {
+    if (!activeProject || !generatedContent) return;
+    saveArticleMutation.mutate({
+      projectId: activeProject.id,
+      title: title.trim() || "Untitled",
+      content: generatedContent,
+      format,
+      wordCount: generationMeta?.wordCount,
+    });
   };
 
   const handleGenerateImagePrompt = () => {
@@ -342,6 +365,20 @@ export default function FreeWriter() {
                     >
                       <RotateCcw className="w-3 h-3 mr-1" />
                       Reset
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSaveAsArticle}
+                      disabled={saveArticleMutation.isPending}
+                      className="text-xs"
+                    >
+                      {saveArticleMutation.isPending ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Save className="w-3 h-3 mr-1" />
+                      )}
+                      Save as Article
                     </Button>
                     <Button
                       variant="outline"

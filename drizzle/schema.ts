@@ -143,6 +143,12 @@ export interface OutlineSettings {
   autoLinkCount?: number;
   /** Secondary keywords / LSI terms to weave into the article */
   secondaryKeywords?: string[];
+  /** LinkedIn post format, when contentType is "linkedin" (e.g. "thought-leadership", "personal-story") */
+  linkedinPostFormat?: string;
+  /** LinkedIn hook style, when contentType is "linkedin" (e.g. "bold-statement", "question") */
+  linkedinHookStyle?: string;
+  linkedinEmojis?: boolean;
+  linkedinHashtags?: boolean;
 }
 
 /**

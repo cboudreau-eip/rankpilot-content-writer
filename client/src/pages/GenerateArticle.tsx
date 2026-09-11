@@ -368,6 +368,10 @@ export default function GenerateArticle() {
   const [keyword, setKeyword] = useState("");
   const [contentType, setContentType] = useState("blog");
   const [tone, setTone] = useState("professional");
+  const [linkedinPostFormat, setLinkedinPostFormat] = useState("thought-leadership");
+  const [linkedinHookStyle, setLinkedinHookStyle] = useState("bold-statement");
+  const [linkedinEmojis, setLinkedinEmojis] = useState(false);
+  const [linkedinHashtags, setLinkedinHashtags] = useState(false);
   const [targetWordCount, setTargetWordCount] = useState("1600");
   const [numSections, setNumSections] = useState("8");
   const [numFaqs, setNumFaqs] = useState("8");
@@ -636,6 +640,10 @@ export default function GenerateArticle() {
           keyword: keyword.trim(),
           contentType,
           tone,
+          linkedinPostFormat: contentType === "linkedin" ? linkedinPostFormat : undefined,
+          linkedinHookStyle: contentType === "linkedin" ? linkedinHookStyle : undefined,
+          linkedinEmojis: contentType === "linkedin" ? linkedinEmojis : undefined,
+          linkedinHashtags: contentType === "linkedin" ? linkedinHashtags : undefined,
           targetWordCount: parseInt(targetWordCount) || 1600,
           numSections: parseInt(numSections) || 8,
           numFaqs: parseInt(numFaqs) || 8,
@@ -666,6 +674,10 @@ export default function GenerateArticle() {
         keyword: keyword.trim(),
         contentType,
         tone,
+        linkedinPostFormat: contentType === "linkedin" ? linkedinPostFormat : undefined,
+        linkedinHookStyle: contentType === "linkedin" ? linkedinHookStyle : undefined,
+        linkedinEmojis: contentType === "linkedin" ? linkedinEmojis : undefined,
+        linkedinHashtags: contentType === "linkedin" ? linkedinHashtags : undefined,
         targetWordCount: parseInt(targetWordCount) || 1600,
         numSections: parseInt(numSections) || 8,
         numFaqs: parseInt(numFaqs) || 8,
@@ -790,6 +802,10 @@ export default function GenerateArticle() {
         keyword: keyword.trim(),
         contentType,
         tone,
+        linkedinPostFormat: contentType === "linkedin" ? linkedinPostFormat : undefined,
+        linkedinHookStyle: contentType === "linkedin" ? linkedinHookStyle : undefined,
+        linkedinEmojis: contentType === "linkedin" ? linkedinEmojis : undefined,
+        linkedinHashtags: contentType === "linkedin" ? linkedinHashtags : undefined,
         targetWordCount: parseInt(targetWordCount) || 1600,
         numSections: parseInt(numSections) || 8,
         numFaqs: parseInt(numFaqs) || 8,
@@ -1292,6 +1308,80 @@ export default function GenerateArticle() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Content Format */}
+            <div>
+              <Label className="text-sm font-semibold">Content Format</Label>
+              <Select
+                value={contentType}
+                onValueChange={(value) => {
+                  setContentType(value);
+                  // LinkedIn posts are short-form — swap the word count default so outlines
+                  // don't inherit a blog-scale target (e.g. a 500-word "Hook" section).
+                  setTargetWordCount(value === "linkedin" ? "300" : "1600");
+                }}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="blog">Standard Article</SelectItem>
+                  <SelectItem value="linkedin">LinkedIn Post</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {contentType === "linkedin" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-semibold">Post Format</Label>
+                  <Select value={linkedinPostFormat} onValueChange={setLinkedinPostFormat}>
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="thought-leadership">Thought Leadership / Opinion</SelectItem>
+                      <SelectItem value="personal-story">Personal Story / Anecdote</SelectItem>
+                      <SelectItem value="listicle">Listicle</SelectItem>
+                      <SelectItem value="commentary">Industry Commentary / Hot Take</SelectItem>
+                      <SelectItem value="case-study">Case Study / Results Breakdown</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Hook Style</Label>
+                  <Select value={linkedinHookStyle} onValueChange={setLinkedinHookStyle}>
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bold-statement">Bold / Contrarian Statement</SelectItem>
+                      <SelectItem value="question">Question</SelectItem>
+                      <SelectItem value="anecdote">Personal Anecdote Opener</SelectItem>
+                      <SelectItem value="stat">Stat or Data Point</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-card cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={linkedinEmojis}
+                    onChange={(e) => setLinkedinEmojis(e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-foreground">Use emojis</span>
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-card cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={linkedinHashtags}
+                    onChange={(e) => setLinkedinHashtags(e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-foreground">Add hashtags</span>
+                </label>
               </div>
             )}
 

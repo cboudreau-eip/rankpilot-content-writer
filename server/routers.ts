@@ -1170,6 +1170,10 @@ Rules:
         secondaryKeywords: z.array(z.string()).optional(),
         research: z.any().optional(),
         useReferenceDoc: z.boolean().optional(),
+        linkedinPostFormat: z.string().optional(),
+        linkedinHookStyle: z.string().optional(),
+        linkedinEmojis: z.boolean().optional(),
+        linkedinHashtags: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         // Auto-fetch ICP from project and brand voice (use selected or default)
@@ -1363,7 +1367,53 @@ ${truncated}
           }
         }
 
-        const systemPrompt = `You are an expert SEO content strategist. Generate a detailed article outline for the given keyword.
+        const isLinkedInOutline = input.contentType === "linkedin";
+
+        const LINKEDIN_POST_FORMAT_LABELS: Record<string, string> = {
+          "thought-leadership": "Thought leadership / opinion piece — take a clear stance on the topic and back it with reasoning or experience",
+          "personal-story": "Personal story / anecdote — narrate a specific experience and draw a broader lesson from it",
+          "listicle": "Listicle — a numbered or bulleted list of distinct, specific points",
+          "commentary": "Industry commentary / hot take — react to a trend, news item, or common belief with a pointed opinion",
+          "case-study": "Case study / results breakdown — walk through a specific result, what was done to achieve it, and what it proves",
+        };
+        const LINKEDIN_HOOK_STYLE_LABELS: Record<string, string> = {
+          "bold-statement": "a bold, possibly contrarian statement that challenges a common assumption",
+          "question": "a direct question aimed at the reader",
+          "anecdote": "a brief, specific personal anecdote or moment",
+          "stat": "a striking statistic or data point",
+        };
+        const linkedinPostFormatLabel = LINKEDIN_POST_FORMAT_LABELS[input.linkedinPostFormat ?? "thought-leadership"] ?? LINKEDIN_POST_FORMAT_LABELS["thought-leadership"];
+        const linkedinHookStyleLabel = LINKEDIN_HOOK_STYLE_LABELS[input.linkedinHookStyle ?? "bold-statement"] ?? LINKEDIN_HOOK_STYLE_LABELS["bold-statement"];
+
+        const systemPrompt = isLinkedInOutline ? `You are an expert LinkedIn content strategist. Generate a structural outline for a LinkedIn post on the given topic.
+
+IMPORTANT — CURRENT DATE CONTEXT: The current year is ${currentYear}. All references to dates, years, regulations, trends, and time-sensitive topics MUST treat ${currentYear} as the present year. Do NOT reference 2024 or any prior year as "current."
+
+Return a JSON object with:
+- "title": A short internal label for this post (NOT a published headline — LinkedIn posts don't have separate titles)
+- "sections": An array of exactly 4 sections representing the post's structure, each with:
+  - "id": A unique string ID (use format "s1", "s2", etc.)
+  - "heading": The structural role of this part — use exactly, in order: "Hook", "Story / Insight", "Lesson / Takeaway", "Call to Action"
+  - "type": "h2"
+  - "points": Array of 2-4 specific bullet points describing what this part should cover (tied to the actual topic, not generic)
+  - "targetWordCount": Estimated word count for this part of the post
+  - "subSections": Always an empty array — LinkedIn posts don't use sub-sections
+
+Guidelines:
+- Post format: ${linkedinPostFormatLabel}
+- Opening hook should be built around: ${linkedinHookStyleLabel}
+- Structure: Hook → Story/Insight → Lesson/Takeaway → Call to Action
+- Target total word count: ${input.targetWordCount ?? 300} words — LinkedIn posts are short-form, keep points tight and specific
+- Tone: ${input.tone ?? "conversational but authoritative"}, written in second person ("you"/"your") where natural
+- UNIQUENESS: Points must be specific and fresh — this should feel like a real person's specific take, not a generic template.
+${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
+${input.targetAudience ? `- Target audience: ${input.targetAudience} — tailor the angle to this audience's interests` : ""}
+${icpSection}
+${brandVoiceSection}
+${input.research ? buildResearchSection(input.research) : ''}
+${outlineReferenceDocSection}
+
+Return ONLY valid JSON, no markdown code blocks.` : `You are an expert SEO content strategist. Generate a detailed article outline for the given keyword.
 
 IMPORTANT — CURRENT DATE CONTEXT: The current year is ${currentYear}. All references to dates, years, regulations, trends, and time-sensitive topics MUST treat ${currentYear} as the present year. Do NOT reference 2024 or any prior year as "current."
 
@@ -1475,6 +1525,10 @@ Return ONLY valid JSON, no markdown code blocks.`;
             sitemapUrls: input.sitemapUrls,
             autoLinkCount: input.autoLinkCount,
             secondaryKeywords: input.secondaryKeywords,
+            linkedinPostFormat: input.linkedinPostFormat,
+            linkedinHookStyle: input.linkedinHookStyle,
+            linkedinEmojis: input.linkedinEmojis,
+            linkedinHashtags: input.linkedinHashtags,
           },
           projectId: input.projectId,
           userId: 1,
@@ -3818,11 +3872,13 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
         }).join("\n");
 
         const settings = outline.settings as OutlineSettings | null;
+        const isLinkedIn = settings?.contentType === "linkedin";
 
         // Merge settings from outline with any overrides from the generate call
         const effectiveLocation = input.targetLocation || settings?.targetLocation || "";
         const effectiveAudience = input.targetAudience || settings?.targetAudience || "";
-        const effectiveFormat = input.outputFormat || settings?.outputFormat || "html";
+        // LinkedIn posts are always plain text — no HTML tags, no template/background-color styling.
+        const effectiveFormat = isLinkedIn ? "plaintext" : (input.outputFormat || settings?.outputFormat || "html");
         const effectiveManualLinks = input.manualLinks || settings?.manualLinks || [];
         const effectiveSitemapUrls: string[] = input.sitemapUrls || (settings?.sitemapUrls as string[] | undefined) || (settings?.sitemapUrl ? [settings.sitemapUrl] : []);
         const effectiveAutoLinkCount = input.autoLinkCount ?? settings?.autoLinkCount ?? 5;
@@ -3834,12 +3890,12 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           secondaryKeywordsInstructions = `\n\nSECONDARY KEYWORDS & LSI TERMS (MUST naturally incorporate):\nThe following keywords and terms should be woven naturally throughout the article to improve topical coverage and semantic relevance. Do NOT force them — use them where they fit contextually. Aim to include each term at least once, but prioritize natural readability over keyword stuffing:\n${effectiveSecondaryKeywords.map(k => `- "${k}"`).join("\n")}\nThese terms help search engines understand the article's topical depth and authority. Distribute them across different sections rather than clustering them in one place.`;
         }
 
-        // Build internal linking instructions
+        // Build internal linking instructions (not applicable to LinkedIn posts)
         let linkingInstructions = "";
-        if (effectiveManualLinks.length > 0) {
+        if (!isLinkedIn && effectiveManualLinks.length > 0) {
           linkingInstructions += `\n\nMANUAL INTERNAL LINKS (MUST include all of these):\n${effectiveManualLinks.map((l, i) => `${i + 1}. Link to "${l.url}"${l.anchorText ? ` using anchor text "${l.anchorText}"` : " with contextually appropriate anchor text"}`).join("\n")}\nWeave these links naturally into the article body. Use <a href="URL">anchor text</a> format. IMPORTANT: Anchor text must be 2-7 words — a short key phrase, NOT a full sentence.`;
         }
-        if (effectiveSitemapUrls.length > 0) {
+        if (!isLinkedIn && effectiveSitemapUrls.length > 0) {
           // Resolve sitemap XML URLs to actual parsed page URLs from the database
           const projectSitemaps = await getSitemapsByProject(input.projectId);
           const resolvedPageUrls: string[] = [];
@@ -3868,9 +3924,9 @@ IMPORTANT: Apply these brand voice guidelines throughout the ENTIRE article. The
           }
         }
 
-        // Fetch citation sources for external linking
+        // Fetch citation sources for external linking (not applicable to LinkedIn posts)
         let citationSourcesSection = "";
-        if (project) {
+        if (!isLinkedIn && project) {
           const projectCitations = await getCitationsByProject(project.id);
           if (projectCitations.length > 0) {
             const sourcesList = projectCitations.map((c: any, i: number) => {
@@ -3931,7 +3987,51 @@ ${truncated}
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.toLocaleString('en-US', { month: 'long' });
 
-        const systemPrompt = `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
+        const LINKEDIN_POST_FORMAT_LABELS: Record<string, string> = {
+          "thought-leadership": "Thought leadership / opinion piece — take a clear stance and back it with reasoning or experience",
+          "personal-story": "Personal story / anecdote — narrate a specific experience and draw a broader lesson from it",
+          "listicle": "Listicle — a numbered or bulleted list of distinct, specific points",
+          "commentary": "Industry commentary / hot take — react to a trend, news item, or common belief with a pointed opinion",
+          "case-study": "Case study / results breakdown — walk through a specific result, what was done to achieve it, and what it proves",
+        };
+        const LINKEDIN_HOOK_STYLE_LABELS: Record<string, string> = {
+          "bold-statement": "a bold, possibly contrarian statement that challenges a common assumption",
+          "question": "a direct question aimed at the reader",
+          "anecdote": "a brief, specific personal anecdote or moment",
+          "stat": "a striking statistic or data point",
+        };
+
+        const linkedInSystemPrompt = `You are writing a single LinkedIn post based on the outline below. This is a LinkedIn post, NOT a blog article or SEO content — do not write it like one.
+
+IMPORTANT — CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${currentYear}. You MUST treat ${currentYear} as the current year. Do NOT reference 2024 or any prior year as "current" or "this year."
+
+LINKEDIN POST RULES:
+- Open with a strong hook line (1-2 sentences max) built around ${LINKEDIN_HOOK_STYLE_LABELS[settings?.linkedinHookStyle ?? "bold-statement"] ?? LINKEDIN_HOOK_STYLE_LABELS["bold-statement"]}
+- Post format: ${LINKEDIN_POST_FORMAT_LABELS[settings?.linkedinPostFormat ?? "thought-leadership"] ?? LINKEDIN_POST_FORMAT_LABELS["thought-leadership"]}
+- Use SHORT paragraphs (1-3 sentences each), with a blank line between paragraphs for readability
+- Write in second person ("you"/"your") where natural, conversational but authoritative
+- Follow the outline's structure: Hook → Story/Insight → Lesson/Takeaway → Call to Action
+- End with a call-to-action or a thought-provoking question
+- ${settings?.linkedinEmojis ? "You may use emoji sparingly as visual line markers (e.g. ✅ 🔹 →) at the start of key lines — do not overuse them." : "Do NOT use any emoji."}
+- ${settings?.linkedinHashtags ? "End the post with 3-5 relevant hashtags on their own final line." : "Do NOT include any hashtags."}
+- Target approximately ${settings?.targetWordCount ?? 300} words total — LinkedIn posts are short-form; do not pad
+- CONTENT UNIQUENESS: Avoid generic advice or formulaic phrases. Write as if this is one specific person's real take, not a template.
+${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language and examples to this audience` : ""}
+${input.additionalInstructions ? `- Additional instructions: ${input.additionalInstructions}` : ""}
+${project?.bannedPhrases?.length ? `
+=== BANNED PHRASES (ABSOLUTE HARD CONSTRAINT) ===
+The following phrases MUST NEVER appear in the generated content under any circumstances. Do not use them, rephrase them, or include close variations:
+${(project.bannedPhrases as string[]).map(p => `- "${p}"`).join("\n")}
+=== END BANNED PHRASES ===` : ''}
+
+${brandVoiceSection}
+
+${icpSection}
+${ctaContext}
+
+Return ONLY the plain text of the LinkedIn post — no Markdown headings (##, ###), no HTML tags, no title/headline separate from the hook line, no surrounding quotes or code fences. Separate paragraphs with a single blank line.`;
+
+        const systemPrompt = isLinkedIn ? linkedInSystemPrompt : `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
 
 IMPORTANT — CURRENT DATE CONTEXT: Today's date is ${currentMonth} ${currentYear}. You MUST treat ${currentYear} as the current year. All references to dates, years, statistics, regulations, and time-sensitive information MUST reflect ${currentYear} as the present year. Do NOT reference 2024 or any prior year as "current" or "this year." If citing statistics or data, prefer the most recent available and clearly label the year of the data.
 
@@ -4064,39 +4164,41 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         // Count words (exclude image tags from word count)
         const wordCount = articleContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
 
-        // Generate meta title and description
-        const metaResponse = await callLLM({
-          messages: [
-            { role: "system", content: "Generate an SEO meta title (max 60 chars) and meta description (max 155 chars) for the given article. Return JSON with 'metaTitle' and 'metaDescription' fields only." },
-            { role: "user", content: `Article title: ${outline.title}\nKeyword: ${outline.keyword ?? outline.title}\nFirst 500 chars: ${articleContent.substring(0, 500)}` },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "seo_meta",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  metaTitle: { type: "string" },
-                  metaDescription: { type: "string" },
-                },
-                required: ["metaTitle", "metaDescription"],
-                additionalProperties: false,
-              },
-            },
-          },
-        });
-
-        const rawMetaContent = metaResponse.choices[0]?.message?.content;
-        const metaContent = typeof rawMetaContent === "string" ? rawMetaContent : (rawMetaContent as any)?.[0]?.text ?? null;
+        // Generate meta title and description (SEO metadata — not applicable to LinkedIn posts)
         let metaTitle = outline.title;
         let metaDescription = "";
-        if (metaContent) {
-          const meta = extractJSON(metaContent);
-          if (meta) {
-            metaTitle = meta.metaTitle || outline.title;
-            metaDescription = meta.metaDescription || "";
+        if (!isLinkedIn) {
+          const metaResponse = await callLLM({
+            messages: [
+              { role: "system", content: "Generate an SEO meta title (max 60 chars) and meta description (max 155 chars) for the given article. Return JSON with 'metaTitle' and 'metaDescription' fields only." },
+              { role: "user", content: `Article title: ${outline.title}\nKeyword: ${outline.keyword ?? outline.title}\nFirst 500 chars: ${articleContent.substring(0, 500)}` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "seo_meta",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    metaTitle: { type: "string" },
+                    metaDescription: { type: "string" },
+                  },
+                  required: ["metaTitle", "metaDescription"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawMetaContent = metaResponse.choices[0]?.message?.content;
+          const metaContent = typeof rawMetaContent === "string" ? rawMetaContent : (rawMetaContent as any)?.[0]?.text ?? null;
+          if (metaContent) {
+            const meta = extractJSON(metaContent);
+            if (meta) {
+              metaTitle = meta.metaTitle || outline.title;
+              metaDescription = meta.metaDescription || "";
+            }
           }
         }
 
@@ -4126,7 +4228,7 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         await updateOutline(input.outlineId, { status: "complete" });
 
         // Auto-grade loop: if enabled, iteratively grade and improve the article
-        if (input.autoGradeEnabled && input.targetGrade && article?.id) {
+        if (input.autoGradeEnabled && input.targetGrade && article?.id && !isLinkedIn) {
           const maxIter = input.maxGradeIterations ?? 2;
           console.log(`[ArticleGen] Auto-grade enabled. Target: ${input.targetGrade}, Max iterations: ${maxIter}`);
           try {

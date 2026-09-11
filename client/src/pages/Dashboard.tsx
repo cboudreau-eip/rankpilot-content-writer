@@ -17,7 +17,6 @@ import {
   KeyRound,
   LayoutDashboard,
   TrendingUp,
-  Target,
   BookOpen,
   Loader2,
   ArrowRight,
@@ -146,41 +145,6 @@ export default function Dashboard() {
 
   const isLoading = statsLoading || articlesLoading;
 
-  const statCards = [
-    {
-      label: "Total Articles",
-      value: stats?.totalArticles ?? 0,
-      icon: FileText,
-      color: "text-indigo-600",
-      bg: "bg-indigo-50",
-      detail: `${stats?.draftCount ?? 0} drafts · ${stats?.completeCount ?? 0} complete`,
-    },
-    {
-      label: "Keywords Tracked",
-      value: stats?.totalKeywords ?? 0,
-      icon: Target,
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
-      detail: "Across all keyword lists",
-    },
-    {
-      label: "Saved Ideas",
-      value: stats?.savedIdeas ?? 0,
-      icon: Lightbulb,
-      color: "text-amber-600",
-      bg: "bg-amber-50",
-      detail: `${stats?.totalIdeas ?? 0} total ideas generated`,
-    },
-    {
-      label: "In Review",
-      value: stats?.reviewCount ?? 0,
-      icon: PenLine,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
-      detail: `${stats?.publishedCount ?? 0} published`,
-    },
-  ];
-
   const ideaColors = [
     "text-rose-500 bg-rose-50",
     "text-indigo-500 bg-indigo-50",
@@ -264,24 +228,6 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {/* Stat Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-                {statCards.map((s) => (
-                  <Card key={s.label} className="shadow-sm">
-                    <CardContent className="pt-5 pb-4 px-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
-                          <s.icon className={`w-5 h-5 ${s.color}`} />
-                        </div>
-                        <span className="text-2xl font-extrabold tracking-tight">{s.value}</span>
-                      </div>
-                      <p className="text-sm font-semibold">{s.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{s.detail}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
               {/* Row 2: Chart + Ideas */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-7">
                 {/* Chart */}

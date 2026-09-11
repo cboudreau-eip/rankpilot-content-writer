@@ -292,6 +292,28 @@ function stripEmDashes(content: string): string {
 }
 
 /**
+ * Converts A-Z, a-z, and 0-9 to their Unicode "Mathematical Bold" equivalents.
+ * LinkedIn's post composer is plain text with no HTML/Markdown support, so this is
+ * the only way emphasis actually survives once a post is pasted onto the platform.
+ */
+function toUnicodeBold(text: string): string {
+  let result = "";
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    if (code >= 65 && code <= 90) result += String.fromCodePoint(0x1D400 + (code - 65)); // A-Z
+    else if (code >= 97 && code <= 122) result += String.fromCodePoint(0x1D41A + (code - 97)); // a-z
+    else if (code >= 48 && code <= 57) result += String.fromCodePoint(0x1D7CE + (code - 48)); // 0-9
+    else result += ch;
+  }
+  return result;
+}
+
+/** Converts **bold** markdown spans to real Unicode bold characters and strips the asterisks. */
+function applyUnicodeBold(content: string): string {
+  return content.replace(/\*\*(.+?)\*\*/g, (_match, inner: string) => toUnicodeBold(inner));
+}
+
+/**
  * Strips "Short Answer:" (and common variants) prefix from FAQ answers in LLM-generated content.
  * The LLM sometimes adds this label even when not instructed to. Removes it from:
  *  - HTML content: inside <p> tags (e.g. <p><strong>Short Answer:</strong> ...)</p> or <p>Short Answer: ...)</p>
@@ -4014,6 +4036,7 @@ LINKEDIN POST RULES:
 - End with a call-to-action or a thought-provoking question
 - ${settings?.linkedinEmojis ? "You may use emoji sparingly as visual line markers (e.g. ✅ 🔹 →) at the start of key lines — do not overuse them." : "Do NOT use any emoji."}
 - ${settings?.linkedinHashtags ? "End the post with 3-5 relevant hashtags on their own final line." : "Do NOT include any hashtags."}
+- EMPHASIS: Wrap your hook line and 1-3 other genuinely key phrases (not whole sentences) in **double asterisks** so they can be rendered bold — e.g. **This is the mistake most people make**. Use this sparingly (2-4 spans total for the whole post); do not bold entire paragraphs.
 - Target approximately ${settings?.targetWordCount ?? 300} words total — LinkedIn posts are short-form; do not pad
 - CONTENT UNIQUENESS: Avoid generic advice or formulaic phrases. Write as if this is one specific person's real take, not a template.
 ${effectiveAudience ? `- Target audience: ${effectiveAudience} — tailor language and examples to this audience` : ""}
@@ -4029,7 +4052,7 @@ ${brandVoiceSection}
 ${icpSection}
 ${ctaContext}
 
-Return ONLY the plain text of the LinkedIn post — no Markdown headings (##, ###), no HTML tags, no title/headline separate from the hook line, no surrounding quotes or code fences. Separate paragraphs with a single blank line.`;
+Return ONLY the plain text of the LinkedIn post — no Markdown headings (##, ###), no HTML tags, no title/headline separate from the hook line, no surrounding quotes or code fences. **bold** spans for emphasis are the only Markdown allowed. Separate paragraphs with a single blank line.`;
 
         const systemPrompt = isLinkedIn ? linkedInSystemPrompt : `You are an expert SEO content writer. Write a comprehensive, well-structured article based on the provided outline.
 
@@ -4125,7 +4148,11 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
         // The article editor always renders `content` as HTML, so LinkedIn's plain-text
         // paragraphs need real <p> tags or the newlines collapse into one run-on block.
         // Done after splitLongParagraphs (which still needs real blank-line separators).
+        // Bold is converted to Unicode characters first since LinkedIn's own composer has
+        // no HTML/Markdown support — a real <strong> tag or literal "**" would not survive
+        // a copy-paste onto the actual platform.
         if (isLinkedIn) {
+          articleContent = applyUnicodeBold(articleContent);
           articleContent = wrapBareTextInPTags(articleContent);
         }
 

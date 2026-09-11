@@ -1022,19 +1022,20 @@ export default function ArticleEditor() {
             SEO
           </Button>
 
-          {/* Copy HTML */}
+          {/* Copy HTML (plain text for LinkedIn posts, since LinkedIn's composer has no HTML support) */}
           <Button
             variant="outline"
             onClick={async () => {
               if (!editor) return;
-              const htmlContent = editor.getHTML();
+              const isLinkedInPost = article?.contentType === "linkedin";
+              const content = isLinkedInPost ? editor.getText({ blockSeparator: "\n\n" }) : editor.getHTML();
               try {
-                await navigator.clipboard.writeText(htmlContent);
+                await navigator.clipboard.writeText(content);
                 setCopied(true);
-                toast.success("HTML copied to clipboard");
+                toast.success(isLinkedInPost ? "Copied — ready to paste into LinkedIn" : "HTML copied to clipboard");
                 setTimeout(() => setCopied(false), 2000);
               } catch {
-                toast.error("Failed to copy HTML");
+                toast.error("Failed to copy");
               }
             }}
             className={copied ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}
@@ -1279,21 +1280,22 @@ export default function ArticleEditor() {
 
               <div className="flex-1" />
 
-              {/* Copy HTML Source Button */}
+              {/* Copy HTML Source Button (plain text for LinkedIn posts) */}
               <button
                 onClick={async () => {
                   if (!editor) return;
-                  const htmlContent = editor.getHTML();
+                  const isLinkedInPost = article?.contentType === "linkedin";
+                  const content = isLinkedInPost ? editor.getText({ blockSeparator: "\n\n" }) : editor.getHTML();
                   try {
-                    await navigator.clipboard.writeText(htmlContent);
+                    await navigator.clipboard.writeText(content);
                     setCopied(true);
-                    toast.success("HTML copied to clipboard");
+                    toast.success(isLinkedInPost ? "Copied — ready to paste into LinkedIn" : "HTML copied to clipboard");
                     setTimeout(() => setCopied(false), 2000);
                   } catch {
-                    toast.error("Failed to copy HTML");
+                    toast.error("Failed to copy");
                   }
                 }}
-                title="Copy HTML Source"
+                title={article?.contentType === "linkedin" ? "Copy for LinkedIn" : "Copy HTML Source"}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
                   copied
                     ? "bg-emerald-50 text-emerald-600 border-emerald-200"
@@ -1301,7 +1303,7 @@ export default function ArticleEditor() {
                 }`}
               >
                 {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied!" : "Copy HTML"}
+                {copied ? "Copied!" : article?.contentType === "linkedin" ? "Copy" : "Copy HTML"}
               </button>
 
               {/* Remove Em Dashes Button */}

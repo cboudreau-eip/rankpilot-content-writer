@@ -26,25 +26,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
-const CONTENT_TYPES = [
-  { value: "blog", label: "Blog Post" },
-  { value: "comparison", label: "Comparison" },
-  { value: "guide", label: "How-To Guide" },
-  { value: "listicle", label: "Listicle" },
-  { value: "pillar", label: "Pillar Page" },
-  { value: "review", label: "Review" },
-  { value: "case-study", label: "Case Study" },
-];
-
-const TONES = [
-  { value: "professional", label: "Professional" },
-  { value: "conversational", label: "Conversational" },
-  { value: "authoritative", label: "Authoritative" },
-  { value: "friendly", label: "Friendly" },
-  { value: "academic", label: "Academic" },
-  { value: "persuasive", label: "Persuasive" },
-];
-
 const LINK_COUNT_OPTIONS = [
   { value: "3", label: "3 links" },
   { value: "5", label: "5 links (default)" },
@@ -1313,37 +1294,6 @@ export default function GenerateArticle() {
                 )}
               </div>
             )}
-
-            {/* Content Type + Tone */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-semibold">Content Type</Label>
-                <Select value={contentType} onValueChange={setContentType}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTENT_TYPES.map((ct) => (
-                      <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-sm font-semibold">Tone / Style</Label>
-                <Select value={tone} onValueChange={setTone}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TONES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
             {/* Word Count + Sections + FAQs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

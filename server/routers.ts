@@ -4122,6 +4122,13 @@ Return ONLY the ${effectiveFormat === "plaintext" ? "plain text" : "HTML"} conte
           ? applyTemplateStyles(bgColoredContent, outline.sections as OutlineSection[])
           : bgColoredContent;
 
+        // The article editor always renders `content` as HTML, so LinkedIn's plain-text
+        // paragraphs need real <p> tags or the newlines collapse into one run-on block.
+        // Done after splitLongParagraphs (which still needs real blank-line separators).
+        if (isLinkedIn) {
+          articleContent = wrapBareTextInPTags(articleContent);
+        }
+
         // Post-generation scan: remove any banned phrases that slipped through
         if (project?.bannedPhrases?.length) {
           for (const phrase of project.bannedPhrases as string[]) {

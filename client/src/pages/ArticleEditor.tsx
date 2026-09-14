@@ -571,6 +571,8 @@ export default function ArticleEditor() {
     { id: articleId },
     { enabled: articleId > 0 }
   );
+  // Grading, SEO metadata, and CMS publishing are all blog/SEO concepts that don't apply to a LinkedIn post.
+  const isLinkedInArticle = article?.contentType === "linkedin";
 
   const updateMutation = trpc.articles.update.useMutation({
     onSuccess: () => {
@@ -993,46 +995,49 @@ export default function ArticleEditor() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Grade Button */}
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (showGrade) { setShowGrade(false); return; }
-              setShowGrade(true);
-              gradeMutation.mutate({ articleId });
-            }}
-            disabled={gradeMutation.isPending}
-            className={showGrade ? "bg-purple-50 text-purple-700 border-purple-200" : ""}
-          >
-            {gradeMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <BarChart3 className="w-4 h-4 mr-1.5" />
-            )}
-            Grade
-          </Button>
+          {/* Grade Button (not applicable to LinkedIn posts) */}
+          {!isLinkedInArticle && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (showGrade) { setShowGrade(false); return; }
+                setShowGrade(true);
+                gradeMutation.mutate({ articleId });
+              }}
+              disabled={gradeMutation.isPending}
+              className={showGrade ? "bg-purple-50 text-purple-700 border-purple-200" : ""}
+            >
+              {gradeMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              ) : (
+                <BarChart3 className="w-4 h-4 mr-1.5" />
+              )}
+              Grade
+            </Button>
+          )}
 
-          {/* SEO Toggle */}
-          <Button
-            variant="outline"
-            onClick={() => setShowSeo(!showSeo)}
-            className={showSeo ? "bg-indigo-50 text-indigo-700 border-indigo-200" : ""}
-          >
-            <Search className="w-4 h-4 mr-1.5" />
-            SEO
-          </Button>
+          {/* SEO Toggle (not applicable to LinkedIn posts) */}
+          {!isLinkedInArticle && (
+            <Button
+              variant="outline"
+              onClick={() => setShowSeo(!showSeo)}
+              className={showSeo ? "bg-indigo-50 text-indigo-700 border-indigo-200" : ""}
+            >
+              <Search className="w-4 h-4 mr-1.5" />
+              SEO
+            </Button>
+          )}
 
           {/* Copy HTML (plain text for LinkedIn posts, since LinkedIn's composer has no HTML support) */}
           <Button
             variant="outline"
             onClick={async () => {
               if (!editor) return;
-              const isLinkedInPost = article?.contentType === "linkedin";
-              const content = isLinkedInPost ? editor.getText({ blockSeparator: "\n\n" }) : editor.getHTML();
+              const content = isLinkedInArticle ? editor.getText({ blockSeparator: "\n\n" }) : editor.getHTML();
               try {
                 await navigator.clipboard.writeText(content);
                 setCopied(true);
-                toast.success(isLinkedInPost ? "Copied — ready to paste into LinkedIn" : "HTML copied to clipboard");
+                toast.success(isLinkedInArticle ? "Copied — ready to paste into LinkedIn" : "HTML copied to clipboard");
                 setTimeout(() => setCopied(false), 2000);
               } catch {
                 toast.error("Failed to copy");
@@ -1136,24 +1141,26 @@ export default function ArticleEditor() {
                 Links Audit
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!articleId) return;
-                  if (article?.status === "published") {
-                    toast.info("Article is already published");
-                    return;
-                  }
-                  publishCmsMutation.mutate({ articleId });
-                }}
-                disabled={publishCmsMutation.isPending || article?.status === "published"}
-              >
-                {publishCmsMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Globe className="w-4 h-4 mr-2 text-emerald-600" />
-                )}
-                {article?.status === "published" ? "Sent to CMS" : "Send to CMS (Draft)"}
-              </DropdownMenuItem>
+              {!isLinkedInArticle && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!articleId) return;
+                    if (article?.status === "published") {
+                      toast.info("Article is already published");
+                      return;
+                    }
+                    publishCmsMutation.mutate({ articleId });
+                  }}
+                  disabled={publishCmsMutation.isPending || article?.status === "published"}
+                >
+                  {publishCmsMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Globe className="w-4 h-4 mr-2 text-emerald-600" />
+                  )}
+                  {article?.status === "published" ? "Sent to CMS" : "Send to CMS (Draft)"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => {
                   if (!editor) return;
@@ -1174,26 +1181,28 @@ export default function ArticleEditor() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Push to CMS */}
-          <Button
-            className="bg-orange-500 hover:bg-orange-600 text-white border-0"
-            onClick={() => {
-              if (!articleId) return;
-              if (article?.status === "published") {
-                toast.info("Article already sent to CMS");
-                return;
-              }
-              publishCmsMutation.mutate({ articleId });
-            }}
-            disabled={publishCmsMutation.isPending || article?.status === "published"}
-          >
-            {publishCmsMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <Globe className="w-4 h-4 mr-1.5" />
-            )}
-            {article?.status === "published" ? "Sent to CMS" : "Push to CMS"}
-          </Button>
+          {/* Push to CMS (not applicable to LinkedIn posts) */}
+          {!isLinkedInArticle && (
+            <Button
+              className="bg-orange-500 hover:bg-orange-600 text-white border-0"
+              onClick={() => {
+                if (!articleId) return;
+                if (article?.status === "published") {
+                  toast.info("Article already sent to CMS");
+                  return;
+                }
+                publishCmsMutation.mutate({ articleId });
+              }}
+              disabled={publishCmsMutation.isPending || article?.status === "published"}
+            >
+              {publishCmsMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              ) : (
+                <Globe className="w-4 h-4 mr-1.5" />
+              )}
+              {article?.status === "published" ? "Sent to CMS" : "Push to CMS"}
+            </Button>
+          )}
 
           {/* Save */}
           <Button
@@ -1284,18 +1293,17 @@ export default function ArticleEditor() {
               <button
                 onClick={async () => {
                   if (!editor) return;
-                  const isLinkedInPost = article?.contentType === "linkedin";
-                  const content = isLinkedInPost ? editor.getText({ blockSeparator: "\n\n" }) : editor.getHTML();
+                  const content = isLinkedInArticle ? editor.getText({ blockSeparator: "\n\n" }) : editor.getHTML();
                   try {
                     await navigator.clipboard.writeText(content);
                     setCopied(true);
-                    toast.success(isLinkedInPost ? "Copied — ready to paste into LinkedIn" : "HTML copied to clipboard");
+                    toast.success(isLinkedInArticle ? "Copied — ready to paste into LinkedIn" : "HTML copied to clipboard");
                     setTimeout(() => setCopied(false), 2000);
                   } catch {
                     toast.error("Failed to copy");
                   }
                 }}
-                title={article?.contentType === "linkedin" ? "Copy for LinkedIn" : "Copy HTML Source"}
+                title={isLinkedInArticle ? "Copy for LinkedIn" : "Copy HTML Source"}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
                   copied
                     ? "bg-emerald-50 text-emerald-600 border-emerald-200"
@@ -1303,7 +1311,7 @@ export default function ArticleEditor() {
                 }`}
               >
                 {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied!" : article?.contentType === "linkedin" ? "Copy" : "Copy HTML"}
+                {copied ? "Copied!" : isLinkedInArticle ? "Copy" : "Copy HTML"}
               </button>
 
               {/* Remove Em Dashes Button */}

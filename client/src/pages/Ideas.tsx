@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   Lightbulb, Search, Loader2, Target, TrendingUp, Users, BarChart3,
   FolderPlus, FileText, Sparkles, Pencil, Check, X, Plus, Trash2,
-  PenTool, Archive, RotateCcw, ListFilter, ChevronDown,
+  PenTool, Archive, RotateCcw, ListFilter, ChevronDown, ScanSearch, Globe,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useActiveProject } from "@/components/AppLayout";
@@ -111,8 +111,8 @@ export default function Ideas() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Tab state: "generate" or "saved"
-  const [activeTab, setActiveTab] = useState<"generate" | "saved">("generate");
+  // Tab state: "generate", "scan", or "saved"
+  const [activeTab, setActiveTab] = useState<"generate" | "scan" | "saved">("generate");
 
   // Saved ideas query
   const savedIdeasQuery = trpc.ideas.list.useQuery(
@@ -120,9 +120,41 @@ export default function Ideas() {
     { enabled: !!activeProject && activeTab === "saved" }
   );
 
+  // Sitemap scan state
+  const [selectedScanSitemapIds, setSelectedScanSitemapIds] = useState<Set<number>>(new Set());
+  const [scanCount, setScanCount] = useState(9);
+  const [scanCustomInstructions, setScanCustomInstructions] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanIdeas, setScanIdeas] = useState<ArticleIdea[]>([]);
+  const [scanPagesScanned, setScanPagesScanned] = useState<number | null>(null);
+  const [scanPagesFailed, setScanPagesFailed] = useState<number | null>(null);
+  const [isSavingAllScanIdeas, setIsSavingAllScanIdeas] = useState(false);
+
+  // Sitemap scan editing state (separate from the seed-keyword tab's editing state)
+  const [scanEditingIndex, setScanEditingIndex] = useState<number | null>(null);
+  const [scanEditingIdea, setScanEditingIdea] = useState<EditingIdea | null>(null);
+
+  // Fetch project sitemaps for the "Scan Sitemap" picker
+  const projectSitemapsQuery = trpc.sitemaps.list.useQuery(
+    { projectId: activeProject?.id ?? 0 },
+    { enabled: !!activeProject && activeTab === "scan" }
+  );
+  const projectSitemapsForScan = projectSitemapsQuery.data || [];
+
+  const toggleScanSitemapId = (id: number) => {
+    setSelectedScanSitemapIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   // Mutations
   const generateMutation = trpc.ideas.generate.useMutation();
+  const generateFromSitemapScanMutation = trpc.ideas.generateFromSitemapScan.useMutation();
   const saveMutation = trpc.ideas.save.useMutation();
+  const saveBulkMutation = trpc.ideas.saveBulk.useMutation();
   const deleteMutation = trpc.ideas.delete.useMutation();
   const updateMutation = trpc.ideas.update.useMutation();
 
@@ -150,6 +182,69 @@ export default function Ideas() {
       toast.error(error.message || "Failed to generate ideas. Please try again.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleScanForGaps = async () => {
+    if (!activeProject) {
+      toast.error("Please select a project first");
+      return;
+    }
+
+    setIsScanning(true);
+    setScanIdeas([]);
+    setScanPagesScanned(null);
+    setScanPagesFailed(null);
+
+    try {
+      const result = await generateFromSitemapScanMutation.mutateAsync({
+        projectId: activeProject.id,
+        sitemapIds: selectedScanSitemapIds.size > 0 ? Array.from(selectedScanSitemapIds) : undefined,
+        count: scanCount,
+        customInstructions: scanCustomInstructions.trim() || undefined,
+      });
+      setScanIdeas(result.ideas || []);
+      setScanPagesScanned(result.pagesScanned ?? 0);
+      setScanPagesFailed(result.pagesFailed ?? 0);
+      toast.success(`Found ${result.ideas?.length || 0} content gap ideas!`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to scan your sitemap. Please try again.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleSaveAllScanIdeas = async () => {
+    if (!activeProject) {
+      toast.error("Please select a project first");
+      return;
+    }
+    if (scanIdeas.length === 0) return;
+
+    setIsSavingAllScanIdeas(true);
+    try {
+      await saveBulkMutation.mutateAsync({
+        ideas: scanIdeas.map((idea) => ({
+          title: idea.title,
+          keyword: idea.keyword,
+          searchIntent: idea.searchIntent || undefined,
+          wordCountRange: idea.wordCountRange || undefined,
+          contentAngles: idea.contentAngles || undefined,
+          targetAudience: idea.targetAudience || undefined,
+          rankingPotential: idea.rankingPotential || undefined,
+          description: idea.description || undefined,
+        })),
+        projectId: activeProject.id,
+      });
+      toast.success(`Saved ${scanIdeas.length} idea${scanIdeas.length !== 1 ? "s" : ""} to "${activeProject.name}"!`);
+      setScanIdeas([]);
+      setScanPagesScanned(null);
+      setScanPagesFailed(null);
+      savedIdeasQuery.refetch();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save ideas");
+    } finally {
+      setIsSavingAllScanIdeas(false);
     }
   };
 
@@ -273,6 +368,45 @@ export default function Ideas() {
     setEditingIdea({ ...editingIdea, contentAngles: newAngles });
   };
 
+  // Editing handlers for the "Scan Sitemap" tab's results
+  const handleScanStartEdit = (index: number) => {
+    setScanEditingIndex(index);
+    setScanEditingIdea({ ...scanIdeas[index], newAngle: "" });
+  };
+
+  const handleScanCancelEdit = () => {
+    setScanEditingIndex(null);
+    setScanEditingIdea(null);
+  };
+
+  const handleScanSaveEdit = () => {
+    if (scanEditingIndex === null || !scanEditingIdea) return;
+    const updatedIdeas = [...scanIdeas];
+    const { newAngle, ...ideaWithoutNewAngle } = scanEditingIdea;
+    updatedIdeas[scanEditingIndex] = ideaWithoutNewAngle;
+    setScanIdeas(updatedIdeas);
+    setScanEditingIndex(null);
+    setScanEditingIdea(null);
+    toast.success("Idea updated!");
+  };
+
+  const updateScanEditingField = (field: keyof ArticleIdea, value: string | string[]) => {
+    if (!scanEditingIdea) return;
+    setScanEditingIdea({ ...scanEditingIdea, [field]: value });
+  };
+
+  const handleScanAddAngle = () => {
+    if (!scanEditingIdea || !scanEditingIdea.newAngle?.trim()) return;
+    const newAngles = [...scanEditingIdea.contentAngles, scanEditingIdea.newAngle.trim()];
+    setScanEditingIdea({ ...scanEditingIdea, contentAngles: newAngles, newAngle: "" });
+  };
+
+  const handleScanRemoveAngle = (angleIndex: number) => {
+    if (!scanEditingIdea) return;
+    const newAngles = scanEditingIdea.contentAngles.filter((_, i) => i !== angleIndex);
+    setScanEditingIdea({ ...scanEditingIdea, contentAngles: newAngles });
+  };
+
   return (
     <div className="max-w-[1200px] mx-auto space-y-6">
       {/* Header */}
@@ -297,6 +431,17 @@ export default function Ideas() {
         >
           <Sparkles className="w-4 h-4 inline mr-1.5" />
           Generate
+        </button>
+        <button
+          onClick={() => setActiveTab("scan")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "scan"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ScanSearch className="w-4 h-4 inline mr-1.5" />
+          Scan Sitemap
         </button>
         <button
           onClick={() => setActiveTab("saved")}
@@ -557,6 +702,216 @@ export default function Ideas() {
                 <h3 className="text-lg font-semibold mb-2">No ideas generated yet</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   Enter a seed keyword above and click Generate to discover article opportunities.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Scan Sitemap Tab */}
+      {activeTab === "scan" && (
+        <div className="space-y-6">
+          {/* Scan Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ScanSearch className="w-5 h-5" />
+                Scan Sitemap for Content Gaps
+              </CardTitle>
+              <CardDescription>
+                Scan your project's real page content and let AI suggest topics you haven't covered yet
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-5">
+                {/* Sitemap Picker */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">
+                    Sitemaps to Scan
+                    <span className="text-xs text-muted-foreground font-normal ml-1.5">(Optional)</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Leave unselected to scan all sitemaps in this project.
+                  </p>
+
+                  {!activeProject ? (
+                    <p className="text-sm text-muted-foreground">Select a project from the sidebar to pick sitemaps.</p>
+                  ) : projectSitemapsQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading sitemaps...
+                    </div>
+                  ) : projectSitemapsForScan.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No sitemaps found for this project. Add one in Project Settings first.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {projectSitemapsForScan.map((sitemap: any) => (
+                        <label
+                          key={sitemap.id}
+                          className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedScanSitemapIds.has(sitemap.id)}
+                            onCheckedChange={() => toggleScanSitemapId(sitemap.id)}
+                            className="mt-0.5"
+                          />
+                          <Globe className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{sitemap.url}</p>
+                            <p className="text-xs text-muted-foreground">{sitemap.urlCount} URLs</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Quantity Selector */}
+                <div>
+                  <Label className="text-sm mb-1.5 block">Number of Ideas</Label>
+                  <Select value={scanCount.toString()} onValueChange={(v) => setScanCount(parseInt(v))}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="3">3 ideas</SelectItem>
+                      <SelectItem value="5">5 ideas</SelectItem>
+                      <SelectItem value="7">7 ideas</SelectItem>
+                      <SelectItem value="9">9 ideas (default)</SelectItem>
+                      <SelectItem value="12">12 ideas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Custom Instructions */}
+                <div>
+                  <Label className="text-sm mb-1.5 block flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4" />
+                    Custom AI Instructions (Optional)
+                  </Label>
+                  <Textarea
+                    value={scanCustomInstructions}
+                    onChange={(e) => setScanCustomInstructions(e.target.value)}
+                    placeholder={"Add any specific instructions to guide the AI. Examples:\n• Focus on gaps in our service pages\n• Prioritize topics with local intent\n• Avoid duplicating our FAQ content\n• Target small business owners in Texas"}
+                    className="min-h-[100px] text-sm"
+                    maxLength={1000}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Provide context about your business, target audience, or title preferences.
+                    <span className="ml-2 text-muted-foreground/60">({scanCustomInstructions.length}/1000)</span>
+                  </p>
+                </div>
+
+                {/* Scan Button */}
+                <div>
+                  <Button
+                    onClick={handleScanForGaps}
+                    disabled={isScanning || !activeProject}
+                  >
+                    {isScanning ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <ScanSearch className="mr-2 h-4 w-4" />
+                        Scan for Content Gaps
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Loading State */}
+          {isScanning && (
+            <Card>
+              <CardContent className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold mb-1">Scanning Your Sitemap</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Scanning your sitemap and analyzing existing content — this can take up to a minute.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Scan Results */}
+          {!isScanning && scanIdeas.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    Content Gap Ideas ({scanIdeas.length})
+                  </h2>
+                  {(scanPagesScanned !== null || scanPagesFailed !== null) && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Scanned {scanPagesScanned ?? 0} page{(scanPagesScanned ?? 0) !== 1 ? "s" : ""}
+                      {!!scanPagesFailed && ` (${scanPagesFailed} failed to load)`}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={handleSaveAllScanIdeas}
+                  disabled={isSavingAllScanIdeas || !activeProject}
+                  variant="outline"
+                >
+                  {isSavingAllScanIdeas ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FolderPlus className="mr-2 h-4 w-4" />
+                      Save All
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="grid gap-4">
+                {scanIdeas.map((idea, index) => {
+                  const isEditing = scanEditingIndex === index;
+                  const displayIdea = isEditing && scanEditingIdea ? scanEditingIdea : idea;
+
+                  return (
+                    <IdeaCard
+                      key={index}
+                      idea={displayIdea}
+                      isEditing={isEditing}
+                      editingIdea={scanEditingIdea}
+                      onStartEdit={() => handleScanStartEdit(index)}
+                      onCancelEdit={handleScanCancelEdit}
+                      onSaveEdit={handleScanSaveEdit}
+                      onUpdateField={updateScanEditingField}
+                      onAddAngle={handleScanAddAngle}
+                      onRemoveAngle={handleScanRemoveAngle}
+                      onSetEditingIdea={setScanEditingIdea}
+                      onAddToProject={() => handleAddToProject(idea)}
+                      onUseIdea={() => handleUseIdea(idea)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isScanning && scanIdeas.length === 0 && (
+            <Card className="text-center py-12">
+              <CardContent>
+                <ScanSearch className="w-14 h-14 text-muted-foreground/30 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No content gaps scanned yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Optionally select sitemaps above and click Scan for Content Gaps to discover topics your site hasn't covered.
                 </p>
               </CardContent>
             </Card>

@@ -2,5 +2,10 @@
   "outputDirectory": "dist/public",
   "rewrites": [
     { "source": "/:path((?!api/).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/trpc/[proc].js": {
+      "maxDuration": 60
+    }
+  }
 }

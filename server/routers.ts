@@ -257,6 +257,126 @@ function extractJSON(raw: string): any {
 }
 
 /**
+ * Decodes a small set of common HTML entities found in page <title>/<meta>/body text.
+ * Not a full entity table — matches this codebase's "reasonable regex extraction"
+ * standard for lightweight text extraction (see sitemap-parser.ts's regex-based
+ * sitemap XML parsing for the level of rigor expected here).
+ */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) => {
+      try { return String.fromCharCode(parseInt(code, 10)); } catch { return ""; }
+    });
+}
+
+type ScannedPage = {
+  url: string;
+  title: string;
+  metaDescription: string;
+  excerpt: string;
+};
+
+/**
+ * Fetches real page content (title, meta description, body excerpt) for a list of URLs.
+ * Used by ideas.generateFromSitemapScan to ground new content ideas in what the site
+ * actually says today, instead of just guessing at topics from URL slugs.
+ *
+ * - Runs with LIMITED CONCURRENCY (PAGE_FETCH_CONCURRENCY) so this stays bounded when
+ *   running as a time-limited Vercel serverless function, and doesn't hammer the
+ *   target site with a burst of simultaneous requests.
+ * - A failure fetching any single URL (timeout, non-2xx status, network error, or a
+ *   non-http(s) URL) is caught and skipped — it NEVER aborts the rest of the scan.
+ *   Every skipped/failed URL is counted so the caller can report how many failed.
+ */
+async function fetchPageSignals(urls: string[]): Promise<{ pages: ScannedPage[]; failed: number }> {
+  const PAGE_FETCH_CONCURRENCY = 8;
+  const PAGE_FETCH_TIMEOUT_MS = 6000;
+  const MAX_BODY_CHARS_READ = 50000; // cap how much of the response body we bother scanning
+  const MAX_RESPONSE_BYTES = 3_000_000; // skip anything bigger than ~3MB — no real HTML page needs more
+  const EXCERPT_MAX_CHARS = 400;
+  const TITLE_MAX_CHARS = 200;
+
+  const fetchOne = async (url: string): Promise<ScannedPage | null> => {
+    // Only treat http/https URLs as fetchable; skip anything else defensively.
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        redirect: "follow",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; RankPilot/1.0; +https://rankpilot.app)",
+        },
+      });
+      if (!response.ok) return null;
+
+      // Skip anything that isn't actually an HTML page before buffering the body —
+      // a sitemap URL that happens to serve a PDF, video, or other large asset should
+      // never be fully downloaded just to look for a <title> tag that won't be there.
+      const contentType = response.headers.get("content-type") || "";
+      if (!/text\/html|application\/xhtml/i.test(contentType)) return null;
+      const contentLength = response.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) return null;
+
+      const rawBody = await response.text();
+      const html = rawBody.slice(0, MAX_BODY_CHARS_READ);
+
+      const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const title = titleMatch ? decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, " ").trim().slice(0, TITLE_MAX_CHARS) : "";
+
+      const metaTagMatch = html.match(/<meta\s+[^>]*name=["']description["'][^>]*>/i);
+      let metaDescription = "";
+      if (metaTagMatch) {
+        const contentMatch = metaTagMatch[0].match(/content=["']([^"']*)["']/i);
+        if (contentMatch) metaDescription = decodeHtmlEntities(contentMatch[1]).replace(/\s+/g, " ").trim().slice(0, TITLE_MAX_CHARS);
+      }
+
+      // Strip script/style blocks first, then all remaining tags, to get a rough
+      // approximation of visible body text (no DOM parser — regex is fine here).
+      const bodyText = html
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const excerpt = decodeHtmlEntities(bodyText).slice(0, EXCERPT_MAX_CHARS);
+
+      return { url, title, metaDescription, excerpt };
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const pages: ScannedPage[] = [];
+  let failed = 0;
+  for (let i = 0; i < urls.length; i += PAGE_FETCH_CONCURRENCY) {
+    const batch = urls.slice(i, i + PAGE_FETCH_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(fetchOne));
+    for (const result of batchResults) {
+      if (result) pages.push(result);
+      else failed++;
+    }
+  }
+  return { pages, failed };
+}
+
+/**
  * Returns the expected average CTR for a given SERP position.
  * Based on industry benchmarks (Advanced Web Ranking / Backlinko studies).
  */
@@ -7728,6 +7848,186 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         const session = await verifyAppSession(token);
         if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
         return getIdeasCount(input.projectId);
+      }),
+
+    /**
+     * Generate content ideas from a real scan of the project's sitemap pages.
+     * Unlike `generate` (which works from a seed keyword) and unlike
+     * `sitemaps.checkCoverage` (which only reasons over URL/title slugs), this
+     * fetches the ACTUAL page content — title, meta description, and a body
+     * excerpt — for a sample of the project's sitemap URLs, and asks the LLM
+     * to suggest new topics that aren't already covered or already planned.
+     * Ephemeral like `generate` — nothing is persisted here; the caller reviews
+     * the returned ideas and saves the ones they want via `save` / `saveBulk`.
+     */
+    generateFromSitemapScan: publicProcedure
+      .input(z.object({
+        projectId: z.number(),
+        sitemapIds: z.array(z.number()).optional(),
+        maxPages: z.number().min(5).max(60).optional(),
+        count: z.number().min(3).max(20).optional(),
+        customInstructions: z.string().max(1000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = getSessionToken(ctx.req);
+        const session = await verifyAppSession(token);
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        // ---- 1. Gather sitemap URLs (same pattern as sitemaps.checkCoverage) ----
+        const allSitemaps = await getSitemapsByProject(input.projectId);
+        if (!allSitemaps || allSitemaps.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No sitemaps found for this project. Add a sitemap in Project Settings first." });
+        }
+
+        const targetSitemaps = input.sitemapIds && input.sitemapIds.length > 0
+          ? allSitemaps.filter(sm => input.sitemapIds!.includes(sm.id))
+          : allSitemaps;
+        if (targetSitemaps.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "None of the selected sitemaps were found for this project." });
+        }
+
+        const allUrls: { url: string; title?: string }[] = [];
+        for (const sm of targetSitemaps) {
+          if (sm.parsedUrls && Array.isArray(sm.parsedUrls)) {
+            for (const u of sm.parsedUrls) {
+              allUrls.push({ url: u.url, title: u.title || undefined });
+            }
+          }
+        }
+        if (allUrls.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Sitemaps contain no parsed URLs. Try refreshing your sitemaps." });
+        }
+
+        // ---- 2. Fetch real page content for a capped sample of those URLs ----
+        const maxPages = input.maxPages ?? 30;
+        const urlsToScan = allUrls.slice(0, maxPages).map(u => u.url);
+
+        const { pages: scannedPages, failed: pagesFailed } = await fetchPageSignals(urlsToScan);
+        if (scannedPages.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Could not fetch content from any sitemap pages — every request failed (timeouts, non-2xx responses, or the site may be blocking automated requests). Try again or check that the sitemap URLs are reachable." });
+        }
+
+        // ---- 3. Cross-reference existing keywords + ideas so we don't suggest duplicates ----
+        const [existingKeywords, existingIdeas] = await Promise.all([
+          getProjectKeywordsList(input.projectId),
+          getIdeasByProject(input.projectId),
+        ]);
+
+        const alreadyCoveredSet = new Set<string>();
+        for (const kw of existingKeywords) {
+          if (kw.keyword && kw.keyword.trim()) alreadyCoveredSet.add(kw.keyword.trim());
+        }
+        for (const idea of existingIdeas) {
+          if (idea.keyword && idea.keyword.trim()) alreadyCoveredSet.add(idea.keyword.trim());
+          if (idea.title && idea.title.trim()) alreadyCoveredSet.add(idea.title.trim());
+        }
+        const alreadyCoveredList = Array.from(alreadyCoveredSet).slice(0, 200);
+
+        // ---- 4. Ask the LLM for new ideas, grounded in the real scanned content ----
+        const ideaCount = input.count ?? 8;
+
+        const pagesBlock = scannedPages.map((p, i) => {
+          const parts = [`${i + 1}. URL: ${p.url}`];
+          if (p.title) parts.push(`   Title: ${p.title}`);
+          if (p.metaDescription) parts.push(`   Meta description: ${p.metaDescription}`);
+          if (p.excerpt) parts.push(`   Excerpt: ${p.excerpt}`);
+          return parts.join("\n");
+        }).join("\n\n");
+
+        const alreadyCoveredBlock = alreadyCoveredList.length > 0
+          ? alreadyCoveredList.map((k, i) => `${i + 1}. ${k}`).join("\n")
+          : "(none on file)";
+
+        let customInstructionsBlock = "";
+        if (input.customInstructions && input.customInstructions.trim()) {
+          customInstructionsBlock = `\n\nUSER INSTRUCTIONS (follow these carefully):\n${input.customInstructions.trim()}`;
+        }
+
+        const systemPrompt = `You are an expert SEO content strategist. Below is the actual content found on each existing page of this site — real fetched page titles, meta descriptions, and body excerpts, not just guesses based on URL slugs. Use this real content to understand what the site already covers in depth.
+
+IMPORTANT: The current year is 2026. When creating titles or content that reference time periods, use 2026 (not 2024 or 2025).
+
+Your job is to suggest exactly ${ideaCount} NEW content ideas for topics or subtopics that are NOT already covered by the existing pages below, and NOT already in the "already covered or planned" keyword/title list. Do not propose a topic that substantially overlaps with an existing page's title, meta description, or excerpt.
+
+For each idea, provide:
+1. Article title (compelling and SEO-friendly)
+2. Primary keyword/phrase
+3. Search intent (informational, transactional, local, or navigational)
+4. Estimated word count range
+5. Key content angles to cover (3-5 short phrases)
+6. Target audience
+7. Ranking potential (high, medium, or low)
+8. Brief description of what the article would cover
+
+Focus on topics that:
+- Fill a genuine gap in what this site currently covers
+- Have strong search demand
+- Can be comprehensively covered
+- Serve clear user intent
+- Provide genuine value to readers${customInstructionsBlock}`;
+
+        const userPrompt = `EXISTING PAGES ON THIS SITE (${scannedPages.length} successfully scanned${pagesFailed > 0 ? `, ${pagesFailed} page(s) failed to fetch and were skipped` : ""}):
+
+${pagesBlock}
+
+ALREADY COVERED OR PLANNED KEYWORDS/TITLES (do not duplicate these):
+${alreadyCoveredBlock}
+
+Generate exactly ${ideaCount} distinct new content ideas for topics not already covered above.`;
+
+        const ideasResult = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: {
+            type: "json_schema" as const,
+            json_schema: {
+              name: "sitemap_scan_ideas",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  ideas: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        keyword: { type: "string" },
+                        searchIntent: { type: "string", enum: ["informational", "transactional", "local", "navigational"] },
+                        wordCountRange: { type: "string" },
+                        contentAngles: { type: "array", items: { type: "string" } },
+                        targetAudience: { type: "string" },
+                        rankingPotential: { type: "string", enum: ["high", "medium", "low"] },
+                        description: { type: "string" },
+                      },
+                      required: ["title", "keyword", "searchIntent", "wordCountRange", "contentAngles", "targetAudience", "rankingPotential", "description"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["ideas"],
+                additionalProperties: false,
+              },
+            },
+          },
+        }, input.projectId);
+
+        const rawContent = ideasResult.choices?.[0]?.message?.content;
+        const text = typeof rawContent === "string" ? rawContent : "";
+
+        const parsed = extractJSON(text);
+        if (!parsed || !Array.isArray(parsed.ideas)) {
+          console.error("[GenerateFromSitemapScan] Failed to parse LLM response:", text);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse generated ideas. Please try again." });
+        }
+
+        return {
+          ideas: parsed.ideas,
+          pagesScanned: scannedPages.length,
+          pagesFailed,
+        };
       }),
   }),
 

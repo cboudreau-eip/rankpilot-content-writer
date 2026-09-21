@@ -128,6 +128,7 @@ export default function Ideas() {
   const [scanIdeas, setScanIdeas] = useState<ArticleIdea[]>([]);
   const [scanPagesScanned, setScanPagesScanned] = useState<number | null>(null);
   const [scanPagesFailed, setScanPagesFailed] = useState<number | null>(null);
+  const [scanDuplicatesFiltered, setScanDuplicatesFiltered] = useState<number | null>(null);
   const [isSavingAllScanIdeas, setIsSavingAllScanIdeas] = useState(false);
 
   // Sitemap scan editing state (separate from the seed-keyword tab's editing state)
@@ -195,6 +196,7 @@ export default function Ideas() {
     setScanIdeas([]);
     setScanPagesScanned(null);
     setScanPagesFailed(null);
+    setScanDuplicatesFiltered(null);
 
     try {
       const result = await generateFromSitemapScanMutation.mutateAsync({
@@ -206,6 +208,7 @@ export default function Ideas() {
       setScanIdeas(result.ideas || []);
       setScanPagesScanned(result.pagesScanned ?? 0);
       setScanPagesFailed(result.pagesFailed ?? 0);
+      setScanDuplicatesFiltered(result.duplicatesFiltered ?? 0);
       toast.success(`Found ${result.ideas?.length || 0} content gap ideas!`);
     } catch (error: any) {
       toast.error(error.message || "Failed to scan your sitemap. Please try again.");
@@ -855,6 +858,7 @@ export default function Ideas() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Scanned {scanPagesScanned ?? 0} page{(scanPagesScanned ?? 0) !== 1 ? "s" : ""}
                       {!!scanPagesFailed && ` (${scanPagesFailed} failed to load)`}
+                      {!!scanDuplicatesFiltered && ` — ${scanDuplicatesFiltered} already covered by an existing article, filtered out`}
                     </p>
                   )}
                 </div>

@@ -7907,10 +7907,13 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
           throw new TRPCError({ code: "BAD_REQUEST", message: "Could not fetch content from any sitemap pages — every request failed (timeouts, non-2xx responses, or the site may be blocking automated requests). Try again or check that the sitemap URLs are reachable." });
         }
 
-        // ---- 3. Cross-reference existing keywords + ideas so we don't suggest duplicates ----
-        const [existingKeywords, existingIdeas] = await Promise.all([
+        // ---- 3. Cross-reference existing keywords + ideas + articles so we don't suggest duplicates ----
+        // (getArticlesByProject is also reused below for the second-pass verification layer,
+        // since most articles are still "draft" and never appear on the sitemap.)
+        const [existingKeywords, existingIdeas, existingArticles] = await Promise.all([
           getProjectKeywordsList(input.projectId),
           getIdeasByProject(input.projectId),
+          getArticlesByProject(input.projectId),
         ]);
 
         const alreadyCoveredSet = new Set<string>();
@@ -7920,6 +7923,10 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         for (const idea of existingIdeas) {
           if (idea.keyword && idea.keyword.trim()) alreadyCoveredSet.add(idea.keyword.trim());
           if (idea.title && idea.title.trim()) alreadyCoveredSet.add(idea.title.trim());
+        }
+        for (const article of existingArticles) {
+          if (article.keyword && article.keyword.trim()) alreadyCoveredSet.add(article.keyword.trim());
+          if (article.title && article.title.trim()) alreadyCoveredSet.add(article.title.trim());
         }
         const alreadyCoveredList = Array.from(alreadyCoveredSet).slice(0, 200);
 
@@ -8023,10 +8030,127 @@ Generate exactly ${ideaCount} distinct new content ideas for topics not already 
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse generated ideas. Please try again." });
         }
 
+        // ---- 5. Second-pass verification: check candidate ideas against the project's ACTUAL
+        // written articles (not just the sitemap/keyword/idea list used above). Most articles are
+        // still "draft" and never make it to the live sitemap, so this is the layer that actually
+        // catches "we already wrote about this." A distinct LLM call, deliberately strict about
+        // NOT flagging things — see calibration notes below (mirrors sitemaps.checkCoverage). ----
+        const ARTICLE_STATUS_LABELS: Record<string, string> = {
+          draft: "Draft",
+          review: "In Review",
+          complete: "Complete",
+          published: "Published",
+        };
+        const existingArticlesBlock = existingArticles.length > 0
+          ? existingArticles.map((a, i) => {
+              const statusLabel = ARTICLE_STATUS_LABELS[a.status as string] ?? a.status ?? "Unknown";
+              return `${i + 1}. Title: "${a.title}" | Keyword: "${a.keyword || "(none)"}" | Status: ${statusLabel}`;
+            }).join("\n")
+          : "(no existing articles on file)";
+
+        const candidateIdeasBlock = parsed.ideas.map((idea: any, i: number) =>
+          `${i + 1}. Title: "${idea.title}" | Keyword: "${idea.keyword}"`
+        ).join("\n");
+
+        let duplicatesFiltered = 0;
+        let finalIdeas: any[] = parsed.ideas;
+
+        try {
+          const verifyResult = await callLLM({
+            messages: [
+              {
+                role: "system",
+                content: `You are a senior SEO strategist performing a strict duplicate-content audit. Your job is to identify ONLY candidate content ideas that substantially overlap with an article that has ALREADY BEEN WRITTEN for this project — same primary topic and search intent, not just tangentially related.
+
+Flagging criteria — apply these strictly:
+
+**Flag as already covered** only if:
+- The existing article targets the SAME primary keyword or search intent as the candidate idea
+- A reader searching the candidate's target keyword would have their question fully answered by the existing article
+- Publishing the candidate idea would directly duplicate or cannibalize the existing article
+
+**DO NOT flag** candidate ideas that:
+- Are in the same general topic category but answer a different question
+- Share a keyword in passing but focus on a different primary angle
+- Cover a broader or narrower subject than the existing article (e.g., a category overview vs. a specific how-to)
+- Only loosely relate to an existing article's subject area
+
+When in doubt, DO NOT flag it as a duplicate. Across a batch of candidate ideas, expect to flag few or none as duplicates. If you find yourself flagging more than 1-2 out of every 10 candidates, you are being too liberal — re-evaluate and keep only the clearest, most obvious overlaps.
+
+Existing articles may be in any status (Draft, In Review, Complete, Published) — treat all of them as already written, regardless of status.
+
+Return JSON with one entry per candidate idea (by index, matching the order given), indicating whether it is already covered.`
+              },
+              {
+                role: "user",
+                content: `CANDIDATE NEW IDEAS (evaluate each one):
+${candidateIdeasBlock}
+
+EXISTING ARTICLES ALREADY WRITTEN FOR THIS PROJECT (${existingArticles.length} total):
+${existingArticlesBlock}`
+              }
+            ],
+            response_format: {
+              type: "json_schema" as const,
+              json_schema: {
+                name: "idea_duplicate_check",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    results: {
+                      type: "array",
+                      minItems: parsed.ideas.length,
+                      maxItems: parsed.ideas.length,
+                      items: {
+                        type: "object",
+                        properties: {
+                          index: { type: "integer", description: "1-based index matching the candidate idea's position in the input list" },
+                          title: { type: "string", description: "The candidate idea's title, for cross-checking" },
+                          alreadyCovered: { type: "boolean" },
+                          matchingArticleTitle: { type: ["string", "null"], description: "Title of the existing article it overlaps with, if alreadyCovered is true, else null" },
+                          reason: { type: ["string", "null"], description: "Short reason for the flag if alreadyCovered is true, else null" },
+                        },
+                        required: ["index", "title", "alreadyCovered", "matchingArticleTitle", "reason"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["results"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          }, input.projectId);
+
+          const verifyRawContent = verifyResult.choices?.[0]?.message?.content;
+          const verifyText = typeof verifyRawContent === "string" ? verifyRawContent : "";
+          const verifyParsed = extractJSON(verifyText);
+
+          if (!verifyParsed || !Array.isArray(verifyParsed.results) || verifyParsed.results.length !== parsed.ideas.length) {
+            throw new Error("Duplicate-check LLM response was missing or did not cover every candidate idea");
+          }
+
+          const flaggedIndices = new Set<number>();
+          for (const r of verifyParsed.results) {
+            if (r && r.alreadyCovered === true && typeof r.index === "number") {
+              flaggedIndices.add(r.index);
+            }
+          }
+
+          finalIdeas = parsed.ideas.filter((_: any, i: number) => !flaggedIndices.has(i + 1));
+          duplicatesFiltered = parsed.ideas.length - finalIdeas.length;
+        } catch (err) {
+          console.error("[GenerateFromSitemapScan] Second-pass duplicate verification failed, falling back to unfiltered ideas:", err);
+          finalIdeas = parsed.ideas;
+          duplicatesFiltered = 0;
+        }
+
         return {
-          ideas: parsed.ideas,
+          ideas: finalIdeas,
           pagesScanned: scannedPages.length,
           pagesFailed,
+          duplicatesFiltered,
         };
       }),
   }),

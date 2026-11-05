@@ -24,7 +24,6 @@ import {
   ListTree,
   Network,
   Award,
-  LampDesk,
   Rocket,
   Bell,
   Settings,
@@ -95,12 +94,6 @@ const navSections = [
       { icon: Award, label: "Grade Content", path: "/grade" },
       { icon: Shield, label: "AI Readiness Audit", path: "/ai-readiness" },
       { icon: Search, label: "Entity Analyzer", path: "/entity-analyzer" },
-    ],
-  },
-  {
-    title: "Planning",
-    items: [
-      { icon: LampDesk, label: "Ideas", path: "/ideas" },
     ],
   },
 ];

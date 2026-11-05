@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   PenLine,
   BarChart3,
-  Lightbulb,
   Zap,
   Check,
   FilePlus,
@@ -17,7 +16,6 @@ import {
   KeyRound,
   LayoutDashboard,
   TrendingUp,
-  BookOpen,
   Loader2,
   ArrowRight,
 } from "lucide-react";
@@ -46,9 +44,6 @@ const activityIcons: Record<string, { icon: typeof Check; bg: string; color: str
   "article-review": { icon: PenLine, bg: "bg-purple-50", color: "text-purple-600" },
   "article-complete": { icon: Check, bg: "bg-emerald-50", color: "text-emerald-600" },
   "article-published": { icon: FileText, bg: "bg-blue-50", color: "text-blue-600" },
-  "idea-saved": { icon: Lightbulb, bg: "bg-indigo-50", color: "text-indigo-600" },
-  "idea-used": { icon: Sparkles, bg: "bg-purple-50", color: "text-purple-600" },
-  "idea-archived": { icon: BookOpen, bg: "bg-gray-50", color: "text-gray-500" },
 };
 
 function getActivityConfig(type: string, status: string) {
@@ -65,14 +60,8 @@ function getActivityText(type: string, status: string, title: string) {
       case "published": return `"${title}" was published`;
       default: return `"${title}" article was updated`;
     }
-  } else {
-    switch (status) {
-      case "saved": return `"${title}" idea was saved`;
-      case "used": return `"${title}" idea was used to generate an article`;
-      case "archived": return `"${title}" idea was archived`;
-      default: return `"${title}" idea was updated`;
-    }
   }
+  return `"${title}" was updated`;
 }
 
 function timeAgo(date: Date | string) {
@@ -103,10 +92,6 @@ export default function Dashboard() {
     { enabled: !!projectId }
   );
   const { data: recentArticles, isLoading: articlesLoading } = trpc.dashboard.recentArticles.useQuery(
-    { projectId: projectId! },
-    { enabled: !!projectId }
-  );
-  const { data: recentIdeas } = trpc.dashboard.recentIdeas.useQuery(
     { projectId: projectId! },
     { enabled: !!projectId }
   );
@@ -144,14 +129,6 @@ export default function Dashboard() {
   }, [articlesOverTime]);
 
   const isLoading = statsLoading || articlesLoading;
-
-  const ideaColors = [
-    "text-rose-500 bg-rose-50",
-    "text-indigo-500 bg-indigo-50",
-    "text-emerald-500 bg-emerald-50",
-    "text-amber-500 bg-amber-50",
-    "text-cyan-500 bg-cyan-50",
-  ];
 
   return (
     <div>
@@ -278,50 +255,7 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
 
-                {/* Saved Ideas */}
                 <div className="lg:col-span-2 flex flex-col gap-5">
-                  <Card className="shadow-sm flex-1">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <CardTitle className="text-base font-bold flex items-center gap-2">
-                        <Lightbulb className="w-4 h-4 text-muted-foreground" />
-                        Saved Ideas
-                      </CardTitle>
-                      <Link href="/ideas">
-                        <span className="text-sm text-primary font-semibold cursor-pointer hover:underline flex items-center gap-1">
-                          View All <ArrowRight className="w-3 h-3" />
-                        </span>
-                      </Link>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {!recentIdeas || recentIdeas.length === 0 ? (
-                        <div className="text-center py-6">
-                          <Lightbulb className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">No saved ideas yet</p>
-                          <Link href="/ideas">
-                            <Button variant="outline" size="sm" className="mt-3">
-                              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                              Generate Ideas
-                            </Button>
-                          </Link>
-                        </div>
-                      ) : (
-                        recentIdeas.map((idea, i) => (
-                          <div key={idea.id} className="flex items-start gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${ideaColors[i % ideaColors.length]}`}>
-                              <Lightbulb className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold leading-snug truncate">{idea.title}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {idea.keyword} · {idea.rankingPotential ? `${idea.rankingPotential} potential` : timeAgo(idea.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </CardContent>
-                  </Card>
-
                   {/* Quick Stats Summary */}
                   <Card className="shadow-sm">
                     <CardHeader className="pb-2">
@@ -415,7 +349,7 @@ export default function Dashboard() {
                       <div className="text-center py-8">
                         <Zap className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                         <p className="text-sm text-muted-foreground">No activity yet</p>
-                        <p className="text-xs text-muted-foreground/70 mt-1">Activity will appear here as you create articles and ideas.</p>
+                        <p className="text-xs text-muted-foreground/70 mt-1">Activity will appear here as you create articles.</p>
                       </div>
                     ) : (
                       <div className="divide-y divide-border">

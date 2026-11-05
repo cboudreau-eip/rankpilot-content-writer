@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, like, inArray, asc, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, projectKeywords, InsertProjectKeyword, ideas, InsertIdea } from "../drizzle/schema";
+import { InsertUser, users, projects, InsertProject, articles, InsertArticle, outlines, InsertOutline, outlineVersions, InsertOutlineVersion, sitemaps, InsertSitemap, citationSources, InsertCitationSource, projectKeywords, InsertProjectKeyword } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -588,78 +588,11 @@ export async function matchKeywordsToArticles(projectId: number) {
   return matched;
 }
 
-// ---- Ideas Helpers ----
-
-export async function getIdeasByProject(projectId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(ideas).where(eq(ideas.projectId, projectId)).orderBy(desc(ideas.createdAt));
-}
-
-export async function getIdeaById(id: number) {
-  const db = await getDb();
-  if (!db) return null;
-  const [row] = await db.select().from(ideas).where(eq(ideas.id, id));
-  return row ?? null;
-}
-
-export async function createIdea(data: InsertIdea) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(ideas).values(data).$returningId();
-  return result;
-}
-
-export async function createIdeasBulk(rows: InsertIdea[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  if (rows.length === 0) return { inserted: 0 };
-  await db.insert(ideas).values(rows);
-  return { inserted: rows.length };
-}
-
-export async function updateIdea(id: number, data: Partial<Omit<InsertIdea, "id" | "createdAt">>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(ideas).set(data).where(eq(ideas.id, id));
-}
-
-export async function deleteIdea(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(ideas).where(eq(ideas.id, id));
-}
-
-export async function deleteIdeasBulk(ids: number[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  if (ids.length === 0) return;
-  await db.delete(ideas).where(inArray(ideas.id, ids));
-}
-
-export async function getIdeasCount(projectId: number) {
-  const db = await getDb();
-  if (!db) return { total: 0, saved: 0, used: 0, archived: 0 };
-  const [row] = await db.select({
-    total: sql<number>`COUNT(*)`,
-    saved: sql<number>`SUM(CASE WHEN idea_status = 'saved' THEN 1 ELSE 0 END)`,
-    used: sql<number>`SUM(CASE WHEN idea_status = 'used' THEN 1 ELSE 0 END)`,
-    archived: sql<number>`SUM(CASE WHEN idea_status = 'archived' THEN 1 ELSE 0 END)`,
-  }).from(ideas).where(eq(ideas.projectId, projectId));
-  return {
-    total: row?.total ?? 0,
-    saved: row?.saved ?? 0,
-    used: row?.used ?? 0,
-    archived: row?.archived ?? 0,
-  };
-}
-
-
 // ---- Dashboard Helpers ----
 
 export async function getDashboardStats(projectId: number) {
   const db = await getDb();
-  if (!db) return { totalArticles: 0, draftCount: 0, reviewCount: 0, completeCount: 0, publishedCount: 0, totalKeywords: 0, totalIdeas: 0, savedIdeas: 0 };
+  if (!db) return { totalArticles: 0, draftCount: 0, reviewCount: 0, completeCount: 0, publishedCount: 0, totalKeywords: 0 };
 
   const [articleStats] = await db.select({
     totalArticles: sql<number>`COUNT(*)`,
@@ -673,11 +606,6 @@ export async function getDashboardStats(projectId: number) {
     totalKeywords: sql<number>`COUNT(*)`,
   }).from(projectKeywords).where(eq(projectKeywords.projectId, projectId));
 
-  const [ideaStats] = await db.select({
-    totalIdeas: sql<number>`COUNT(*)`,
-    savedIdeas: sql<number>`SUM(CASE WHEN \`ideaStatus\` = 'saved' THEN 1 ELSE 0 END)`,
-  }).from(ideas).where(eq(ideas.projectId, projectId));
-
   return {
     totalArticles: articleStats?.totalArticles ?? 0,
     draftCount: articleStats?.draftCount ?? 0,
@@ -685,8 +613,6 @@ export async function getDashboardStats(projectId: number) {
     completeCount: articleStats?.completeCount ?? 0,
     publishedCount: articleStats?.publishedCount ?? 0,
     totalKeywords: kwStats?.totalKeywords ?? 0,
-    totalIdeas: ideaStats?.totalIdeas ?? 0,
-    savedIdeas: ideaStats?.savedIdeas ?? 0,
   };
 }
 
@@ -702,19 +628,6 @@ export async function getRecentArticles(projectId: number, limit = 8) {
     createdAt: articles.createdAt,
     updatedAt: articles.updatedAt,
   }).from(articles).where(eq(articles.projectId, projectId)).orderBy(desc(articles.updatedAt)).limit(limit);
-}
-
-export async function getRecentIdeas(projectId: number, limit = 5) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select({
-    id: ideas.id,
-    title: ideas.title,
-    keyword: ideas.keyword,
-    status: ideas.status,
-    rankingPotential: ideas.rankingPotential,
-    createdAt: ideas.createdAt,
-  }).from(ideas).where(and(eq(ideas.projectId, projectId), eq(ideas.status, "saved"))).orderBy(desc(ideas.createdAt)).limit(limit);
 }
 
 export async function getArticlesOverTime(projectId: number) {
@@ -736,7 +649,7 @@ export async function getArticlesOverTime(projectId: number) {
 export async function getRecentActivity(projectId: number, limit = 10) {
   const db = await getDb();
   if (!db) return [];
-  // Combine recent articles and ideas into a unified activity feed
+  // Recent article activity feed
   const recentArticleActivity = await db.select({
     id: articles.id,
     title: articles.title,
@@ -745,21 +658,11 @@ export async function getRecentActivity(projectId: number, limit = 10) {
     updatedAt: articles.updatedAt,
   }).from(articles).where(eq(articles.projectId, projectId)).orderBy(desc(articles.updatedAt)).limit(limit);
 
-  const recentIdeaActivity = await db.select({
-    id: ideas.id,
-    title: ideas.title,
-    status: ideas.status,
-    createdAt: ideas.createdAt,
-  }).from(ideas).where(eq(ideas.projectId, projectId)).orderBy(desc(ideas.createdAt)).limit(5);
-
   // Merge and sort by date
-  const activities: Array<{ type: "article" | "idea"; id: number; title: string; status: string; date: Date }> = [];
+  const activities: Array<{ type: "article"; id: number; title: string; status: string; date: Date }> = [];
 
   for (const a of recentArticleActivity) {
     activities.push({ type: "article", id: a.id, title: a.title, status: a.status, date: a.updatedAt });
-  }
-  for (const i of recentIdeaActivity) {
-    activities.push({ type: "idea", id: i.id, title: i.title, status: i.status, date: i.createdAt });
   }
 
   activities.sort((a, b) => b.date.getTime() - a.date.getTime());

@@ -451,7 +451,7 @@ export default function GenerateArticle() {
     }
   }, []);
 
-  // Check for selected idea from Ideas page or AI Readiness Audit
+  // Check for a selected idea handed off from the AI Readiness Audit
   useEffect(() => {
     const raw = localStorage.getItem("selectedIdea");
     if (!raw) return;

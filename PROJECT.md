@@ -86,7 +86,8 @@ scripts/
 | `citation_sources` | Trusted reference URLs | name, url, description, category |
 | `gsc_exports` | Google Search Console data | queries, pages, chartData, pre-computed categories |
 | `project_keywords` | Saved keywords with metrics | volume, cpc, competition, trendData, priority |
-| `ideas` | AI-generated article ideas | title, keyword, searchIntent, contentAngles, status (saved/used/archived) |
+
+The Ideas feature (seed-keyword idea generator, sitemap content-gap scanner, Saved Ideas) was removed entirely. The `ideas` table is no longer in the Drizzle schema but may still exist, orphaned and unused, in the database.
 
 The Content Engine feature (in-app scheduler + Pipeline brief-intake) was removed entirely; its seven
 tables (`scheduled_jobs`, `keyword_queue`, `job_run_history`, `scheduler_run_logs`, `pipeline_jobs`,
@@ -116,7 +117,6 @@ tables (`scheduled_jobs`, `keyword_queue`, `job_run_history`, `scheduler_run_log
 | `entity` | Entity/NLP analysis of content + keyword research (Keywords Everywhere) | Protected |
 | `grading` | GEO content grading (4-category, 120-point system) | Mixed (standalone is public) |
 | `gsc` | Google Search Console data upload + analysis | Protected |
-| `ideas` | AI-generated article idea suggestions | Protected |
 | `dashboard` | Dashboard stats, recent activity, charts | Protected |
 | `freeWriter` | Free-form content generation (LinkedIn, Medium, email, etc.) outside the outline pipeline | Mixed |
 | `aiReadiness` | Audits a URL's schema markup, content structure, and internal linking for AI readiness | Protected |
@@ -132,8 +132,6 @@ The sidebar is organized into four sections (`client/src/components/AppLayout.ts
 **SEO Tools:** Keyword Research, Project Keywords, GSC Analyzer, Thin Content
 
 **Content:** Generate, Free Writer, Articles, Outlines, Topic Clusters, Grade Content, AI Readiness Audit, Entity Analyzer
-
-**Planning:** Ideas
 
 **Admin** (in the settings dropdown, not the main sidebar): User Management (admin-only), Project Settings, General Settings
 

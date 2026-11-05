@@ -21,7 +21,6 @@ import AdminUsers from "./pages/AdminUsers";
 import Login from "./pages/Login";
 import KeywordResearch from "./pages/KeywordResearch";
 import ProjectKeywords from "./pages/ProjectKeywords";
-import Ideas from "./pages/Ideas";
 import Outlines from "./pages/Outlines";
 import FreeWriter from "./pages/FreeWriter";
 import AIReadinessAudit from "./pages/AIReadinessAudit";
@@ -100,7 +99,6 @@ function App() {
                       <Route path="/grade" component={GradeContent} />
                       <Route path="/ai-readiness" component={AIReadinessAudit} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
-                      <Route path="/ideas" component={Ideas} />
                       <Route component={NotFound} />
                     </Switch>
                   </AppLayout>

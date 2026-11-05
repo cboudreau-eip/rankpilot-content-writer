@@ -7899,7 +7899,10 @@ Important: Respond with raw JSON only. Do not include code blocks, markdown, or 
         }
 
         // ---- 2. Fetch real page content for a capped sample of those URLs ----
-        const maxPages = input.maxPages ?? 30;
+        // Default kept modest (not the schema's max of 60): this procedure also runs a second
+        // LLM verification pass after generation, and real-world testing on Vercel showed a
+        // 30-page scan plus two sequential LLM calls can approach a serverless timeout.
+        const maxPages = input.maxPages ?? 15;
         const urlsToScan = allUrls.slice(0, maxPages).map(u => u.url);
 
         const { pages: scannedPages, failed: pagesFailed } = await fetchPageSignals(urlsToScan);

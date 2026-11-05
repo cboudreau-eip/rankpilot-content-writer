@@ -22,7 +22,6 @@ import Login from "./pages/Login";
 import KeywordResearch from "./pages/KeywordResearch";
 import ProjectKeywords from "./pages/ProjectKeywords";
 import Outlines from "./pages/Outlines";
-import FreeWriter from "./pages/FreeWriter";
 import AIReadinessAudit from "./pages/AIReadinessAudit";
 import ChangePassword from "./pages/ChangePassword";
 import { trpc } from "@/lib/trpc";
@@ -81,7 +80,6 @@ function App() {
                       <Route path="/articles" component={Articles} />
                       <Route path="/articles/:id" component={ArticleEditor} />
                       <Route path="/generate" component={GenerateArticle} />
-                      <Route path="/write" component={FreeWriter} />
                       <Route path="/project-settings" component={ProjectSettings} />
                       <Route path="/settings" component={GeneralSettings} />
                       <Route path="/admin/users" component={AdminUsers} />

@@ -61,7 +61,7 @@ drizzle/
 shared/
     const.ts            ← Shared constants
     types.ts            ← Shared type definitions
-    research-types.ts   ← ResearchFindings type, shared between Generate and Free Writer
+    research-types.ts   ← ResearchFindings type, used by Generate
 
 scripts/
     build-api.mjs       ← Bundles the Vercel API entry to plain JS (see Deployment)
@@ -118,7 +118,6 @@ tables (`scheduled_jobs`, `keyword_queue`, `job_run_history`, `scheduler_run_log
 | `grading` | GEO content grading (4-category, 120-point system) | Mixed (standalone is public) |
 | `gsc` | Google Search Console data upload + analysis | Protected |
 | `dashboard` | Dashboard stats, recent activity, charts | Protected |
-| `freeWriter` | Free-form content generation (LinkedIn, Medium, email, etc.) outside the outline pipeline | Mixed |
 | `aiReadiness` | Audits a URL's schema markup, content structure, and internal linking for AI readiness | Protected |
 
 ---
@@ -131,7 +130,7 @@ The sidebar is organized into four sections (`client/src/components/AppLayout.ts
 
 **SEO Tools:** Keyword Research, Project Keywords, GSC Analyzer, Thin Content
 
-**Content:** Generate, Free Writer, Articles, Outlines, Topic Clusters, Grade Content, AI Readiness Audit, Entity Analyzer
+**Content:** Generate, Articles, Outlines, Topic Clusters, Grade Content, AI Readiness Audit, Entity Analyzer
 
 **Admin** (in the settings dropdown, not the main sidebar): User Management (admin-only), Project Settings, General Settings
 
@@ -143,7 +142,7 @@ The sidebar is organized into four sections (`client/src/components/AppLayout.ts
 
 RankPilot uses a **custom email/password auth system**. The `app_users` table stores credentials with bcrypt hashing. Admins create user accounts; there is no self-registration. First-login users are forced to change their password via `mustChangePassword` flag. The legacy `users` (Manus OAuth) table still exists and is still referenced by `userId` columns on content tables (projects, articles, etc.), but nothing in the app signs a user in through it anymore.
 
-**Known limitation:** several procedures (`projects.list`, `articles.create`, `freeWriter.saveAsArticle`) hardcode `userId: 1` rather than deriving it from the session. In practice this means only one user's projects/content are ever visible anywhere in the app, regardless of who else has an `app_users` or legacy `users` row. This predates the Vercel migration and hasn't been changed — it's a real product decision (single-tenant vs. multi-user scoping) that needs a deliberate call before touching it.
+**Known limitation:** several procedures (`projects.list`, `articles.create`) hardcode `userId: 1` rather than deriving it from the session. In practice this means only one user's projects/content are ever visible anywhere in the app, regardless of who else has an `app_users` or legacy `users` row. This predates the Vercel migration and hasn't been changed — it's a real product decision (single-tenant vs. multi-user scoping) that needs a deliberate call before touching it.
 
 ### LLM Usage
 
@@ -159,8 +158,6 @@ Article generation (the "Generate" page) follows a multi-step pipeline:
 5. **Post-processing** — Em-dash removal, paragraph splitting, broken anchor fixing, link sanitization
 6. **Auto-grading** (optional) — Grade + iterative improvement until target grade reached
 
-**Free Writer** (`/write`) is a separate, lighter-weight path for one-off content (LinkedIn posts, Medium articles, email newsletters, etc.) outside the outline-based flow. It shares the same research step, the same HTML-format-aware post-processing, and the same project Brand Voice/ICP inputs, but generates in a single LLM call rather than section-by-section. Generated content can be saved directly as a real `Article` via `freeWriter.saveAsArticle` (which also generates SEO meta title/description before saving).
-
 ### Grading System
 
 The GEO Content Grader uses a 4-category system (base 100 points, up to 120 with bonuses):
@@ -174,14 +171,14 @@ The GEO Content Grader uses a 4-category system (base 100 points, up to 120 with
 ### Post-Processing Functions
 
 Generated/improved HTML content passes through these sanitizers (in order) — module-level functions in
-`routers.ts`, shared between the main Generate flow and Free Writer:
+`routers.ts`, used by the Generate flow:
 1. `stripEmDashes()` — Removes em dashes (Claude preference)
 2. `fixBrokenAnchors()` — Repairs LLM-split URLs and orphaned fragments
 3. `sanitizeInsertedLinks()` — Strips fabricated URLs, trims long anchor text
 4. `stripWrappingStrongTags()` — Removes unwanted bold wrapping
 5. `stripTargetBlank()` — Ensures links open in same tab
 6. `splitLongParagraphs()` — Breaks paragraphs exceeding sentence threshold (format-aware: HTML `<p>` tags vs. plain-text double-newlines)
-7. `wrapBareTextInPTags()` — Wraps plain text in `<p>` tags for TipTap — **do not run this on Markdown content** (e.g. Free Writer's "medium" format uses `## heading` syntax, which this would corrupt into `<p>## heading</p>`)
+7. `wrapBareTextInPTags()` — Wraps plain text in `<p>` tags for TipTap — **do not run this on Markdown content**
 
 ### Cross-Reference System
 

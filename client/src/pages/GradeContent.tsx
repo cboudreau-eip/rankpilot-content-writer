@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Loader2,
   Sparkles,
@@ -20,6 +21,7 @@ import {
   AlertTriangle,
   Info,
   CircleDot,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -135,6 +137,8 @@ function HighlightedDiff({ oldText, newText }: { oldText: string; newText: strin
 
 export default function GradeContent() {
   const [content, setContent] = useState("");
+  const [pageUrl, setPageUrl] = useState("");
+  const [fetchedFrom, setFetchedFrom] = useState<string | null>(null);
   const [result, setResult] = useState<GradeResult | null>(null);
   const [selectedImps, setSelectedImps] = useState<Record<string, Set<number>>>({});
   const [enabledCategories, setEnabledCategories] = useState<Record<string, boolean>>({
@@ -194,6 +198,25 @@ export default function GradeContent() {
     },
   });
 
+  const fetchMutation = trpc.grading.fetchUrl.useMutation({
+    onSuccess: (data) => {
+      setContent(data.text);
+      setFetchedFrom(data.url);
+      setShowHighlight(false);
+      setResult(null);
+      setSelectedImps({});
+      toast.success(`Fetched ${data.text.split(/s+/).length.toLocaleString()} words from the page`);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to fetch that URL");
+    },
+  });
+
+  const handleFetch = () => {
+    if (!pageUrl.trim()) return;
+    fetchMutation.mutate({ url: pageUrl.trim() });
+  };
+
   const handleGrade = () => {
     if (content.trim().length < 50) {
       toast.error("Please enter at least 50 characters of content to grade");
@@ -250,10 +273,36 @@ export default function GradeContent() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="w-4 h-4 text-muted-foreground" />
-                Paste Your Content
+                Paste Content or Fetch a URL
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Link2 className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Input
+                      placeholder="Or enter a live URL, e.g. https://example.com/blog/post"
+                      className="pl-9"
+                      value={pageUrl}
+                      onChange={(e) => setPageUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleFetch(); }}
+                    />
+                  </div>
+                  <Button variant="outline" onClick={handleFetch} disabled={fetchMutation.isPending || !pageUrl.trim()}>
+                    {fetchMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Fetching...</>
+                    ) : (
+                      "Fetch Page"
+                    )}
+                  </Button>
+                </div>
+                {fetchedFrom && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    Fetched from {fetchedFrom}. Review the extracted text below, then grade it.
+                  </p>
+                )}
+              </div>
               <div className="relative">
                 <Textarea
                   placeholder="Paste your article, blog post, or any content here..."

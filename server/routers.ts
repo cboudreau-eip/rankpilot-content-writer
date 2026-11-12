@@ -38,6 +38,7 @@ import {
   stripMarkdownFences as stripFences,
   extractPageTitle,
 } from "./aiReadiness";
+import { fetchPageContent } from "./fetchPageContent";
 import { applyTemplateStyles } from "./applyTemplateStyles";
 import { invokeLLM } from "./_core/llm";
 import type { InvokeParams, InvokeResult } from "./_core/llm";
@@ -6338,6 +6339,20 @@ Return ONLY valid JSON, no markdown code blocks.`;
   }),
 
   grading: router({
+    /** Fetch a live public URL and return its readable text so it can be graded. */
+    fetchUrl: publicProcedure
+      .input(z.object({ url: z.string().min(1).max(2000) }))
+      .mutation(async ({ ctx, input }) => {
+        const session = await verifyAppSession(getSessionToken(ctx.req));
+        if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login" });
+        const raw = input.url.trim();
+        try {
+          return await fetchPageContent(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+        } catch (e: any) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: e?.message || "Failed to fetch that URL" });
+        }
+      }),
+
     /** Standalone content grader — paste any content, 4-category 85-point system */
     gradeContent: publicProcedure
       .input(z.object({ content: z.string().min(50, "Content must be at least 50 characters") }))

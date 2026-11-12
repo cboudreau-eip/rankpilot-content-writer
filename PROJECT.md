@@ -129,7 +129,7 @@ The sidebar is organized into four sections (`client/src/components/AppLayout.ts
 
 **SEO Tools:** Keyword Research, Project Keywords, GSC Analyzer
 
-**Content:** Generate, Articles, Outlines, Topic Clusters, Grade Content, AI Readiness Audit, Entity Analyzer
+**Content:** Generate, Articles, Outlines, Grade Content, AI Readiness Audit, Entity Analyzer
 
 **Admin** (in the settings dropdown, not the main sidebar): User Management (admin-only), Project Settings, General Settings
 

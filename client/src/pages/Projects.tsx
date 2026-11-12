@@ -107,7 +107,7 @@ export default function Projects() {
             </div>
             <h3 className="text-lg font-bold mb-1">No projects yet</h3>
             <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
-              Create your first project to start organizing your SEO content, keywords, and topic clusters.
+              Create your first project to start organizing your SEO content and keywords.
             </p>
             <Button onClick={() => setCreateOpen(true)} className="gap-2 rounded-xl font-bold">
               <Plus className="w-4 h-4" /> Create First Project

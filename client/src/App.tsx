@@ -91,7 +91,6 @@ function App() {
                       <Route path="/gsc-analyzer" component={GscAnalyzer} />
                       <Route path="/seo-intelligence">{() => <ComingSoon title="Keyword Insights" description="AI-powered keyword clustering and strategic intelligence." />}</Route>
                       <Route path="/outlines" component={Outlines} />
-                      <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
                       <Route path="/grade" component={GradeContent} />
                       <Route path="/ai-readiness" component={AIReadinessAudit} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />

@@ -58,7 +58,6 @@ export default function Design3() {
             <SideItem icon={<Sparkles size={20} />}>Generate</SideItem>
             <SideItem icon={<FileText size={20} />} badge="15">Articles</SideItem>
             <SideItem icon={<ListTree size={20} />}>Outlines</SideItem>
-            <SideItem icon={<Network size={20} />}>Topic Clusters</SideItem>
             <SideItem icon={<Award size={20} />}>Grade Content</SideItem>
           </SideSection>
           <SideSection title="Planning">

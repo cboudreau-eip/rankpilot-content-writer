@@ -79,7 +79,6 @@ export default function Design1() {
             <NavItem icon={<Sparkles size={20} />}>Generate</NavItem>
             <NavItem icon={<FileText size={20} />}>Articles</NavItem>
             <NavItem icon={<ListTree size={20} />}>Outlines</NavItem>
-            <NavItem icon={<Network size={20} />}>Topic Clusters</NavItem>
             <NavItem icon={<Award size={20} />}>Grade Content</NavItem>
           </NavSection>
           <NavSection title="Planning">

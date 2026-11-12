@@ -4,7 +4,7 @@
  * Plus Jakarta Sans font, generous whitespace, modern SaaS feel.
  */
 
-import { FileText, CheckCircle2, PenLine, Type, LayoutDashboard, FolderKanban, CalendarDays, Search, ShieldCheck, Swords, Crosshair, BarChart3, Lightbulb, Sparkles, ListTree, Award, LampDesk, Rocket, ChevronDown, Bell, Settings, Zap, Check, FilePlus, Plus, MoreHorizontal, Network, Flame } from "lucide-react";
+import { FileText, CheckCircle2, PenLine, Type, LayoutDashboard, FolderKanban, CalendarDays, Search, ShieldCheck, Swords, Crosshair, BarChart3, Lightbulb, Sparkles, ListTree, Award, LampDesk, Rocket, ChevronDown, Bell, Settings, Zap, Check, FilePlus, Plus, MoreHorizontal, Network } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const chartData = [
@@ -49,7 +49,6 @@ export default function Design2() {
             <NavItem icon={<Crosshair size={20} />}>Position Tracker</NavItem>
             <NavItem icon={<BarChart3 size={20} />}>GSC Analyzer</NavItem>
             <NavItem icon={<Lightbulb size={20} />}>Keyword Insights</NavItem>
-            <NavItem icon={<Flame size={20} />}>Thin Content</NavItem>
           </NavSection>
           <NavSection title="Content">
             <NavItem icon={<Sparkles size={20} />}>Generate</NavItem>

@@ -18,7 +18,6 @@ import {
 
   BarChart3,
 
-  Flame,
   Sparkles,
   FileText,
   ListTree,
@@ -79,7 +78,6 @@ const navSections = [
 
       { icon: BarChart3, label: "GSC Analyzer", path: "/gsc-analyzer" },
 
-      { icon: Flame, label: "Thin Content", path: "/thin-content" },
     ],
   },
   {

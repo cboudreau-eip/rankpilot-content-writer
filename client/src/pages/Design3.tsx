@@ -5,7 +5,7 @@
  */
 
 import { Link } from "wouter";
-import { ArrowLeft, ArrowUp, ArrowDown, FileText, CheckCircle2, PenLine, Type, LayoutDashboard, FolderKanban, CalendarDays, Search, ShieldCheck, Swords, Crosshair, BarChart3, Lightbulb, Sparkles, ListTree, Award, LampDesk, Rocket, Bell, Settings, Network, Plus, Flame } from "lucide-react";
+import { ArrowLeft, ArrowUp, ArrowDown, FileText, CheckCircle2, PenLine, Type, LayoutDashboard, FolderKanban, CalendarDays, Search, ShieldCheck, Swords, Crosshair, BarChart3, Lightbulb, Sparkles, ListTree, Award, LampDesk, Rocket, Bell, Settings, Network, Plus } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 const chartData = [
@@ -53,7 +53,6 @@ export default function Design3() {
             <SideItem icon={<Crosshair size={20} />}>Position Tracker</SideItem>
             <SideItem icon={<BarChart3 size={20} />}>GSC Analyzer</SideItem>
             <SideItem icon={<Lightbulb size={20} />}>Keyword Insights</SideItem>
-            <SideItem icon={<Flame size={20} />}>Thin Content</SideItem>
           </SideSection>
           <SideSection title="Content">
             <SideItem icon={<Sparkles size={20} />}>Generate</SideItem>

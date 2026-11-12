@@ -13,7 +13,6 @@ import GenerateArticle from "./pages/GenerateArticle";
 import ComingSoon from "./pages/ComingSoon";
 import ProjectSettings from "./pages/ProjectSettings";
 import GeneralSettings from "./pages/GeneralSettings";
-import ThinContent from "./pages/ThinContent";
 import GradeContent from "./pages/GradeContent";
 import EntityAnalyzer from "./pages/EntityAnalyzer";
 import GscAnalyzer from "./pages/GscAnalyzer";
@@ -91,7 +90,6 @@ function App() {
                       <Route path="/kpt">{() => <ComingSoon title="Position Tracker" description="Track your keyword rankings and monitor position changes over time." />}</Route>
                       <Route path="/gsc-analyzer" component={GscAnalyzer} />
                       <Route path="/seo-intelligence">{() => <ComingSoon title="Keyword Insights" description="AI-powered keyword clustering and strategic intelligence." />}</Route>
-                      <Route path="/thin-content" component={ThinContent} />
                       <Route path="/outlines" component={Outlines} />
                       <Route path="/clusters">{() => <ComingSoon title="Topic Clusters" description="Organize your content into strategic topic clusters for better SEO." />}</Route>
                       <Route path="/grade" component={GradeContent} />

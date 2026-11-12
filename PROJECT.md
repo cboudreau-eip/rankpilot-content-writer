@@ -113,7 +113,6 @@ tables (`scheduled_jobs`, `keyword_queue`, `job_run_history`, `scheduler_run_log
 | `articles` | Article CRUD + generation + regeneration + cross-references | Protected |
 | `brokenLinks` | Link validation in articles | Protected |
 | `linksAudit` | Internal/external link analysis | Protected |
-| `thinContent` | Thin content detection + expansion | Protected |
 | `entity` | Entity/NLP analysis of content + keyword research (Keywords Everywhere) | Protected |
 | `grading` | GEO content grading (4-category, 120-point system) | Mixed (standalone is public) |
 | `gsc` | Google Search Console data upload + analysis | Protected |
@@ -128,7 +127,7 @@ The sidebar is organized into four sections (`client/src/components/AppLayout.ts
 
 **Main:** Dashboard, Projects, Calendar
 
-**SEO Tools:** Keyword Research, Project Keywords, GSC Analyzer, Thin Content
+**SEO Tools:** Keyword Research, Project Keywords, GSC Analyzer
 
 **Content:** Generate, Articles, Outlines, Topic Clusters, Grade Content, AI Readiness Audit, Entity Analyzer
 

@@ -14,6 +14,7 @@ import ComingSoon from "./pages/ComingSoon";
 import ProjectSettings from "./pages/ProjectSettings";
 import GeneralSettings from "./pages/GeneralSettings";
 import GradeContent from "./pages/GradeContent";
+import CompareContent from "./pages/CompareContent";
 import EntityAnalyzer from "./pages/EntityAnalyzer";
 import GscAnalyzer from "./pages/GscAnalyzer";
 import AdminUsers from "./pages/AdminUsers";
@@ -92,6 +93,7 @@ function App() {
                       <Route path="/seo-intelligence">{() => <ComingSoon title="Keyword Insights" description="AI-powered keyword clustering and strategic intelligence." />}</Route>
                       <Route path="/outlines" component={Outlines} />
                       <Route path="/grade" component={GradeContent} />
+                      <Route path="/compare" component={CompareContent} />
                       <Route path="/ai-readiness" component={AIReadinessAudit} />
                       <Route path="/entity-analyzer" component={EntityAnalyzer} />
                       <Route component={NotFound} />

@@ -198,6 +198,8 @@ export default function GradeContent() {
     },
   });
 
+  const gradeAfterFetchRef = useRef(false);
+
   const fetchMutation = trpc.grading.fetchUrl.useMutation({
     onSuccess: (data) => {
       setContent(data.text);
@@ -206,14 +208,20 @@ export default function GradeContent() {
       setResult(null);
       setSelectedImps({});
       toast.success(`Fetched ${data.text.split(/s+/).length.toLocaleString()} words from the page`);
+      if (gradeAfterFetchRef.current) {
+        gradeAfterFetchRef.current = false;
+        gradeMutation.mutate({ content: data.text.trim() });
+      }
     },
     onError: (err) => {
+      gradeAfterFetchRef.current = false;
       toast.error(err.message || "Failed to fetch that URL");
     },
   });
 
-  const handleFetch = () => {
+  const handleFetch = (andGrade = false) => {
     if (!pageUrl.trim()) return;
+    gradeAfterFetchRef.current = andGrade;
     fetchMutation.mutate({ url: pageUrl.trim() });
   };
 
@@ -286,20 +294,29 @@ export default function GradeContent() {
                       className="pl-9"
                       value={pageUrl}
                       onChange={(e) => setPageUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") handleFetch(); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleFetch(true); }}
                     />
                   </div>
-                  <Button variant="outline" onClick={handleFetch} disabled={fetchMutation.isPending || !pageUrl.trim()}>
+                  <Button variant="outline" onClick={() => handleFetch(false)} disabled={fetchMutation.isPending || gradeMutation.isPending || !pageUrl.trim()}>
+                    Fetch Only
+                  </Button>
+                  <Button
+                    onClick={() => handleFetch(true)}
+                    disabled={fetchMutation.isPending || gradeMutation.isPending || !pageUrl.trim()}
+                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white"
+                  >
                     {fetchMutation.isPending ? (
                       <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Fetching...</>
+                    ) : gradeMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Grading...</>
                     ) : (
-                      "Fetch Page"
+                      <><Sparkles className="w-4 h-4 mr-2" />Grade URL</>
                     )}
                   </Button>
                 </div>
                 {fetchedFrom && (
                   <p className="text-xs text-muted-foreground truncate">
-                    Fetched from {fetchedFrom}. Review the extracted text below, then grade it.
+                    Fetched from {fetchedFrom}. The extracted text is below for review.
                   </p>
                 )}
               </div>

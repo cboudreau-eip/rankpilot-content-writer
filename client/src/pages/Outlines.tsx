@@ -39,6 +39,7 @@ import {
   MinusCircle,
   Pencil,
   Eye,
+  PenLine,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { WriteArticleDialog } from "@/components/WriteArticleDialog";
 
 type OutlinesTab = "library" | "builder" | "improve";
 
@@ -858,6 +860,16 @@ function ImproveOutline({ projectId }: { projectId: number }) {
   const [improvedSections, setImprovedSections] = useState<any[] | null>(null);
   const [diffView, setDiffView] = useState<"side-by-side" | "unified">("side-by-side");
   const [saving, setSaving] = useState(false);
+  const [writeOpen, setWriteOpen] = useState(false);
+  // Sections the Write Article dialog will use: the improved outline, or the pasted outline parsed as-is
+  const [writeSections, setWriteSections] = useState<any[] | null>(null);
+  const parseMutation = trpc.outlines.parseOutline.useMutation({
+    onSuccess: (data) => {
+      setWriteSections(data.sections);
+      setWriteOpen(true);
+    },
+    onError: (err) => toast.error(err.message || "Couldn't read that outline"),
+  });
 
   const utils = trpc.useUtils();
 
@@ -993,6 +1005,16 @@ function ImproveOutline({ projectId }: { projectId: number }) {
             <Button onClick={handleAnalyze} disabled={analyzing || rawOutline.trim().length < 10} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
               {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
               {analyzing ? "Analyzing..." : "Analyze & Improve"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => parseMutation.mutate({ rawOutline: rawOutline.trim(), keyword: keyword.trim() || undefined, projectId })}
+              disabled={parseMutation.isPending || analyzing || rawOutline.trim().length < 10}
+              className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              title="Skip the analysis and write an article from this outline exactly as written"
+            >
+              {parseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <PenLine className="w-4 h-4" />}
+              {parseMutation.isPending ? "Reading outline..." : "Write Article As Is"}
             </Button>
           </div>
 
@@ -1166,6 +1188,10 @@ function ImproveOutline({ projectId }: { projectId: number }) {
                         Unified
                       </button>
                     </div>
+                    <Button onClick={() => { setWriteSections(improvedSections); setWriteOpen(true); }} disabled={saving} variant="outline" className="gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50" size="sm">
+                      <PenLine className="w-3.5 h-3.5" />
+                      Write Article
+                    </Button>
                     <Button onClick={handleSaveImproved} disabled={saving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" size="sm">
                       {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                       Save to Library
@@ -1369,6 +1395,17 @@ function ImproveOutline({ projectId }: { projectId: number }) {
             </Card>
           )}
         </div>
+      )}
+
+      {writeSections && (
+        <WriteArticleDialog
+          open={writeOpen}
+          onOpenChange={setWriteOpen}
+          title={keyword.trim().replace(/\b\w/g, (c) => c.toUpperCase())}
+          keyword={keyword}
+          sections={writeSections}
+          defaultProjectId={projectId}
+        />
       )}
     </div>
   );

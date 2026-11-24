@@ -1679,6 +1679,41 @@ Return ONLY valid JSON, no markdown code blocks.`;
       }),
 
     /** AI-powered outline improvement: parse pasted outline, analyze, suggest improvements */
+    /** Turn a pasted outline into structured sections WITHOUT analyzing or rewriting it (for writing an article straight from it). */
+    parseOutline: publicProcedure
+      .input(z.object({
+        rawOutline: z.string().min(10).max(40000),
+        keyword: z.string().optional(),
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const systemPrompt = "You convert a pasted content outline into structured JSON. Do NOT analyze, improve, reorder, add or remove anything. Keep every heading and every bullet point exactly as the author wrote it, only stripping list markers and prefixes such as 'H2:', '##', '1.', '-' and '*'. Top-level headings are type \"h2\"; headings nested under them are type \"h3\" and go in that parent's subSections. Bullets under a heading go in its points array. If the outline has a title line above the first heading, ignore it. Respond with ONLY JSON: {\"sections\": [{\"heading\": \"string\", \"type\": \"h2\", \"points\": [\"string\"], \"subSections\": [{\"heading\": \"string\", \"type\": \"h3\", \"points\": [\"string\"]}]}]}";
+        const response = await callLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: input.rawOutline },
+          ],
+        }, input.projectId);
+        const parsed: any = extractJSON((response.choices?.[0]?.message?.content || "") as string);
+        const str = (v: any) => (typeof v === "string" ? v.trim() : "");
+        const strs = (v: any) => (Array.isArray(v) ? v : []).map(str).filter(Boolean);
+        const sections = (Array.isArray(parsed?.sections) ? parsed.sections : [])
+          .filter((s: any) => s && typeof s === "object" && str(s.heading))
+          .map((s: any, i: number) => ({
+            id: "s" + Date.now() + "_" + i,
+            heading: str(s.heading),
+            type: "h2" as const,
+            points: strs(s.points),
+            subSections: (Array.isArray(s.subSections) ? s.subSections : [])
+              .filter((x: any) => x && typeof x === "object" && str(x.heading))
+              .map((x: any, j: number) => ({ id: "s" + Date.now() + "_" + i + "_" + j, heading: str(x.heading), type: "h3" as const, points: strs(x.points) })),
+          }));
+        if (sections.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Couldn't find any headings in that outline. Try adding a heading on its own line, for example 'H2: Your heading'." });
+        }
+        return { sections };
+      }),
+
     improveOutline: publicProcedure
       .input(z.object({
         rawOutline: z.string().min(10, "Outline must be at least 10 characters"),
@@ -1778,6 +1813,10 @@ Respond in JSON with this exact schema:
         try {
           return JSON.parse(content);
         } catch {
+          // The model sometimes wraps the JSON in prose or code fences: fall back to the tolerant extractor
+          const recovered: any = extractJSON(content);
+          if (recovered && Array.isArray(recovered.parsedSections) && Array.isArray(recovered.suggestions)) return recovered;
+          console.warn("[improveOutline] could not parse LLM response (" + content.length + " chars). Start: " + content.slice(0, 120).replace(/\s+/g, " ") + " ... End: " + content.slice(-120).replace(/\s+/g, " "));
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse LLM response" });
         }
       }),
